@@ -13,7 +13,7 @@ Le dépôt contient un exemple complet, [`examples/spa`](https://github.com/maxl
 
 ```sh
 cargo build -p spa --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir examples/spa/pkg target/wasm32-unknown-unknown/wasm-release/spa.wasm
+wasm-bindgen --target web --no-typescript --out-dir examples/spa/pkg target/wasm32-unknown-unknown/wasm-release/spa.wasm
 cargo run -p spa
 ```
 

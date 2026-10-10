@@ -71,7 +71,7 @@ La mayor parte de un bundle pequeño es maquinaria compartida (asignador de memo
 
 ```sh
 cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
+wasm-bindgen --target web --no-typescript --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
 ls -l pkg/my_site_bg.wasm                 # raw
 gzip -9 -c pkg/my_site_bg.wasm | wc -c    # gzip
 brotli -c -q 11 pkg/my_site_bg.wasm | wc -c   # Brotli, if the brotli tool is installed
@@ -84,7 +84,7 @@ Para ver qué ocupa espacio, compila una vez sin eliminar los símbolos e inspec
 ```sh
 cargo install twiggy
 CARGO_PROFILE_WASM_RELEASE_STRIP=false cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir pkg-debug target/wasm32-unknown-unknown/wasm-release/my_site.wasm
+wasm-bindgen --target web --no-typescript --out-dir pkg-debug target/wasm32-unknown-unknown/wasm-release/my_site.wasm
 twiggy top -n 20 pkg-debug/my_site_bg.wasm
 ```
 

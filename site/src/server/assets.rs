@@ -68,11 +68,17 @@ impl Assets {
         self.files.get(url)
     }
 
-    /// `url?v=<hash>` for files that exist, `url` otherwise.
+    /// The link to `url`, behind the base path: `url?v=<hash>` for files that exist.
     pub fn url(&self, url: &str) -> String {
+        let link = crate::routes::link(url);
         match self.files.get(url) {
-            Some(asset) => format!("{url}?v={}", asset.version),
-            None => url.to_string(),
+            Some(asset) => format!("{link}?v={}", asset.version),
+            None => link,
         }
+    }
+
+    /// Every file, with its URL (static export).
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &Asset)> {
+        self.files.iter().map(|(url, asset)| (url.as_str(), asset))
     }
 }

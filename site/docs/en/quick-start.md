@@ -13,7 +13,7 @@ The repository contains a minimal app, [`examples/hello`](https://github.com/max
 git clone https://github.com/maxlestage/Active
 cd Active
 cargo build -p hello --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
+wasm-bindgen --target web --no-typescript --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
 cargo run -p hello
 ```
 
@@ -132,7 +132,7 @@ async fn main() {
 
 ```sh
 cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
+wasm-bindgen --target web --no-typescript --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
 ```
 
 This writes `pkg/my_site.js` (the loader) and `pkg/my_site_bg.wasm` (your code). Run these two commands again whenever you change code that runs in the browser.

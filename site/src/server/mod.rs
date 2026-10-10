@@ -2,6 +2,7 @@
 
 pub mod assets;
 pub mod docs;
+pub mod export;
 pub mod highlight;
 pub mod markdown;
 pub mod pages;
@@ -11,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use axum::Router;
-use axum::extract::{RawQuery, State};
+use axum::extract::{Path as Param, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -49,19 +50,53 @@ pub struct Site {
 }
 
 impl Site {
-    /// Reads docs, static files and the browser bundle from `dir` (the `site/` folder).
+    /// Reads docs, static files and the browser bundle from `dir` (the `site/` folder);
+    /// the public address comes from `SITE_URL`.
     pub fn load(dir: &Path) -> Site {
+        Site::load_with(dir, std::env::var("SITE_URL").ok())
+    }
+
+    /// Like [`load`](Site::load), with the public address given (`None`: taken from each
+    /// request). The base path (`routes::set_base`) is appended to it if missing.
+    pub fn load_with(dir: &Path, site_url: Option<String>) -> Site {
         let mut assets = Assets::default();
         assets.load(&dir.join("static"), "/static");
         assets.load(&dir.join("pkg"), "/pkg");
         Site {
             docs: Docs::load(&dir.join("docs")),
             assets,
-            site_url: std::env::var("SITE_URL")
-                .ok()
+            site_url: site_url
                 .map(|u| u.trim_end_matches('/').to_string())
-                .filter(|u| !u.is_empty()),
+                .filter(|u| !u.is_empty())
+                .map(|u| {
+                    let base = crate::routes::base();
+                    if u.ends_with(base) {
+                        u
+                    } else {
+                        format!("{u}{base}")
+                    }
+                }),
         }
+    }
+
+    /// Every page of the site, in every language.
+    pub fn routes(&self) -> Vec<Route> {
+        let mut routes = Vec::new();
+        for lang in Lang::ALL {
+            routes.push(Route {
+                lang,
+                page: Page::Home,
+            });
+            routes.push(Route {
+                lang,
+                page: Page::Docs,
+            });
+            routes.extend(self.docs.slugs().iter().map(|s| Route {
+                lang,
+                page: Page::Doc(s.to_string()),
+            }));
+        }
+        routes
     }
 
     fn origin(&self, headers: &HeaderMap) -> String {
@@ -144,7 +179,10 @@ async fn root(headers: HeaderMap) -> Response {
         .unwrap_or("");
     let mut response = (
         StatusCode::FOUND,
-        [(header::LOCATION, format!("/{}/", pick_lang(accept).code()))],
+        [(
+            header::LOCATION,
+            crate::routes::link(&format!("/{}/", pick_lang(accept).code())),
+        )],
     )
         .into_response();
     response
@@ -211,56 +249,17 @@ async fn page(State(site): Shared, uri: Uri, headers: HeaderMap) -> Response {
     response
 }
 
-/// Value of `key` in a query string, percent-decoded.
-fn query_param(query: &str, key: &str) -> Option<String> {
-    let value = query.split('&').find_map(|pair| {
-        pair.split_once('=')
-            .filter(|(k, _)| *k == key)
-            .map(|(_, v)| v)
-    })?;
-    let bytes = value.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'+' => out.push(b' '),
-            b'%' if i + 2 < bytes.len() => {
-                match u8::from_str_radix(
-                    std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or("zz"),
-                    16,
-                ) {
-                    Ok(b) => {
-                        out.push(b);
-                        i += 2;
-                    }
-                    Err(_) => out.push(b'%'),
-                }
-            }
-            b => out.push(b),
-        }
-        i += 1;
-    }
-    Some(String::from_utf8_lossy(&out).into_owned())
-}
-
-/// `/api/search?lang=fr&q=…`: one result per line, `href \t title \t context`.
-async fn search(State(site): Shared, RawQuery(query): RawQuery) -> Response {
-    let query = query.unwrap_or_default();
-    let lang = query_param(&query, "lang")
-        .as_deref()
-        .and_then(Lang::parse)
-        .unwrap_or(Lang::En);
+/// `/search/{lang}.txt`: the search index of a language, one entry per line (see
+/// [`crate::search::Entry`]). The browser downloads it once and searches locally.
+async fn search_index(State(site): Shared, Param(file): Param<String>) -> Response {
+    let Some(lang) = file.strip_suffix(".txt").and_then(Lang::parse) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let body: String = site
         .docs
-        .search(lang, query_param(&query, "q").as_deref().unwrap_or(""))
-        .into_iter()
-        .map(|(href, title, sub)| {
-            format!(
-                "{href}\t{}\t{}\n",
-                title.replace(['\t', '\n'], " "),
-                sub.replace(['\t', '\n'], " ")
-            )
-        })
+        .search_index(lang)
+        .iter()
+        .map(|e| e.line())
         .collect();
     (
         [
@@ -303,36 +302,21 @@ async fn root_file(State(site): Shared, uri: Uri) -> Response {
 
 async fn sitemap(State(site): Shared, headers: HeaderMap) -> Response {
     let origin = site.origin(&headers);
-    let mut routes = Vec::new();
-    for lang in Lang::ALL {
-        routes.push(Route {
-            lang,
-            page: Page::Home,
-        });
-        routes.push(Route {
-            lang,
-            page: Page::Docs,
-        });
-        routes.extend(site.docs.slugs().iter().map(|s| Route {
-            lang,
-            page: Page::Doc(s.to_string()),
-        }));
-    }
     let mut xml = String::from(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\" xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">\n",
     );
-    for route in routes {
-        xml.push_str(&format!("<url><loc>{origin}{}</loc>", route.href()));
+    for route in site.routes() {
+        xml.push_str(&format!("<url><loc>{origin}{}</loc>", route.path()));
         for lang in Lang::ALL {
             xml.push_str(&format!(
                 r#"<xhtml:link rel="alternate" hreflang="{}" href="{origin}{}"/>"#,
                 lang.code(),
-                route.with_lang(lang).href()
+                route.with_lang(lang).path()
             ));
         }
         xml.push_str(&format!(
             r#"<xhtml:link rel="alternate" hreflang="x-default" href="{origin}{}"/></url>"#,
-            route.with_lang(Lang::En).href()
+            route.with_lang(Lang::En).path()
         ));
         xml.push('\n');
     }
@@ -357,7 +341,7 @@ async fn robots(State(site): Shared, headers: HeaderMap) -> Response {
 pub fn app(site: Arc<Site>) -> Router {
     Router::new()
         .route("/", get(root))
-        .route("/api/search", get(search))
+        .route("/search/{file}", get(search_index))
         .route("/sitemap.xml", get(sitemap))
         .route("/robots.txt", get(robots))
         .route("/static/{*path}", get(files))
@@ -392,6 +376,7 @@ async fn shutdown() {
 }
 
 pub async fn run() {
+    crate::routes::set_base(&std::env::var("BASE_PATH").unwrap_or_default());
     let site = Arc::new(Site::load(&site_dir()));
     let port = std::env::var("PORT")
         .ok()

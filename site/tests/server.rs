@@ -152,17 +152,27 @@ async fn versioned_assets_are_cached_forever_and_compressed() {
 }
 
 #[tokio::test]
-async fn sitemap_robots_and_search_use_absolute_urls() {
+async fn sitemap_and_robots_use_absolute_urls() {
     let sitemap = text(get("/sitemap.xml", &[]).await).await;
     assert!(sitemap.contains("<loc>http://example.test/fr/docs/</loc>"));
     assert!(sitemap.contains(r#"hreflang="x-default""#));
     let robots = text(get("/robots.txt", &[]).await).await;
     assert!(robots.contains("Sitemap: http://example.test/sitemap.xml"));
-    let search = text(get("/api/search?lang=en&q=", &[]).await).await;
-    assert!(search.lines().count() >= 3);
-    assert!(
-        search
-            .lines()
-            .all(|l| l.starts_with("/en/docs/") && l.split('\t').count() == 3)
+}
+
+#[tokio::test]
+async fn the_search_index_is_searched_like_in_the_browser() {
+    let index = text(get("/search/fr.txt", &[]).await).await;
+    let entries: Vec<_> = index
+        .lines()
+        .map(|l| active_site::search::Entry::parse(l).expect("an index line"))
+        .collect();
+    assert!(entries.iter().filter(|e| e.page).count() >= 20);
+    assert!(entries.iter().all(|e| e.href.starts_with("/fr/docs/")));
+    let hits = active_site::search::search(&entries, "déployer heroku");
+    assert!(hits[0].href.ends_with("/deploy-heroku/"), "{:?}", hits[0]);
+    assert_eq!(
+        get("/search/de.txt", &[]).await.status(),
+        StatusCode::NOT_FOUND
     );
 }

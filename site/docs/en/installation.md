@@ -154,7 +154,7 @@ Then build the browser bundle once to check the WebAssembly tools:
 
 ```sh
 cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
+wasm-bindgen --target web --no-typescript --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
 ```
 
 Cargo replaces `-` with `_` in file names, so the package `my-site` produces `my_site.wasm`. The [Quick start](../quick-start/) continues from here, and [Building the client](../client-build/) covers the build in detail.

@@ -1,12 +1,16 @@
 //! Browser side of the docs search island.
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use active::{Event, State};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{HtmlDialogElement, HtmlInputElement};
 
 use super::{on, window};
-use crate::routes::Lang;
+use crate::routes::{Lang, link};
+use crate::search::{Entry, search};
 
 type Results = State<Vec<(String, String, String)>>;
 
@@ -72,37 +76,52 @@ pub fn navigate(href: &str) {
     let _ = window().location().set_href(href);
 }
 
-/// Asks the server; it answers one result per line: `href \t title \t category`.
+thread_local! {
+    /// The search index of the page's language, downloaded on first use.
+    static INDEX: RefCell<Option<Rc<Vec<Entry>>>> = const { RefCell::new(None) };
+    /// The latest query typed while the index downloads; `Some` while downloading.
+    static PENDING: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+
+/// Shows the pages matching `q`. The first call downloads `/search/{lang}.txt` (all pages
+/// and headings of the language, a few kilobytes); then every key press is answered
+/// locally, without network.
 pub fn query(lang: Lang, q: String, results: Results, loaded: State<bool>) {
-    let url = format!(
-        "/api/search?lang={}&q={}",
-        lang.code(),
-        js_sys::encode_uri_component(&q)
-    );
+    if let Some(index) = INDEX.with(|i| i.borrow().clone()) {
+        show(&index, &q, results, loaded);
+        return;
+    }
+    let downloading = PENDING.with(|p| p.replace(Some(q)).is_some());
+    if downloading {
+        return;
+    }
+    let url = link(&format!("/search/{}.txt", lang.code()));
     spawn_local(async move {
-        let Ok(response) = JsFuture::from(window().fetch_with_str(&url)).await else {
-            return;
-        };
-        let Ok(response) = response.dyn_into::<web_sys::Response>() else {
-            return;
-        };
-        let Ok(text) = response.text() else { return };
-        let Ok(text) = JsFuture::from(text).await else {
-            return;
-        };
-        let text = text.as_string().unwrap_or_default();
-        let list = text
-            .lines()
-            .filter_map(|line| {
-                let mut parts = line.split('\t');
-                Some((
-                    parts.next()?.to_string(),
-                    parts.next()?.to_string(),
-                    parts.next().unwrap_or("").to_string(),
-                ))
-            })
-            .collect();
-        results.set(list);
-        loaded.set(true);
+        let text = fetch_text(&url).await.unwrap_or_default();
+        let index = Rc::new(text.lines().filter_map(Entry::parse).collect::<Vec<_>>());
+        INDEX.with(|i| *i.borrow_mut() = Some(index.clone()));
+        let q = PENDING.with(|p| p.borrow_mut().take()).unwrap_or_default();
+        show(&index, &q, results, loaded);
     });
+}
+
+fn show(index: &[Entry], q: &str, results: Results, loaded: State<bool>) {
+    let list = search(index, q)
+        .into_iter()
+        .map(|e| (e.href.clone(), e.title.clone(), e.context.clone()))
+        .collect();
+    results.set(list);
+    loaded.set(true);
+}
+
+async fn fetch_text(url: &str) -> Option<String> {
+    let response = JsFuture::from(window().fetch_with_str(url)).await.ok()?;
+    let response = response.dyn_into::<web_sys::Response>().ok()?;
+    if !response.ok() {
+        return None;
+    }
+    JsFuture::from(response.text().ok()?)
+        .await
+        .ok()?
+        .as_string()
 }

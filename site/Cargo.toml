@@ -19,15 +19,13 @@ path = "src/main.rs"
 active = { path = "../crates/active" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-axum = { version = "0.8", default-features = false, features = ["http1", "query", "tokio"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal"] }
+tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.7", features = ["compression-br", "compression-gzip"] }
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 syntect = { version = "5.3", default-features = false, features = ["default-fancy"] }
 two-face = { version = "0.5", default-features = false, features = ["syntect-fancy"] }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-tower = { version = "0.5", features = ["util"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 active = { path = "../crates/active", features = ["client"] }

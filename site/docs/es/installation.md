@@ -154,7 +154,7 @@ Después compila una vez el bundle del navegador para comprobar las herramientas
 
 ```sh
 cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
+wasm-bindgen --target web --no-typescript --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
 ```
 
 Cargo reemplaza `-` por `_` en los nombres de archivo, así que el paquete `my-site` produce `my_site.wasm`. El [Inicio rápido](../quick-start/) continúa desde aquí, y [Compilar el cliente](../client-build/) explica la compilación en detalle.

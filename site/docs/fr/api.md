@@ -247,7 +247,7 @@ Une page HTML complète. Implémente `Clone` et `Default`. Les méthodes du buil
 | `pub fn seo(self, seo: Seo) -> Self` | SEO de base, fusionné avec chaque `Seo` du corps ; remplace une base précédente. |
 | `pub fn stylesheet(self, href: impl Into<Str>) -> Self` | `<link rel="stylesheet">`, dans l'ordre des appels. |
 | `pub fn head(self, html: impl Into<Str>) -> Self` | HTML de confiance ajouté à la fin du `<head>`. |
-| `pub fn client(self, js: impl Into<Str>, wasm: impl Into<Str>) -> Self` | Précharge et démarre le bundle `wasm-bindgen --target web`. |
+| `pub fn client(self, js: impl Into<Str>, wasm: impl Into<Str>) -> Self` | Précharge et démarre le bundle `wasm-bindgen --target web --no-typescript`. |
 | `pub fn html_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribut sur `<html>`. |
 | `pub fn body_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribut sur `<body>`. |
 | `pub fn final_seo(&self) -> Seo` | Le SEO fusionné de la page, îlots et contenu courant des régions dynamiques compris (évalués séparément de `render`). |

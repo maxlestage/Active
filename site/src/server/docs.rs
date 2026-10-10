@@ -5,7 +5,8 @@ use std::path::Path;
 
 use super::markdown::{Doc, render};
 use crate::i18n::t;
-use crate::routes::Lang;
+use crate::routes::{Lang, link};
+use crate::search::{Entry, norm};
 
 /// Categories (in reading order) and their pages. Titles come from the i18n dictionary
 /// (`docs.categories`, same order) and from each page's frontmatter.
@@ -15,7 +16,7 @@ pub const CATEGORIES: [&[&str]; 7] = [
     &["seo", "documents", "structured-data"],
     &["islands", "client-app", "client-build", "performance"],
     &["axum", "static-site"],
-    &["deploy-heroku", "publishing"],
+    &["deploy-heroku", "deploy-pages", "publishing"],
     &["api", "benchmarks", "faq"],
 ];
 
@@ -79,51 +80,35 @@ impl Docs {
         (prev, next)
     }
 
-    /// Pages and headings matching every word of `query` (accents ignored), best first.
-    /// Each result: `(href, title, context)`.
-    pub fn search(&self, lang: Lang, query: &str) -> Vec<(String, String, String)> {
-        let words: Vec<String> = norm(query).split_whitespace().map(String::from).collect();
+    /// The search index of `lang`: every page, then its headings, in reading order.
+    pub fn search_index(&self, lang: Lang) -> Vec<Entry> {
         let categories = &t(lang).docs.categories;
-        let mut hits: Vec<(u8, String, String, String)> = Vec::new();
+        let mut entries = Vec::new();
         for slug in &self.slugs {
             let Some(doc) = self.get(lang, slug) else {
                 continue;
             };
-            let href = format!("/{}/docs/{slug}/", lang.code());
+            let href = link(&format!("/{}/docs/{slug}/", lang.code()));
             let category = categories[Docs::category(slug)].title;
-            if words.is_empty() {
-                hits.push((0, href, doc.title.clone(), category.to_string()));
-                continue;
-            }
-            let page = norm(&format!("{} {} {category}", doc.title, doc.description));
-            if words.iter().all(|w| page.contains(w.as_str())) {
-                let score = if norm(&doc.title).contains(words[0].as_str()) {
-                    3
-                } else {
-                    2
-                };
-                hits.push((score, href.clone(), doc.title.clone(), category.to_string()));
-            }
+            entries.push(Entry {
+                page: true,
+                href: href.clone(),
+                title: doc.title.clone(),
+                context: category.to_string(),
+                words: norm(&format!("{} {} {category}", doc.title, doc.description)),
+                title_words: norm(&doc.title),
+            });
             for h in &doc.toc {
-                let text = norm(&format!("{} {}", h.text, doc.title));
-                if words.iter().all(|w| text.contains(w.as_str())) {
-                    hits.push((
-                        1,
-                        format!("{href}#{}", h.id),
-                        h.text.clone(),
-                        doc.title.clone(),
-                    ));
-                }
+                entries.push(Entry {
+                    page: false,
+                    href: format!("{href}#{}", h.id),
+                    title: h.text.clone(),
+                    context: doc.title.clone(),
+                    words: norm(&format!("{} {}", h.text, doc.title)),
+                    title_words: norm(&h.text),
+                });
             }
         }
-        hits.sort_by_key(|h| std::cmp::Reverse(h.0));
-        hits.into_iter()
-            .take(12)
-            .map(|(_, href, title, sub)| (href, title, sub))
-            .collect()
+        entries
     }
-}
-
-fn norm(s: &str) -> String {
-    super::markdown::slugify_keep_spaces(s)
 }

@@ -10,10 +10,9 @@ La parte de navegador de un sitio `active` es tu crate de biblioteca compilado a
 ```text
 src/lib.rs ──cargo build --target wasm32-unknown-unknown──▶ target/…/my_site.wasm
                                                                  │
-                                       wasm-bindgen --target web ▼
+                       wasm-bindgen --target web --no-typescript ▼
                                        pkg/my_site.js         el cargador (un módulo JavaScript)
                                        pkg/my_site_bg.wasm    tu código, servido a los navegadores
-                                       pkg/*.d.ts             declaraciones de tipos, no necesarias
 ```
 
 El cargador es código generado: nunca lo editas. La página lo arranca con la línea que escribe [`Document::client`](../documents/#cargar-el-bundle-del-navegador).
@@ -28,20 +27,20 @@ El cargador es código generado: nunca lo editas. La página lo arranca con la l
 
 ```sh
 cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
+wasm-bindgen --target web --no-typescript --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
 ```
 
 - `--lib` compila solo la biblioteca. Tu servidor (`src/main.rs`) no se compila para el navegador.
 - `--profile wasm-release` usa el perfil optimizado para tamaño de [Instalación](../installation/#anadir-los-perfiles-de-compilacion). Sin él, usa `--release` y la ruta `…/release/my_site.wasm`.
 - El archivo `.wasm` lleva el nombre del paquete, con `-` reemplazado por `_`: el paquete `my-site` da `my_site.wasm`.
 - `--target web` produce un cargador en forma de módulo ES estándar, que es lo que espera `Document::client`.
-- Añade `--no-typescript` para omitir los archivos `.d.ts`.
+- `--no-typescript` evita generar las declaraciones de TypeScript (`.d.ts`), que un proyecto Rust no necesita.
 
 En un [workspace de Cargo](https://doc.rust-lang.org/cargo/reference/workspaces.html), selecciona el paquete con `-p` y usa el directorio `target/` del workspace, como hace este repositorio con su ejemplo:
 
 ```sh
 cargo build -p hello --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
+wasm-bindgen --target web --no-typescript --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
 ```
 
 ### Compilaciones más rápidas durante el desarrollo
@@ -50,7 +49,7 @@ Una compilación de depuración es más rápida y da mejores mensajes de pánico
 
 ```sh
 cargo build --lib --target wasm32-unknown-unknown
-wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/debug/my_site.wasm
+wasm-bindgen --target web --no-typescript --out-dir pkg target/wasm32-unknown-unknown/debug/my_site.wasm
 ```
 
 Un pequeño script te ahorra escribir. Guárdalo como `build.sh` en la raíz del proyecto, hazlo ejecutable con `chmod +x build.sh` y ejecuta `./build.sh && cargo run` después de cada cambio:
@@ -113,7 +112,7 @@ Este repositorio compila su sitio en cada push con GitHub Actions ([`.github/wor
 - name: Build the site
   run: |
     cargo build -p active-site --lib --target wasm32-unknown-unknown --profile wasm-release
-    wasm-bindgen --target web --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm
+    wasm-bindgen --target web --no-typescript --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm
     cargo build -p active-site --bin active-site --release
 ```
 
