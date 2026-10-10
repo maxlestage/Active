@@ -1,7 +1,13 @@
-//! Fine-grained reactivity: [`use_state`] and [`effect`].
+//! Fine-grained reactivity: [`use_state`], [`memo`] and [`effect`].
 //!
 //! A [`State`] is a small `Copy` handle you can move into any closure. Reading it inside an
-//! [`effect`] subscribes the effect; writing it re-runs the effects that read it — and only those: there is no virtual DOM and no re-render.
+//! [`effect`] subscribes the effect; writing it re-runs the effects that read it — and only
+//! those: there is no virtual DOM and no re-render.
+//!
+//! Changes propagate without glitches: when a state changes, the [`memo`]s computed from it
+//! are brought up to date before the effects that read them run, each memo only if one of
+//! its inputs really changed, and each effect at most once per change. A state written inside
+//! an effect notifies its readers once that effect has finished.
 //!
 //! Values live in a per-thread arena. On the server, a state is released at the end of the
 //! second top-level render that does not read it, so a long-running server never accumulates
@@ -10,13 +16,30 @@
 
 use std::any::Any;
 use std::cell::{Cell, RefCell};
+use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::rc::Rc;
+
+/// An effect that ran this many times in one propagation is stopped: two effects are writing
+/// what the other reads.
+const MAX_RUNS: u32 = 1000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Key {
     index: usize,
     version: u64,
+}
+
+/// Whether an effect (or a memo) may be out of date.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Status {
+    /// Up to date.
+    Clean,
+    /// A memo it reads may have changed: the memo is refreshed before the effect runs, and
+    /// the effect runs only if the memo's value changed.
+    Check,
+    /// A state it reads changed: it runs.
+    Dirty,
 }
 
 struct StateSlot {
@@ -25,6 +48,8 @@ struct StateSlot {
     subscribers: Vec<Key>,
     /// Server: the top-level render that last read it (or the one before its creation).
     used: u64,
+    /// The memo computing this state, if any: brought up to date before each read.
+    derived_by: Option<Key>,
 }
 
 struct EffectSlot {
@@ -32,6 +57,14 @@ struct EffectSlot {
     run: Option<Rc<dyn Fn()>>,
     dependencies: Vec<Key>,
     running: bool,
+    /// A memo: the state it computes.
+    derived: Option<Key>,
+    status: Status,
+    /// Waiting in the run queue.
+    queued: bool,
+    /// Runs during the propagation `propagation` (see [`MAX_RUNS`]).
+    runs: u32,
+    propagation: u64,
 }
 
 enum Owned {
@@ -54,10 +87,38 @@ struct Runtime {
     render_depth: Cell<u32>,
     /// Server: number of top-level renders started on this thread.
     renders: Cell<u64>,
+    /// Effects marked by a change, in marking order, to run once the running effect is done.
+    queue: RefCell<VecDeque<Key>>,
+    /// The queue is being run: a change made meanwhile only marks and queues.
+    propagating: Cell<bool>,
+    /// Number of propagations started on this thread.
+    propagations: Cell<u64>,
 }
 
 thread_local! {
     static RUNTIME: Runtime = Runtime::default();
+}
+
+/// Ends a propagation, even when an effect panicked.
+struct Propagation<'a>(&'a Runtime);
+
+impl Drop for Propagation<'_> {
+    fn drop(&mut self) {
+        self.0.propagating.set(false);
+        // After a panic, what was left in the queue is forgotten.
+        let left: Vec<Key> = self.0.queue.borrow_mut().drain(..).collect();
+        if !left.is_empty() {
+            let mut effects = self.0.effects.borrow_mut();
+            for key in left {
+                if let Some(slot) = effects
+                    .get_mut(key.index)
+                    .filter(|s| s.version == key.version)
+                {
+                    slot.queued = false;
+                }
+            }
+        }
+    }
 }
 
 impl Runtime {
@@ -120,30 +181,208 @@ impl Runtime {
         }
     }
 
-    fn notify(&self, key: Key) {
-        let subscribers = match self.states.borrow().get(key.index) {
+    /// The readers of a state.
+    fn subscribers(&self, key: Key) -> Vec<Key> {
+        match self.states.borrow().get(key.index) {
             Some(slot) if slot.version == key.version => slot.subscribers.clone(),
-            _ => return,
+            _ => Vec::new(),
+        }
+    }
+
+    /// The state changed: its readers are marked, then run (unless a propagation is already
+    /// running: it picks them up once the current effect is done).
+    fn notify(&self, key: Key) {
+        for effect in self.subscribers(key) {
+            self.mark(effect, Status::Dirty);
+        }
+        self.propagate();
+    }
+
+    /// Marks `effect` dirty or to check, the readers of the memo it computes to check, and
+    /// queues the effects (not the memos: they are refreshed when read).
+    fn mark(&self, effect: Key, status: Status) {
+        let (memo_of, queue) = {
+            let mut effects = self.effects.borrow_mut();
+            let Some(slot) = effects
+                .get_mut(effect.index)
+                .filter(|s| s.version == effect.version)
+            else {
+                return;
+            };
+            // The running effect wrote a state it reads: it does not re-trigger itself.
+            if slot.running || slot.status >= status {
+                return;
+            }
+            let was_clean = slot.status == Status::Clean;
+            slot.status = status;
+            let queue = slot.derived.is_none() && !slot.queued;
+            if queue {
+                slot.queued = true;
+            }
+            (if was_clean { slot.derived } else { None }, queue)
         };
-        for effect in subscribers {
-            self.run_effect(effect);
+        if queue {
+            self.queue.borrow_mut().push_back(effect);
+        }
+        // Below a memo, values may change: checked when read.
+        if let Some(state) = memo_of {
+            for reader in self.subscribers(state) {
+                self.mark(reader, Status::Check);
+            }
+        }
+    }
+
+    /// Runs the queued effects, each once the memos it reads are up to date. Effects queued
+    /// meanwhile (by states written in an effect) run in turn.
+    fn propagate(&self) {
+        if self.propagating.replace(true) {
+            return;
+        }
+        self.propagations.set(self.propagations.get() + 1);
+        let _done = Propagation(self);
+        loop {
+            let next = self.queue.borrow_mut().pop_front();
+            let Some(effect) = next else {
+                break;
+            };
+            self.refresh(effect);
+            if let Some(slot) = self
+                .effects
+                .borrow_mut()
+                .get_mut(effect.index)
+                .filter(|s| s.version == effect.version)
+            {
+                slot.queued = false;
+            }
+        }
+    }
+
+    fn status(&self, effect: Key) -> Option<Status> {
+        self.effects
+            .borrow()
+            .get(effect.index)
+            .filter(|s| s.version == effect.version)
+            .map(|s| s.status)
+    }
+
+    /// Brings `effect` up to date: when a memo it reads may have changed, that memo is
+    /// refreshed first (and marks `effect` dirty if its value changed); then `effect` runs if
+    /// it is dirty.
+    fn refresh(&self, effect: Key) {
+        let (status, dependencies) = {
+            let effects = self.effects.borrow();
+            match effects
+                .get(effect.index)
+                .filter(|s| s.version == effect.version)
+            {
+                Some(slot) if !slot.running => (slot.status, slot.dependencies.clone()),
+                _ => return,
+            }
+        };
+        match status {
+            Status::Clean => return,
+            Status::Check => {
+                for dep in dependencies {
+                    let memo = self
+                        .states
+                        .borrow()
+                        .get(dep.index)
+                        .filter(|s| s.version == dep.version)
+                        .and_then(|s| s.derived_by);
+                    if let Some(memo) = memo {
+                        self.refresh(memo);
+                    }
+                    if self.status(effect) == Some(Status::Dirty) {
+                        break;
+                    }
+                }
+                if self.status(effect) != Some(Status::Dirty) {
+                    // No memo it reads changed.
+                    if let Some(slot) = self
+                        .effects
+                        .borrow_mut()
+                        .get_mut(effect.index)
+                        .filter(|s| s.version == effect.version)
+                    {
+                        slot.status = Status::Clean;
+                    }
+                    return;
+                }
+            }
+            Status::Dirty => {}
+        }
+        {
+            let mut effects = self.effects.borrow_mut();
+            let Some(slot) = effects
+                .get_mut(effect.index)
+                .filter(|s| s.version == effect.version)
+            else {
+                return;
+            };
+            let propagation = self.propagations.get();
+            slot.runs = if slot.propagation == propagation {
+                slot.runs + 1
+            } else {
+                1
+            };
+            slot.propagation = propagation;
+            if slot.runs > MAX_RUNS {
+                slot.status = Status::Clean;
+                drop(effects);
+                #[cfg(feature = "client")]
+                web_sys::console::warn_1(
+                    &"active: an effect ran 1000 times in one update and was stopped: two effects write what the other reads".into(),
+                );
+                return;
+            }
+        }
+        self.run_effect(effect);
+    }
+
+    /// Brings the memo computing `key` up to date, if any, before a read.
+    fn pull(&self, key: Key) {
+        let memo = self
+            .states
+            .borrow()
+            .get(key.index)
+            .filter(|s| s.version == key.version)
+            .and_then(|s| s.derived_by);
+        if let Some(memo) = memo {
+            self.refresh(memo);
         }
     }
 
     fn run_effect(&self, key: Key) {
-        let (run, dependencies) = {
+        let run = match self
+            .effects
+            .borrow()
+            .get(key.index)
+            .filter(|s| s.version == key.version)
+        {
+            Some(slot) if !slot.running => slot.run.clone(),
+            _ => return,
+        };
+        self.run_as(key, || {
+            if let Some(run) = run {
+                run();
+            }
+        });
+    }
+
+    /// Runs `f` as `effect`: the states it reads subscribe the effect, which is up to date
+    /// afterwards. `None` while the effect is already running.
+    fn run_as<R>(&self, key: Key, f: impl FnOnce() -> R) -> Option<R> {
+        let dependencies = {
             let mut effects = self.effects.borrow_mut();
-            let Some(slot) = effects
+            let slot = effects
                 .get_mut(key.index)
-                .filter(|s| s.version == key.version)
-            else {
-                return;
-            };
+                .filter(|s| s.version == key.version)?;
             if slot.running {
-                return; // an effect writing a state it reads would loop forever
+                return None;
             }
             slot.running = true;
-            (slot.run.clone(), std::mem::take(&mut slot.dependencies))
+            slot.status = Status::Clean;
+            std::mem::take(&mut slot.dependencies)
         };
         // Dependencies are collected again on every run.
         {
@@ -158,9 +397,7 @@ impl Runtime {
             }
         }
         let previous = self.observer.replace(Some(key));
-        if let Some(run) = run {
-            run();
-        }
+        let result = f();
         self.observer.set(previous);
         if let Some(slot) = self
             .effects
@@ -170,6 +407,36 @@ impl Runtime {
         {
             slot.running = false;
         }
+        Some(result)
+    }
+
+    /// Creates an effect slot (not run yet). `derived`: the state it computes, for a memo.
+    #[cfg_attr(not(any(feature = "client", test)), allow(dead_code))]
+    fn new_effect(&self, run: Option<Rc<dyn Fn()>>, derived: Option<Key>) -> Key {
+        let version = self.next_version();
+        let slot = EffectSlot {
+            version,
+            run,
+            dependencies: Vec::new(),
+            running: false,
+            derived,
+            status: Status::Clean,
+            queued: false,
+            runs: 0,
+            propagation: 0,
+        };
+        let index = match self.free_effects.borrow_mut().pop() {
+            Some(index) => {
+                self.effects.borrow_mut()[index] = slot;
+                index
+            }
+            None => {
+                let mut effects = self.effects.borrow_mut();
+                effects.push(slot);
+                effects.len() - 1
+            }
+        };
+        Key { index, version }
     }
 
     /// Server: releases the states that neither this top-level render nor the previous one
@@ -183,6 +450,7 @@ impl Runtime {
                 slot.version = 0;
                 slot.value = None;
                 slot.subscribers.clear();
+                slot.derived_by = None;
                 free.push(index);
             }
         }
@@ -209,6 +477,7 @@ impl Runtime {
                         slot.version = 0;
                         slot.value = None;
                         slot.subscribers.clear();
+                        slot.derived_by = None;
                         self.free_states.borrow_mut().push(key.index);
                     }
                 }
@@ -222,6 +491,9 @@ impl Runtime {
                             Some(slot) => {
                                 slot.version = 0;
                                 slot.run = None;
+                                slot.derived = None;
+                                slot.status = Status::Clean;
+                                slot.queued = false;
                                 self.free_effects.borrow_mut().push(key.index);
                                 std::mem::take(&mut slot.dependencies)
                             }
@@ -291,25 +563,21 @@ pub(crate) fn root_state<T: 'static>(initial: T) -> State<T> {
 fn new_state<T: 'static>(initial: T, owned: bool) -> State<T> {
     RUNTIME.with(|rt| {
         let version = rt.next_version();
-        let value = Some(Rc::new(RefCell::new(Box::new(initial) as Box<dyn Any>)));
+        let slot = StateSlot {
+            version,
+            value: Some(Rc::new(RefCell::new(Box::new(initial) as Box<dyn Any>))),
+            subscribers: Vec::new(),
+            used: rt.renders.get(),
+            derived_by: None,
+        };
         let index = match rt.free_states.borrow_mut().pop() {
             Some(index) => {
-                rt.states.borrow_mut()[index] = StateSlot {
-                    version,
-                    value,
-                    subscribers: Vec::new(),
-                    used: rt.renders.get(),
-                };
+                rt.states.borrow_mut()[index] = slot;
                 index
             }
             None => {
                 let mut states = rt.states.borrow_mut();
-                states.push(StateSlot {
-                    version,
-                    value,
-                    subscribers: Vec::new(),
-                    used: rt.renders.get(),
-                });
+                states.push(slot);
                 states.len() - 1
             }
         };
@@ -347,9 +615,11 @@ impl<T: 'static> State<T> {
         })
     }
 
-    /// Reads the value through a reference (subscribes the running effect).
+    /// Reads the value through a reference (subscribes the running effect). A [`memo`] is
+    /// brought up to date first.
     pub fn with<R>(self, f: impl FnOnce(&T) -> R) -> R {
         let cell = RUNTIME.with(|rt| {
+            rt.pull(self.key);
             let cell = rt.cell(self.key);
             rt.track(self.key);
             cell
@@ -373,7 +643,8 @@ impl<T: 'static> State<T> {
         self.update(|v| *v = value);
     }
 
-    /// Changes the value in place and re-runs the effects that read it.
+    /// Changes the value in place and re-runs the effects that read it (once the running
+    /// effect, if any, has finished).
     pub fn update(self, f: impl FnOnce(&mut T)) {
         let cell = RUNTIME.with(|rt| rt.cell(self.key));
         {
@@ -390,29 +661,15 @@ impl<T: 'static> State<T> {
 ///
 /// Effects only run in the browser (crate feature `client`): on the server, a view is
 /// rendered once and `effect` does nothing, so effects may freely touch the DOM.
+///
+/// An effect runs once per change, after the [`memo`]s it reads are up to date. A state it
+/// writes notifies its readers once the effect has finished; an effect that writes a state it
+/// reads does not re-trigger itself.
 #[cfg_attr(not(any(feature = "client", test)), allow(unused_variables))]
 pub fn effect(f: impl Fn() + 'static) {
     #[cfg(any(feature = "client", test))]
     RUNTIME.with(|rt| {
-        let version = rt.next_version();
-        let slot = EffectSlot {
-            version,
-            run: Some(Rc::new(f)),
-            dependencies: Vec::new(),
-            running: false,
-        };
-        let index = match rt.free_effects.borrow_mut().pop() {
-            Some(index) => {
-                rt.effects.borrow_mut()[index] = slot;
-                index
-            }
-            None => {
-                let mut effects = rt.effects.borrow_mut();
-                effects.push(slot);
-                effects.len() - 1
-            }
-        };
-        let key = Key { index, version };
+        let key = rt.new_effect(Some(Rc::new(f)), None);
         rt.own(Owned::Effect(key));
         rt.run_effect(key);
     });
@@ -426,6 +683,10 @@ pub fn effect(f: impl Fn() + 'static) {
 /// often but the result rarely does, for instance the list of names shown in a menu while
 /// positions update every second.
 ///
+/// A memo is never read out of date: when one of its inputs changes, it is recomputed before
+/// the effects that read it run (and only if an input really changed, memos in between
+/// included).
+///
 /// ```
 /// use active::{memo, use_state};
 ///
@@ -436,16 +697,34 @@ pub fn effect(f: impl Fn() + 'static) {
 ///
 /// On the server, effects do not run: the memo keeps the value computed when it was created.
 pub fn memo<T: Clone + PartialEq + 'static>(f: impl Fn() -> T + 'static) -> State<T> {
-    let state = use_state(untrack(&f));
-    effect(move || {
-        let next = f();
-        untrack(|| {
-            if state.with(|current| *current != next) {
-                state.set(next);
-            }
-        });
-    });
-    state
+    #[cfg(not(any(feature = "client", test)))]
+    {
+        use_state(untrack(&f))
+    }
+    #[cfg(any(feature = "client", test))]
+    RUNTIME.with(|rt| {
+        // The first value is computed as the memo itself, so that its reads subscribe it.
+        let key = rt.new_effect(None, None);
+        let initial = rt.run_as(key, &f).expect("a new effect is not running");
+        let state = use_state(initial);
+        let compute = move || {
+            let next = f();
+            untrack(|| {
+                if state.with(|current| *current != next) {
+                    state.set(next);
+                }
+            });
+        };
+        if let Some(slot) = rt.effects.borrow_mut().get_mut(key.index) {
+            slot.run = Some(Rc::new(compute));
+            slot.derived = Some(state.key);
+        }
+        if let Some(slot) = rt.states.borrow_mut().get_mut(state.key.index) {
+            slot.derived_by = Some(key);
+        }
+        rt.own(Owned::Effect(key));
+        state
+    })
 }
 
 /// Runs `f` when the component being built is released: the [`fragment_dyn`] region that
@@ -586,6 +865,110 @@ mod tests {
         assert_eq!(runs.get(), 1);
         n.set(4);
         assert_eq!((parity.get(), runs.get()), (0, 2));
+    }
+
+    #[test]
+    fn an_effect_never_sees_a_stale_memo() {
+        // The diamond: the effect reads `n` directly and through `double`.
+        let n = use_state(1);
+        let double = memo(move || n.get() * 2);
+        let runs = Rc::new(Cell::new(0));
+        let r = runs.clone();
+        effect(move || {
+            assert_eq!(double.get(), n.get() * 2, "stale memo");
+            r.set(r.get() + 1);
+        });
+        n.set(5);
+        n.set(6);
+        assert_eq!(runs.get(), 3);
+    }
+
+    #[test]
+    fn a_memo_is_recomputed_only_when_an_input_really_changed() {
+        let n = use_state(1);
+        let (parity_runs, tens_runs, effect_runs) = (
+            Rc::new(Cell::new(0)),
+            Rc::new(Cell::new(0)),
+            Rc::new(Cell::new(0)),
+        );
+        let p = parity_runs.clone();
+        let parity = memo(move || {
+            p.set(p.get() + 1);
+            n.get() % 2
+        });
+        let t = tens_runs.clone();
+        let tens = memo(move || {
+            t.set(t.get() + 1);
+            parity.get() * 10
+        });
+        let e = effect_runs.clone();
+        effect(move || {
+            tens.get();
+            e.set(e.get() + 1);
+        });
+        n.set(3); // parity is recomputed, unchanged: nothing below it runs
+        assert_eq!(
+            (parity_runs.get(), tens_runs.get(), effect_runs.get()),
+            (2, 1, 1)
+        );
+        n.set(4);
+        assert_eq!(
+            (
+                parity_runs.get(),
+                tens_runs.get(),
+                effect_runs.get(),
+                tens.get()
+            ),
+            (3, 2, 2, 0)
+        );
+    }
+
+    #[test]
+    fn a_state_written_in_an_effect_notifies_its_readers_once_the_effect_is_done() {
+        let a = use_state(1);
+        let b = use_state(0);
+        let log = Rc::new(RefCell::new(Vec::new()));
+        let l = log.clone();
+        effect(move || {
+            let value = a.get();
+            l.borrow_mut().push("A");
+            b.set(value * 2);
+            l.borrow_mut().push("A done");
+        });
+        let l = log.clone();
+        effect(move || {
+            b.get();
+            l.borrow_mut().push("B");
+        });
+        log.borrow_mut().clear();
+        a.set(2);
+        assert_eq!(*log.borrow(), ["A", "A done", "B"]);
+        assert_eq!(b.get(), 4);
+    }
+
+    #[test]
+    fn a_memo_nobody_reads_is_brought_up_to_date_when_read() {
+        let n = use_state(1);
+        let runs = Rc::new(Cell::new(0));
+        let r = runs.clone();
+        let next = memo(move || {
+            r.set(r.get() + 1);
+            n.get() + 1
+        });
+        n.set(5);
+        n.set(6);
+        assert_eq!(runs.get(), 1);
+        assert_eq!((next.get(), runs.get()), (7, 2));
+    }
+
+    #[test]
+    fn two_effects_writing_what_the_other_reads_are_stopped() {
+        let a = use_state(0);
+        let b = use_state(0);
+        effect(move || b.set(a.get() + 1));
+        effect(move || a.set(b.get() + 1));
+        a.set(10);
+        assert!(a.get() > 10);
     }
 
     #[test]

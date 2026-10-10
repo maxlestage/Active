@@ -244,7 +244,9 @@ Cómo se comportan los efectos:
 
 - **Solo en el navegador.** En el servidor, `effect` no hace absolutamente nada, así que un efecto puede usar libremente las API del navegador. Nunca calcules en un efecto algo que el HTML necesite; calcúlalo en la vista.
 - **Dependencias automáticas.** Un efecto depende de los estados que leyó durante su última ejecución. Si lee `a` solo cuando `flag` es true, deja de reaccionar a `a` en cuanto `flag` pasa a false.
-- **Sin bucles infinitos.** Un efecto que escribe un estado que él mismo lee no se vuelve a disparar.
+- **Sin incoherencias.** Cuando un estado cambia, los memos calculados a partir de él se actualizan antes de que se ejecuten los efectos que los leen, así que un efecto nunca ve un valor y un memo derivado de él desincronizados. Cada efecto se ejecuta una vez por cambio, y un memo solo se recalcula cuando una de sus entradas cambió de verdad.
+- **De uno en uno.** Un estado escrito dentro de un efecto avisa a sus lectores cuando ese efecto termina (y antes de que el `set` que lo inició todo devuelva el control).
+- **Sin bucles infinitos.** Un efecto que escribe un estado que él mismo lee no se vuelve a disparar; dos efectos que escriben cada uno lo que lee el otro se detienen tras mil ejecuciones.
 - **Se liberan con su región.** Los efectos creados dentro de una región dinámica se detienen cuando la región se reconstruye.
 
 ## Limpiar
