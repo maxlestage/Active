@@ -6,6 +6,7 @@ mod document;
 mod escape;
 mod event;
 mod island;
+pub mod pwa;
 mod reactive;
 mod seo;
 mod view;

@@ -31,6 +31,10 @@ in the style of React hooks. Then ship them the way your project needs:
   counter)])` in the browser. Static content is never re-rendered or downloaded twice.
 - **Client-side apps**: `mount_to("#app", app())`, `location()` and `navigate()` for
   routing without reloads; each page's `Seo` updates the title and meta tags.
+- **Installable apps (PWA)**: `pwa::Manifest` writes the web app manifest,
+  `pwa::ServiceWorker` an offline service worker, and `Document::manifest` /
+  `Document::service_worker` add their tags: the site goes on the home screen and keeps
+  working offline.
 - **Small**: no macros, no `unsafe`. The server build depends on nothing; the `client`
   feature adds `wasm-bindgen` and `web-sys`.
 
