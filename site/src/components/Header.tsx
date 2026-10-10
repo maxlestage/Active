@@ -6,13 +6,13 @@ import { GitHubIcon, Logo } from "./Logo";
 
 export function LangSwitch({ route }: { route: Route }) {
   return (
-    <nav className="langs" aria-label={t(route.lang).footer.language}>
+    <div className="langs" role="group" aria-label={t(route.lang).footer.language}>
       {LANGS.map((l) => (
         <a key={l} href={translate(route, l)} hrefLang={l} lang={l} aria-current={l === route.lang ? "true" : undefined} title={t(l).langName}>
           {l}
         </a>
       ))}
-    </nav>
+    </div>
   );
 }
 

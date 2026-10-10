@@ -9,7 +9,7 @@
   --line-2: rgba(237, 233, 227, 0.18);
   --text: #ede9e3;
   --muted: #9b968e;
-  --faint: #6c6861;
+  --faint: #857f77;
   --accent: #ff5a1f;
   --accent-2: #ffb38a;
   --sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -68,6 +68,11 @@ input,
 textarea {
   font: inherit;
   color: inherit;
+}
+
+a,
+button {
+  -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {
@@ -273,11 +278,11 @@ html.intro .curtain::after {
   font-size: 13px;
   letter-spacing: 0.2em;
   color: var(--muted);
+  counter-reset: n var(--n);
   animation: count 1.5s steps(100) 0.1s forwards;
 }
 
 .curtain .count::after {
-  counter-reset: n var(--n);
   content: counter(n) " %";
 }
 
@@ -875,7 +880,7 @@ html.intro {
 }
 
 .manifesto.scrubbing .w > span {
-  opacity: clamp(0.14, calc(var(--p, 0) * (var(--n) + 6) - var(--i)), 1);
+  opacity: clamp(0.2, calc(var(--p, 0) * (var(--n) + 6) - var(--i)), 1);
   transition: opacity 0.2s linear;
 }
 
@@ -1097,6 +1102,12 @@ html.intro {
   line-height: 1.7;
   background: #101010 !important;
   tab-size: 2;
+}
+
+/* Vesper's comment colour is translucent; make comments readable (WCAG AA). */
+.code pre span[style="color:#8B8B8B94"],
+.window pre span[style="color:#8B8B8B94"] {
+  color: #9a958e !important;
 }
 
 .code .copy {
