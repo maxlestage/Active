@@ -17,7 +17,7 @@ mod client;
 pub use document::Document;
 pub use event::{Dom, Event};
 pub use island::{IslandFn, island};
-pub use reactive::{Scope, State, effect, scope, use_state};
+pub use reactive::{Scope, State, effect, on_cleanup, scope, untrack, use_state};
 pub use seo::Seo;
 pub use view::{Element, Node, Str, el, fragment, fragment_dyn, html, keyed, text, text_dyn};
 
@@ -29,7 +29,7 @@ pub mod prelude {
     pub use crate::html::*;
     pub use crate::{
         Document, Element, Event, Node, Seo, State, effect, el, fragment, fragment_dyn, island,
-        keyed, text, text_dyn, use_state,
+        keyed, on_cleanup, text, text_dyn, untrack, use_state,
     };
     #[cfg(feature = "client")]
     pub use crate::{location, navigate, query_param};

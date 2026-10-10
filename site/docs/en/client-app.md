@@ -111,7 +111,7 @@ fn app() -> Node {
 
 The first call to `location()`, `query()` or `query_param()` starts the router:
 
-- **Links just work.** Clicks on `<a href>` elements that point to the same site change the path without reloading the page. Links with a `target` (other than `_self`), a `download` attribute, a click with a modifier key (Ctrl, ⌘, Shift, Alt) or the middle button, links to other sites, and links to an anchor on the current page (`#section`) are left to the browser.
+- **Links just work.** Clicks on `<a href>` elements that point to the same site change the path without reloading the page. Links with a `target` (other than `_self`), a `download` attribute, `rel="external"` (a page the server renders itself, a file), a click with a modifier key (Ctrl, ⌘, Shift, Alt) or the middle button, links to other sites, and links to an anchor on the current page (`#section`) are left to the browser.
 - **Back and forward work.** The browser's history buttons update the path and the query string.
 - **Only the region is rebuilt.** When the path changes, the region that reads it is rebuilt; the navigation bar and everything else stay in place.
 

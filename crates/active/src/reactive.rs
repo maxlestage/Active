@@ -39,6 +39,7 @@ enum Owned {
     #[cfg_attr(not(any(feature = "client", test)), allow(dead_code))]
     Effect(Key),
     Value(Box<dyn Any>),
+    Cleanup(Box<dyn FnOnce()>),
 }
 
 #[derive(Default)]
@@ -69,9 +70,14 @@ impl Runtime {
     fn own(&self, item: Owned) {
         if let Some(owner) = self.owners.borrow_mut().last_mut() {
             owner.push(item);
-        } else if let Owned::Value(value) = item {
-            // No owner: lives as long as the page (e.g. an island's event listeners).
-            std::mem::forget(value);
+        } else {
+            match item {
+                // No owner: lives as long as the page (e.g. an island's event listeners).
+                Owned::Value(value) => std::mem::forget(value),
+                // Never disposed, so never run.
+                Owned::Cleanup(f) => std::mem::forget(f),
+                Owned::State(_) | Owned::Effect(_) => {}
+            }
         }
     }
 
@@ -183,6 +189,15 @@ impl Runtime {
     }
 
     fn dispose(&self, items: Vec<Owned>) {
+        // Cleanups first, last registered first: they can still read the scope's states.
+        let (cleanups, items): (Vec<Owned>, Vec<Owned>) = items
+            .into_iter()
+            .partition(|item| matches!(item, Owned::Cleanup(_)));
+        for cleanup in cleanups.into_iter().rev() {
+            if let Owned::Cleanup(f) = cleanup {
+                f();
+            }
+        }
         for item in items {
             match item {
                 Owned::State(key) => {
@@ -224,6 +239,7 @@ impl Runtime {
                     }
                 }
                 Owned::Value(value) => drop(value),
+                Owned::Cleanup(_) => {}
             }
         }
     }
@@ -310,6 +326,27 @@ fn new_state<T: 'static>(initial: T, owned: bool) -> State<T> {
 }
 
 impl<T: 'static> State<T> {
+    /// Whether the state still exists: `false` once its owner was disposed (the dynamic
+    /// region that created it re-rendered, or the page changed). Check it before writing
+    /// from code that may outlive the view, such as the end of a network request.
+    ///
+    /// ```
+    /// use active::{scope, use_state};
+    ///
+    /// let (count, owner) = scope(|| use_state(0));
+    /// assert!(count.is_alive());
+    /// owner.dispose();
+    /// assert!(!count.is_alive());
+    /// ```
+    pub fn is_alive(self) -> bool {
+        RUNTIME.with(|rt| {
+            rt.states
+                .borrow()
+                .get(self.key.index)
+                .is_some_and(|slot| slot.version == self.key.version)
+        })
+    }
+
     /// Reads the value through a reference (subscribes the running effect).
     pub fn with<R>(self, f: impl FnOnce(&T) -> R) -> R {
         let cell = RUNTIME.with(|rt| {
@@ -381,16 +418,58 @@ pub fn effect(f: impl Fn() + 'static) {
     });
 }
 
+/// Runs `f` when the component being built is released: the [`fragment_dyn`] region that
+/// created it re-renders, the router shows another page, or its [`Scope`] is disposed. Stop
+/// here what the component started outside the view: a timer, a socket, an animation loop, a
+/// listener on `window`.
+///
+/// Cleanups run before the component's states are released, so they can still read them.
+/// On the server, and outside any component, `f` never runs.
+///
+/// ```
+/// use std::{cell::Cell, rc::Rc};
+/// use active::{on_cleanup, scope};
+///
+/// let stopped = Rc::new(Cell::new(false));
+/// let flag = stopped.clone();
+/// let ((), owner) = scope(|| on_cleanup(move || flag.set(true)));
+/// assert!(!stopped.get());
+/// owner.dispose();
+/// assert!(stopped.get());
+/// ```
+///
+/// [`fragment_dyn`]: crate::fragment_dyn
+pub fn on_cleanup(f: impl FnOnce() + 'static) {
+    RUNTIME.with(|rt| rt.own(Owned::Cleanup(Box::new(f))));
+}
+
 /// Keeps `value` alive as long as the current scope (used for DOM event closures).
 #[allow(dead_code)]
 pub(crate) fn keep_alive(value: Box<dyn Any>) {
     RUNTIME.with(|rt| rt.own(Owned::Value(value)));
 }
 
-/// Runs `f` without subscribing the running effect to the states `f` reads (building a
-/// list row must not make the whole list depend on the row's own states).
-#[cfg_attr(not(feature = "client"), allow(dead_code))]
-pub(crate) fn untracked<R>(f: impl FnOnce() -> R) -> R {
+/// Runs `f` without subscribing the running effect or dynamic region to the states `f`
+/// reads.
+///
+/// A component reads its states inside closures (`text_dyn`, `children_dyn`…), so that only
+/// that part of the page follows them. Wrap code that reads a state once, to build
+/// something, in `untrack`: reading it directly inside a [`fragment_dyn`] would rebuild the
+/// whole region, and recreate the component, every time the state changes.
+///
+/// ```
+/// use active::{fragment_dyn, html::*, untrack, use_state};
+///
+/// let (page, step) = (use_state(1), use_state(10));
+/// // Rebuilt when `page` changes; reads `step` once, without following it.
+/// let view = div().child(fragment_dyn(move || {
+///     let first = untrack(|| step.get());
+///     vec![p().text(format!("Page {}, from {first}", page.get())).into()]
+/// }));
+/// ```
+///
+/// [`fragment_dyn`]: crate::fragment_dyn
+pub fn untrack<R>(f: impl FnOnce() -> R) -> R {
     let previous = RUNTIME.with(|rt| rt.observer.replace(None));
     let result = f();
     RUNTIME.with(|rt| rt.observer.set(previous));
@@ -447,6 +526,46 @@ pub(crate) fn render_guard<R>(f: impl FnOnce() -> R) -> R {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cleanups_run_once_at_dispose_and_can_read_their_states() {
+        let log = Rc::new(RefCell::new(Vec::new()));
+        let l = log.clone();
+        let ((), owner) = scope(|| {
+            let n = use_state(7);
+            let first = l.clone();
+            on_cleanup(move || first.borrow_mut().push(format!("first {}", n.get())));
+            on_cleanup(move || l.borrow_mut().push("second".to_string()));
+        });
+        assert!(log.borrow().is_empty());
+        owner.dispose();
+        assert_eq!(*log.borrow(), ["second", "first 7"]);
+    }
+
+    #[test]
+    fn untracked_reads_do_not_subscribe_the_running_effect() {
+        let (a, b) = (use_state(1), use_state(10));
+        let runs = Rc::new(Cell::new(0));
+        let counter = runs.clone();
+        effect(move || {
+            counter.set(counter.get() + 1);
+            let _sum = a.get() + untrack(|| b.get());
+        });
+        b.set(20);
+        assert_eq!(runs.get(), 1);
+        a.set(2);
+        assert_eq!(runs.get(), 2);
+    }
+
+    #[test]
+    fn a_disposed_state_is_no_longer_alive_even_when_its_slot_is_reused() {
+        let (old, owner) = scope(|| use_state(1));
+        assert!(old.is_alive());
+        owner.dispose();
+        let reused = use_state(2);
+        assert!(!old.is_alive());
+        assert!(reused.is_alive());
+    }
 
     #[test]
     fn effects_rerun_when_their_states_change() {

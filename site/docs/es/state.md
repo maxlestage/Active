@@ -209,6 +209,67 @@ Cómo se comportan los efectos:
 - **Sin bucles infinitos.** Un efecto que escribe un estado que él mismo lee no se vuelve a disparar.
 - **Se liberan con su región.** Los efectos creados dentro de una región dinámica se detienen cuando la región se reconstruye.
 
+## Limpiar
+
+A veces un componente pone en marcha algo que vive fuera de la vista: un temporizador, un WebSocket, un bucle de animación, un listener en `window`. `on_cleanup(f)` ejecuta `f` cuando el componente se libera, es decir, cuando la región dinámica que lo construyó se reconstruye o el router muestra otra página:
+
+```rust
+use active::prelude::*;
+
+fn clock() -> Element {
+    let seconds = use_state(0u32);
+    #[cfg(target_arch = "wasm32")]
+    {
+        use wasm_bindgen::{JsCast, closure::Closure};
+        let tick = Closure::<dyn Fn()>::new(move || seconds.update(|s| *s += 1));
+        let window = web_sys::window().expect("window");
+        let id = window
+            .set_interval_with_callback_and_timeout_and_arguments_0(tick.as_ref().unchecked_ref(), 1000)
+            .unwrap_or(0);
+        on_cleanup(move || {
+            window.clear_interval_with_handle(id);
+            drop(tick);
+        });
+    }
+    p().text_dyn(move || format!("{} s en esta página", seconds.get()))
+}
+```
+
+Las limpiezas se ejecutan antes de liberar los estados del componente, así que todavía pueden leerlos. En el servidor, `f` nunca se ejecuta.
+
+## Leer sin seguir: untrack
+
+Dentro de una región dinámica, cada lectura de un estado suscribe **toda la región**. Un componente construido en la región que lee directamente (fuera de una closure) uno de sus propios estados se reconstruiría, con estados nuevos, cada vez que ese estado cambie. Lee los estados en closures (`text_dyn`, `children_dyn`…) y envuelve en `untrack` una lectura que solo se necesita una vez:
+
+```rust
+use active::prelude::*;
+
+let (page, size) = (use_state(1), use_state(20));
+let view = ul().children_dyn(move || {
+    let size = untrack(|| size.get()); // se lee una vez, no se sigue
+    (0..size).map(|i| li().text(format!("Elemento {}", (page.get() - 1) * size + i + 1)).into()).collect()
+});
+```
+
+Solo lo que lee la closure de la región decide cuándo se reconstruye: construir y montar sus nodos (callbacks `on_mount`, componentes anidados) ya no se sigue.
+
+## Resultados asíncronos: is_alive
+
+Una petición de red puede terminar después de que el usuario haya salido de la página. `State::is_alive()` vale `false` una vez liberado el estado: compruébalo antes de escribir un resultado.
+
+```rust,ignore
+fn weather(city: String) -> Element {
+    let forecast = use_state(None::<String>);
+    wasm_bindgen_futures::spawn_local(async move {
+        let text = fetch_forecast(&city).await; // tu propia función asíncrona
+        if forecast.is_alive() {
+            forecast.set(Some(text));
+        }
+    });
+    p().text_dyn(move || forecast.get().unwrap_or_else(|| "Cargando…".into()))
+}
+```
+
 ## Compartir estado
 
 Para compartir un valor entre componentes, crea el estado en su padre común y pasa el handle hacia abajo como argumento:

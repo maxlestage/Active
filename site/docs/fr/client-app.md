@@ -111,7 +111,7 @@ fn app() -> Node {
 
 Le premier appel à `location()`, `query()` ou `query_param()` démarre le routeur :
 
-- **Les liens fonctionnent tout seuls.** Les clics sur des éléments `<a href>` qui pointent vers le même site changent le chemin sans recharger la page. Les liens avec un `target` (autre que `_self`), un attribut `download`, un clic avec une touche de modification (Ctrl, ⌘, Maj, Alt) ou avec le bouton du milieu, les liens vers d'autres sites et les liens vers une ancre de la page courante (`#section`) sont laissés au navigateur.
+- **Les liens fonctionnent tout seuls.** Les clics sur des éléments `<a href>` qui pointent vers le même site changent le chemin sans recharger la page. Les liens avec un `target` (autre que `_self`), un attribut `download`, `rel="external"` (une page que le serveur rend lui-même, un fichier), un clic avec une touche de modification (Ctrl, ⌘, Maj, Alt) ou avec le bouton du milieu, les liens vers d'autres sites et les liens vers une ancre de la page courante (`#section`) sont laissés au navigateur.
 - **Précédent et Suivant fonctionnent.** Les boutons d'historique du navigateur mettent à jour le chemin et la chaîne de requête.
 - **Seule la région est reconstruite.** Quand le chemin change, la région qui le lit est reconstruite ; la barre de navigation et tout le reste restent en place.
 

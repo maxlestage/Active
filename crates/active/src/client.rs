@@ -13,7 +13,7 @@ use web_sys::{
 
 use crate::event::Event;
 use crate::island::IslandFn;
-use crate::reactive::{Scope, State, effect, keep_alive, root_state, scope, untracked};
+use crate::reactive::{Scope, State, effect, keep_alive, root_state, scope, untrack};
 use crate::seo::Seo;
 use crate::view::{Attr, Content, DynNodes, DynText, Element, Keyed, Node, collect_seo};
 
@@ -215,9 +215,9 @@ fn remove_same_meta(head: &DomElement, tag: &DomElement) {
 /// [`children_dyn`](Element::children_dyn) to show the matching page.
 ///
 /// The first call starts the router: the back and forward buttons update the path, and
-/// clicks on links to the same site call [`navigate`] instead of loading a new page (links
-/// with a `target`, a `download` attribute, or clicked with a modifier key are left to the
-/// browser).
+/// clicks on links to the same site call [`navigate`] instead of loading a new page. Links
+/// with a `target`, a `download` attribute or `rel="external"` (a page the server renders
+/// itself, a file), or clicked with a modifier key, are left to the browser.
 ///
 /// ```ignore
 /// fn app() -> Node {
@@ -329,7 +329,8 @@ fn follow_link(event: web_sys::Event) {
         return;
     };
     let target = link.target();
-    if (!target.is_empty() && target != "_self") || link.has_attribute("download") {
+    let external = link.rel().split_ascii_whitespace().any(|r| r == "external");
+    if (!target.is_empty() && target != "_self") || link.has_attribute("download") || external {
         return;
     }
     let here = window().location();
@@ -594,24 +595,28 @@ fn bind_dynamic(parent: DomElement, start: DomNode, end: DomNode, f: DynNodes) {
         }
         let ((), next) = scope(|| {
             let nodes = f();
-            let head = parent_head.as_ref().and_then(|parent| {
-                // Opaque to the optimizer, which would otherwise call `region_head`
-                // directly and keep the head code in every bundle.
-                let update = std::hint::black_box(HEAD_UPDATE.with(Cell::get))?;
-                Some(Rc::new(update(parent, &nodes, &applied)))
-            });
-            while let Some(old) = start.next_sibling() {
-                if old.is_same_node(Some(&end)) {
-                    break;
+            // Only `f` decides when the region re-renders: what mounting reads (an
+            // `on_mount` callback, a nested component) must not subscribe it.
+            untrack(|| {
+                let head = parent_head.as_ref().and_then(|parent| {
+                    // Opaque to the optimizer, which would otherwise call `region_head`
+                    // directly and keep the head code in every bundle.
+                    let update = std::hint::black_box(HEAD_UPDATE.with(Cell::get))?;
+                    Some(Rc::new(update(parent, &nodes, &applied)))
+                });
+                while let Some(old) = start.next_sibling() {
+                    if old.is_same_node(Some(&end)) {
+                        break;
+                    }
+                    let _ = parent.remove_child(&old);
                 }
-                let _ = parent.remove_child(&old);
-            }
-            let previous = HEAD.with(|h| h.replace(head));
-            let doc = document();
-            for node in &nodes {
-                mount_node(node, &parent, Some(&end), &doc);
-            }
-            HEAD.with(|h| *h.borrow_mut() = previous);
+                let previous = HEAD.with(|h| h.replace(head));
+                let doc = document();
+                for node in &nodes {
+                    mount_node(node, &parent, Some(&end), &doc);
+                }
+                HEAD.with(|h| *h.borrow_mut() = previous);
+            });
         });
         *current.borrow_mut() = Some(next);
     });
@@ -701,7 +706,7 @@ pub(crate) fn bind_keyed(parent: DomElement, start: DomNode, end: DomNode, list:
                     }
                     // Built at the end, then put in place below.
                     let before = end.previous_sibling();
-                    let ((), scope) = untracked(|| {
+                    let ((), scope) = untrack(|| {
                         scope(|| mount_node(&(list.row)(&*item), &parent, Some(&end), &doc))
                     });
                     let first = before
