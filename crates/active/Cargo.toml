@@ -1,0 +1,16 @@
+[package]
+name = "active"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Zero-dependency SEO <head> tags (title, meta, canonical, Open Graph, Twitter, hreflang, JSON-LD) for Rust servers, static generators and WebAssembly. Rust twin of active-react's <Seo>."
+license = "MIT"
+repository = "https://github.com/maxlestage/Active"
+homepage = "https://github.com/maxlestage/Active"
+documentation = "https://docs.rs/active"
+readme = "README.md"
+keywords = ["seo", "meta", "open-graph", "json-ld", "html"]
+categories = ["web-programming", "template-engine"]
+include = ["src", "README.md", "LICENSE"]
+
+[dependencies]

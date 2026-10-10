@@ -1,5 +1,7 @@
-import { useSyncExternalStore } from "react";
-import { preload } from "react-dom";
+// Namespace imports: React's Server Components build has no hooks, and a named import would
+// make `import { Seo } from "active-react"` fail there.
+import * as React from "react";
+import * as ReactDOM from "react-dom";
 
 export interface Wasm<T> {
   /** URL of the `.wasm` binary when known; preloaded from `<head>` by `useWasm`. */
@@ -101,7 +103,7 @@ const PRELOAD = { as: "fetch", crossOrigin: "anonymous", type: "application/wasm
  * Prefer Suspense? Use React's `use(mod.load())` in a client-only component.
  */
 export function useWasm<T>(mod: Wasm<T>): T | undefined {
-  const value = useSyncExternalStore(mod.subscribe, mod.get, noop as () => undefined);
-  if (value === undefined && mod.url) preload(mod.url, PRELOAD);
+  const value = React.useSyncExternalStore(mod.subscribe, mod.get, noop as () => undefined);
+  if (value === undefined && mod.url) ReactDOM.preload(mod.url, PRELOAD);
   return value;
 }

@@ -46,7 +46,8 @@ function abs(url: string | undefined, base: string | undefined): string | undefi
 export function Seo(p: SeoProps) {
   const base = p.baseUrl;
   const name = p.title ?? p.siteName;
-  const title = p.title && p.titleTemplate ? p.titleTemplate.replace("%s", p.title) : name;
+  // A replacer function keeps `$&`, `$1`… in the title literal.
+  const title = p.title && p.titleTemplate ? p.titleTemplate.replace("%s", () => p.title!) : name;
   const url = abs(p.canonical, base);
   const image = abs(p.image, base);
   const robots = p.noindex || p.nofollow;

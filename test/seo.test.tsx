@@ -67,6 +67,10 @@ describe("Seo (SSR)", () => {
     expect(h).toContain('<meta name="robots" content="index,nofollow"/>');
   });
 
+  it("inserts the title literally into the template", () => {
+    expect(head(doc(<Seo title="Save $& and $1" titleTemplate="%s · Acme" />))).toContain("<title>Save $&amp; and $1 · Acme</title>");
+  });
+
   it("keeps absolute and protocol-relative URLs untouched", () => {
     const h = head(doc(<Seo baseUrl="https://acme.com" image="//cdn.acme.com/a.png" canonical="https://x.dev/" />));
     expect(h).toContain('content="//cdn.acme.com/a.png"');

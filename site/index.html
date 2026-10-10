@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="__LANG__">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0b0c" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <script>
+      // "__ORIGIN__" is replaced by the real site origin (server.js or SITE_URL at build time).
+      window.__SITE__ = "__ORIGIN__";
+      (function (h) {
+        h.classList.add("js");
+        try {
+          var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+          if (reduce) h.classList.add("reduce");
+          // Opening curtain: home pages only, once per session.
+          if (!reduce && location.pathname.split("/").filter(Boolean).length === 1 && !sessionStorage.getItem("active-intro")) {
+            h.classList.add("intro");
+            sessionStorage.setItem("active-intro", "1");
+          }
+        } catch (e) {}
+      })(document.documentElement);
+    </script>
+    <!--app-head-->
+  </head>
+  <body>
+    <div id="root"><!--app-html--></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

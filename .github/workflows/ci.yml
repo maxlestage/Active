@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  library:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,3 +17,55 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  crate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: crates/active
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy
+      - run: cargo test
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo build --release --target wasm32-unknown-unknown
+
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            site/package-lock.json
+      # Same commands as the Heroku build.
+      - run: npm ci
+      - run: npm --prefix site ci
+      - run: npm --prefix site run typecheck
+      - run: npm --prefix site run build
+      - run: npm --prefix site test
+
+  # Every branch pushed by Claude (claude/...) is merged into master once everything is green.
+  merge:
+    if: github.event_name == 'push' && startsWith(github.ref_name, 'claude/')
+    needs: [library, crate, site]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - name: Merge into master
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge --no-edit "origin/${GITHUB_REF_NAME}"
+          git push origin master
