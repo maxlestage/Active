@@ -15,7 +15,7 @@ cargo install wasm-bindgen-cli --version 0.2.129
 
 # from the repository root: the browser bundle, then the server
 cargo build -p hello --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
+wasm-bindgen --target web --no-typescript --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
 cargo run -p hello
 ```
 

@@ -70,7 +70,7 @@ Two complete apps: [`examples/hello`](examples/hello), a server page with an isl
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.129
 cargo build -p hello --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
+wasm-bindgen --target web --no-typescript --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
 cargo run -p hello   # http://localhost:3000
 ```
 
@@ -83,6 +83,13 @@ cargo run -p hello   # http://localhost:3000
 | [`examples/spa`](examples/spa) | A client-side app: to-do list, routing, forms, `localStorage` |
 | [`site`](site) | Presentation website and documentation (en/fr/es): Axum server, WebAssembly animations, search and playground |
 | [`bench`](bench) | Benchmarks against Leptos, Dioxus, Yew, Sycamore, maud and hand-written HTML |
+
+## Publish the site on GitHub Pages (free)
+
+1. On GitHub, open **Settings → Pages** and set **Source** to **GitHub Actions** (once; the GitHub app or the mobile website works).
+2. That's all. After every green CI run, which merges the branch into `master`, the [`pages.yml`](.github/workflows/pages.yml) workflow exports the site to static files with `active-site export` and publishes it at `https://maxlestage.github.io/Active/`. To publish right away: **Actions → Pages → Run workflow**.
+
+Guide: [`site/docs/en/deploy-pages.md`](site/docs/en/deploy-pages.md).
 
 ## Deploy the site on Heroku from a phone
 
@@ -108,7 +115,7 @@ cargo run -p active --example page         # print a complete page
 cargo run -p active-site                   # the website on http://localhost:3000
 ```
 
-The website's browser bundle is built like the example above (`-p active-site`, output in `site/pkg`); see the [`Dockerfile`](Dockerfile). Every `claude/*` branch that passes CI is merged into `master` automatically ([`ci.yml`](.github/workflows/ci.yml)).
+The website's browser bundle is built like the example above (`-p active-site`, output in `site/pkg`); see the [`Dockerfile`](Dockerfile). Every branch that passes CI is merged into `master` automatically, except branches named `wip/…` ([`ci.yml`](.github/workflows/ci.yml)); `master` is then published on GitHub Pages ([`pages.yml`](.github/workflows/pages.yml)).
 
 ## License
 

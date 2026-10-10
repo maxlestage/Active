@@ -95,7 +95,7 @@ assert!(doc.final_seo().to_html().starts_with("<title>Pricing · Acme</title>"))
 
 ## Charger le bundle du navigateur
 
-`wasm-bindgen --target web` produit deux fichiers : un petit module JavaScript (le chargeur) et le binaire `.wasm`. `.client(js, wasm)` reçoit leurs URL et écrit trois choses dans le `<head>` :
+`wasm-bindgen --target web --no-typescript` produit deux fichiers : un petit module JavaScript (le chargeur) et le binaire `.wasm`. `.client(js, wasm)` reçoit leurs URL et écrit trois choses dans le `<head>` :
 
 1. `<link rel="modulepreload">` pour le chargeur ;
 2. `<link rel="preload" as="fetch" type="application/wasm">` pour le binaire, afin qu'il se télécharge **en parallèle** du HTML et du chargeur plutôt qu'après eux ;

@@ -116,7 +116,7 @@ Build the browser bundle with [wasm-bindgen](https://github.com/wasm-bindgen/was
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.129   # same version as in Cargo.lock
 cargo build --lib --target wasm32-unknown-unknown --release
-wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/release/my_app.wasm
+wasm-bindgen --target web --no-typescript --out-dir pkg target/wasm32-unknown-unknown/release/my_app.wasm
 ```
 
 and point the document at it: `Document::new(body).client("/pkg/my_app.js",

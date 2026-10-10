@@ -44,48 +44,18 @@ fn frontmatter(src: &str) -> (Option<&str>, Option<&str>, &str) {
 pub fn slugify(text: &str) -> String {
     let mut out = String::new();
     let mut dash = false;
-    for c in text.to_lowercase().chars() {
-        let mapped = deaccent(c);
-        for m in mapped.chars() {
-            if m.is_ascii_alphanumeric() {
-                if dash && !out.is_empty() {
-                    out.push('-');
-                }
-                dash = false;
-                out.push(m);
-            } else {
-                dash = true;
+    for c in crate::search::norm(text).chars() {
+        if c.is_ascii_alphanumeric() {
+            if dash && !out.is_empty() {
+                out.push('-');
             }
+            dash = false;
+            out.push(c);
+        } else {
+            dash = true;
         }
     }
     out
-}
-
-/// Lowercase, accents removed, spaces kept (for search).
-pub fn slugify_keep_spaces(text: &str) -> String {
-    text.to_lowercase().chars().map(deaccent).collect()
-}
-
-fn deaccent(c: char) -> String {
-    let s = match c {
-        'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'ā' => "a",
-        'ç' | 'ć' | 'č' => "c",
-        'è' | 'é' | 'ê' | 'ë' | 'ē' | 'ę' | 'ě' => "e",
-        'ì' | 'í' | 'î' | 'ï' | 'ī' => "i",
-        'ñ' | 'ń' | 'ň' => "n",
-        'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ō' => "o",
-        'ù' | 'ú' | 'û' | 'ü' | 'ū' | 'ů' => "u",
-        'ý' | 'ÿ' => "y",
-        'š' | 'ś' => "s",
-        'ž' | 'ź' | 'ż' => "z",
-        'ř' => "r",
-        'ł' => "l",
-        'œ' => "oe",
-        'æ' => "ae",
-        'ß' => "ss",
-        c => return c.to_string(),
-    };
-    s.to_string()
 }
 
 fn escape(s: &str) -> String {

@@ -68,7 +68,7 @@ impl Document {
         self
     }
 
-    /// Loads the browser bundle produced by `wasm-bindgen --target web`: `js` is the
+    /// Loads the browser bundle produced by `wasm-bindgen --target web --no-typescript`: `js` is the
     /// generated module, `wasm` the binary. Both are preloaded from `<head>`, so the
     /// binary downloads in parallel with the HTML instead of after the JavaScript glue.
     #[must_use]

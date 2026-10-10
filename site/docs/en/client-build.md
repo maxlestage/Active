@@ -10,10 +10,9 @@ The browser part of an `active` site is your library crate compiled to WebAssemb
 ```text
 src/lib.rs ──cargo build --target wasm32-unknown-unknown──▶ target/…/my_site.wasm
                                                                  │
-                                       wasm-bindgen --target web ▼
+                       wasm-bindgen --target web --no-typescript ▼
                                        pkg/my_site.js         the loader (a JavaScript module)
                                        pkg/my_site_bg.wasm    your code, served to browsers
-                                       pkg/*.d.ts             type declarations, not needed
 ```
 
 The loader is generated: you never edit it. The page starts it with the one line written by [`Document::client`](../documents/#loading-the-browser-bundle).
@@ -28,20 +27,20 @@ The loader is generated: you never edit it. The page starts it with the one line
 
 ```sh
 cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
+wasm-bindgen --target web --no-typescript --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
 ```
 
 - `--lib` builds only the library. Your server (`src/main.rs`) is not compiled for the browser.
 - `--profile wasm-release` uses the size-optimized profile from [Installation](../installation/#add-the-build-profiles). Without it, use `--release` and the path `…/release/my_site.wasm`.
 - The `.wasm` file is named after the package, with `-` replaced by `_`: the package `my-site` gives `my_site.wasm`.
 - `--target web` produces a standard ES module loader, which is what `Document::client` expects.
-- Add `--no-typescript` to skip the `.d.ts` files.
+- `--no-typescript` skips the TypeScript declaration files (`.d.ts`), which a Rust project has no use for.
 
 In a [Cargo workspace](https://doc.rust-lang.org/cargo/reference/workspaces.html), select the package with `-p` and use the workspace's `target/` directory, as this repository does for its example:
 
 ```sh
 cargo build -p hello --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
+wasm-bindgen --target web --no-typescript --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
 ```
 
 ### Faster builds while developing
@@ -50,7 +49,7 @@ A debug build compiles faster and gives better panic messages, at the cost of a 
 
 ```sh
 cargo build --lib --target wasm32-unknown-unknown
-wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/debug/my_site.wasm
+wasm-bindgen --target web --no-typescript --out-dir pkg target/wasm32-unknown-unknown/debug/my_site.wasm
 ```
 
 A small script saves typing. Save it as `build.sh` at the root of the project, make it executable with `chmod +x build.sh`, and run `./build.sh && cargo run` after each change:
@@ -113,7 +112,7 @@ This repository builds its site on every push with GitHub Actions ([`.github/wor
 - name: Build the site
   run: |
     cargo build -p active-site --lib --target wasm32-unknown-unknown --profile wasm-release
-    wasm-bindgen --target web --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm
+    wasm-bindgen --target web --no-typescript --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm
     cargo build -p active-site --bin active-site --release
 ```
 

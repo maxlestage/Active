@@ -33,14 +33,20 @@ jobs:
       - name: Build the site
         run: |
           cargo build -p active-site --lib --target wasm32-unknown-unknown --profile wasm-release
-          wasm-bindgen --target web --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm
+          wasm-bindgen --target web --no-typescript --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm
           cargo build -p active-site --bin active-site --release
+      # Same command as pages.yml: the static version of the site for GitHub Pages.
+      - name: Export the site as static files
+        run: BASE_PATH=/Active cargo run --release -p active-site -- export dist
       - name: Package the crate
         run: cargo package -p active --allow-dirty
 
-  # Every branch pushed by Claude (claude/...) is merged into master once everything is green.
+  # Every branch is merged into master as soon as everything above is green (master is then
+  # published on GitHub Pages by pages.yml). Branches named wip/... are never merged.
   merge:
-    if: github.event_name == 'push' && startsWith(github.ref_name, 'claude/')
+    if: >-
+      github.event_name == 'push' && startsWith(github.ref, 'refs/heads/') &&
+      github.ref_name != 'master' && !startsWith(github.ref_name, 'wip/')
     needs: [rust]
     runs-on: ubuntu-latest
     permissions:

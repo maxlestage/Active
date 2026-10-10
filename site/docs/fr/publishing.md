@@ -94,4 +94,4 @@ Seuls les fichiers listés dans le champ `include` du crate (`src`, `README.md`,
 
 La dernière étape détecte les problèmes d'empaquetage (un fichier manquant, des métadonnées invalides) avant qu'une publication ne les révèle.
 
-Le workflow comporte aussi un job `merge` : quand une branche dont le nom commence par `claude/` est poussée et que toutes les vérifications ci-dessus réussissent, il fusionne cette branche dans `master` et pousse le résultat. Les autres branches et les pull requests sont seulement vérifiées, jamais fusionnées automatiquement. Avec les déploiements automatiques de Heroku activés, une fusion dans `master` met alors le changement en ligne.
+Le workflow comporte aussi un job `merge` : quand une branche est poussée et que toutes les vérifications ci-dessus réussissent, il fusionne cette branche dans `master` et pousse le résultat. Les branches dont le nom commence par `wip/` et les pull requests sont seulement vérifiées, jamais fusionnées automatiquement. Après la fusion, [`pages.yml`](../deploy-pages/) publie `master` sur GitHub Pages, et avec les déploiements automatiques de Heroku activés, le changement est aussi mis en ligne là-bas.

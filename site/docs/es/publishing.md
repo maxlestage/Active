@@ -94,4 +94,4 @@ Solo se suben los archivos enumerados en el `include` del crate (`src`, `README.
 
 El último paso detecta los problemas de empaquetado (un archivo que falta, metadatos no válidos) antes de que lo haga una publicación.
 
-El workflow también tiene un job `merge`: cuando se hace push de una rama cuyo nombre empieza por `claude/` y todas las comprobaciones anteriores pasan, fusiona esa rama en `master` y hace push del resultado. Las demás ramas y los pull requests solo se comprueban, nunca se fusionan automáticamente. Con los despliegues automáticos de Heroku activados, una fusión en `master` pone entonces el cambio en línea.
+El workflow también tiene un job `merge`: cuando se hace push de una rama y todas las comprobaciones anteriores pasan, fusiona esa rama en `master` y hace push del resultado. Las ramas cuyo nombre empieza por `wip/` y los pull requests solo se comprueban, nunca se fusionan automáticamente. Tras la fusión, [`pages.yml`](../deploy-pages/) publica `master` en GitHub Pages y, con los despliegues automáticos de Heroku activados, el cambio también se pone en línea allí.

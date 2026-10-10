@@ -1,4 +1,31 @@
-//! URLs of the site: `/{lang}/`, `/{lang}/docs/`, `/{lang}/docs/{slug}/`.
+//! URLs of the site: `/{lang}/`, `/{lang}/docs/`, `/{lang}/docs/{slug}/`, all behind an
+//! optional base path (`/Active` when the site is published on GitHub Pages).
+
+use std::sync::OnceLock;
+
+static BASE: OnceLock<String> = OnceLock::new();
+
+/// Sets the base path once, before anything is rendered: `""` (the default) or `/Active`.
+/// The server takes it from `BASE_PATH`, the browser from `<html data-base>`.
+pub fn set_base(base: &str) {
+    let base = base.trim().trim_end_matches('/');
+    let base = match base {
+        "" => String::new(),
+        b if b.starts_with('/') => b.to_string(),
+        b => format!("/{b}"),
+    };
+    let _ = BASE.set(base);
+}
+
+/// The base path, without trailing slash (empty by default).
+pub fn base() -> &'static str {
+    BASE.get().map_or("", String::as_str)
+}
+
+/// A link to `path` (which starts with `/`), behind the base path.
+pub fn link(path: &str) -> String {
+    format!("{}{path}", base())
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Lang {
@@ -51,7 +78,9 @@ impl Route {
         Some(Route { lang, page })
     }
 
-    pub fn href(&self) -> String {
+    /// The path of the page, without the base path (for absolute URLs built from the
+    /// public address, which already contains it).
+    pub fn path(&self) -> String {
         let l = self.lang.code();
         match &self.page {
             Page::Home => format!("/{l}/"),
@@ -59,6 +88,11 @@ impl Route {
             Page::Doc(slug) => format!("/{l}/docs/{slug}/"),
             Page::NotFound => format!("/{l}/404/"),
         }
+    }
+
+    /// A link to the page, behind the base path.
+    pub fn href(&self) -> String {
+        link(&self.path())
     }
 
     /// The same page in another language.

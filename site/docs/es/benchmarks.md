@@ -38,7 +38,7 @@ maud y la página escrita a mano son plantillas: solo escriben cadenas. `active`
 
 ## Tamaño del WebAssembly
 
-El mismo contador en todos los frameworks: un botón que incrementa el número que tiene al lado, renderizado por el servidor y retomado por el navegador. Compilado para `wasm32-unknown-unknown` con el perfil optimizado para tamaño (`opt-level = "s"`, `lto`, `panic = "abort"`) y después con `wasm-bindgen --target web`, sin `wasm-opt`. El total incluye el código de enlace JavaScript generado por wasm-bindgen.
+El mismo contador en todos los frameworks: un botón que incrementa el número que tiene al lado, renderizado por el servidor y retomado por el navegador. Compilado para `wasm32-unknown-unknown` con el perfil optimizado para tamaño (`opt-level = "s"`, `lto`, `panic = "abort"`) y después con `wasm-bindgen --target web --no-typescript`, sin `wasm-opt`. El total incluye el código de enlace JavaScript generado por wasm-bindgen.
 
 | Framework | Modo en el navegador | .wasm | .wasm gzip | Enlace gzip | Total gzip |
 | --- | --- | ---: | ---: | ---: | ---: |

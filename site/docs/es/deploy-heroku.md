@@ -85,7 +85,7 @@ COPY crates crates
 COPY examples examples
 COPY site site
 RUN cargo build -p active-site --lib --target wasm32-unknown-unknown --profile wasm-release \
- && wasm-bindgen --target web --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm \
+ && wasm-bindgen --target web --no-typescript --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm \
  && cargo build -p active-site --bin active-site --release
 
 FROM debian:bookworm-slim
@@ -148,7 +148,7 @@ RUN rustup target add wasm32-unknown-unknown \
 WORKDIR /src
 COPY . .
 RUN cargo build --lib --target wasm32-unknown-unknown --profile wasm-release \
- && wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm \
+ && wasm-bindgen --target web --no-typescript --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm \
  && cargo build --release
 
 FROM debian:bookworm-slim

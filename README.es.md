@@ -70,7 +70,7 @@ Dos aplicaciones completas: [`examples/hello`](examples/hello), una página de s
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.129
 cargo build -p hello --lib --target wasm32-unknown-unknown --profile wasm-release
-wasm-bindgen --target web --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
+wasm-bindgen --target web --no-typescript --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
 cargo run -p hello   # http://localhost:3000
 ```
 
@@ -83,6 +83,13 @@ cargo run -p hello   # http://localhost:3000
 | [`examples/spa`](examples/spa) | Una aplicación del lado del cliente: lista de tareas, enrutamiento, formularios, `localStorage` |
 | [`site`](site) | Sitio web de presentación y documentación (en/fr/es): servidor Axum, animaciones en WebAssembly, búsqueda y área de pruebas interactiva |
 | [`bench`](bench) | Benchmarks frente a Leptos, Dioxus, Yew, Sycamore, maud y HTML escrito a mano |
+
+## Publicar el sitio en GitHub Pages (gratis)
+
+1. En GitHub, abre **Settings → Pages** y cambia **Source** a **GitHub Actions** (una sola vez; la app de GitHub o el sitio móvil sirven).
+2. Eso es todo. Tras cada CI en verde, que fusiona la rama en `master`, el workflow [`pages.yml`](.github/workflows/pages.yml) exporta el sitio a archivos estáticos con `active-site export` y lo publica en `https://maxlestage.github.io/Active/`. Para publicar enseguida: **Actions → Pages → Run workflow**.
+
+Guía: [`site/docs/es/deploy-pages.md`](site/docs/es/deploy-pages.md).
 
 ## Desplegar el sitio en Heroku desde un teléfono
 
@@ -108,7 +115,7 @@ cargo run -p active --example page         # print a complete page
 cargo run -p active-site                   # the website on http://localhost:3000
 ```
 
-El bundle del navegador del sitio web se compila como el del ejemplo anterior (`-p active-site`, con la salida en `site/pkg`); consulta el [`Dockerfile`](Dockerfile). Cada rama `claude/*` que pasa la CI se fusiona automáticamente en `master` ([`ci.yml`](.github/workflows/ci.yml)).
+El bundle del navegador del sitio web se compila como el del ejemplo anterior (`-p active-site`, con la salida en `site/pkg`); consulta el [`Dockerfile`](Dockerfile). Cada rama que pasa la CI se fusiona automáticamente en `master`, salvo las ramas llamadas `wip/…` ([`ci.yml`](.github/workflows/ci.yml)); después `master` se publica en GitHub Pages ([`pages.yml`](.github/workflows/pages.yml)).
 
 ## Licencia
 

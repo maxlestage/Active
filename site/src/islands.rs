@@ -345,7 +345,7 @@ fn now() -> Option<f64> {
     None
 }
 
-/// Docs search: a button opening a dialog; results come from `/api/search`.
+/// Docs search: a button opening a dialog; results come from the language's search index.
 pub fn search(props: &str) -> Node {
     let lang = lang(props);
     let d = labels(lang);

@@ -5,7 +5,7 @@ use active::prelude::*;
 use super::Site;
 use super::docs::{CATEGORIES, Docs};
 use crate::i18n::t;
-use crate::routes::{Lang, Page, Route};
+use crate::routes::{Lang, Page, Route, base, link};
 
 pub const GITHUB: &str = "https://github.com/maxlestage/Active";
 pub const HEROKU_DEPLOY: &str =
@@ -114,9 +114,9 @@ fn github_icon() -> Element {
 
 fn alternates(seo: Seo, route: &Route) -> Seo {
     let seo = Lang::ALL.into_iter().fold(seo, |seo, l| {
-        seo.alternate(l.code(), route.with_lang(l).href())
+        seo.alternate(l.code(), route.with_lang(l).path())
     });
-    seo.alternate("x-default", route.with_lang(Lang::En).href())
+    seo.alternate("x-default", route.with_lang(Lang::En).path())
 }
 
 fn lang_switch(route: &Route) -> Element {
@@ -141,9 +141,9 @@ fn lang_switch(route: &Route) -> Element {
 
 fn header(route: &Route) -> Element {
     let d = t(route.lang);
-    let home = format!("/{}/", route.lang.code());
+    let home = link(&format!("/{}/", route.lang.code()));
     let links = [
-        (format!("/{}/docs/", route.lang.code()), d.nav.docs),
+        (link(&format!("/{}/docs/", route.lang.code())), d.nav.docs),
         (format!("{home}#features"), d.nav.features),
         (format!("{home}#playground"), d.nav.playground),
         (format!("{home}#benchmarks"), d.nav.benchmarks),
@@ -183,7 +183,7 @@ fn header(route: &Route) -> Element {
                 )
                 .child(
                     a().class("btn small")
-                        .href(format!("/{}/docs/quick-start/", route.lang.code()))
+                        .href(link(&format!("/{}/docs/quick-start/", route.lang.code())))
                         .attr("data-magnetic", "")
                         .text(d.nav.start),
                 )
@@ -206,12 +206,12 @@ fn footer(route: &Route) -> Element {
     let d = t(route.lang);
     let f = &d.footer;
     let l = route.lang.code();
-    let doc = |slug: &str| format!("/{l}/docs/{slug}/");
+    let doc = |slug: &str| link(&format!("/{l}/docs/{slug}/"));
     let columns: [(&str, Vec<FooterLink<'_>>); 3] = [
         (
             f.product,
             vec![
-                (format!("/{l}/docs/"), d.nav.docs, false),
+                (link(&format!("/{l}/docs/")), d.nav.docs, false),
                 (doc("quick-start"), f.quick_start, false),
                 (doc("api"), f.api, false),
                 (doc("benchmarks"), f.benchmarks, false),
@@ -346,15 +346,22 @@ pub fn document(ctx: &Ctx<'_>, kind: &str, content: Node) -> String {
         .lang(route.lang.code())
         .seo(site)
         .stylesheet(assets.url("/static/app.css"))
-        .head(concat!(
+        .head(format!(
+            concat!(
                 r##"<meta name="theme-color" content="#0b0b0c"/><meta name="color-scheme" content="dark"/>"##,
-                r#"<link rel="icon" href="/favicon.svg" type="image/svg+xml"/><link rel="apple-touch-icon" href="/apple-touch-icon.png"/>"#,
+                r#"<link rel="icon" href="{base}/favicon.svg" type="image/svg+xml"/><link rel="apple-touch-icon" href="{base}/apple-touch-icon.png"/>"#,
                 // Same URL as in app.css (no version query), so the preload is reused.
-            r#"<link rel="preload" href="/static/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin=""/>"#
+                r#"<link rel="preload" href="{base}/static/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin=""/>"#,
+            ),
+            base = base()
         ))
         .client(assets.url("/pkg/active_site.js"), assets.url("/pkg/active_site_bg.wasm"));
     if ctx.intro {
         doc = doc.html_attr("class", "intro");
+    }
+    if !base().is_empty() {
+        // Read by the browser bundle to build its URLs.
+        doc = doc.html_attr("data-base", base());
     }
     doc.render()
 }
@@ -421,7 +428,7 @@ fn hero(lang: Lang) -> Element {
                                 .style("--i:7")
                                 .child(
                                     a().class("btn")
-                                        .href(format!("/{}/docs/quick-start/", lang.code()))
+                                        .href(link(&format!("/{}/docs/quick-start/", lang.code())))
                                         .attr("data-magnetic", "")
                                         .text(d.cta)
                                         .child(arrow()),
@@ -624,7 +631,7 @@ fn home(ctx: &Ctx<'_>) -> Node {
             )
             .child(
                 a().class("more")
-                    .href(format!("/{}/docs/benchmarks/", lang.code()))
+                    .href(link(&format!("/{}/docs/benchmarks/", lang.code())))
                     .attr("data-reveal", "")
                     .text(h.bench_link)
                     .text(" ")
@@ -665,7 +672,7 @@ fn home(ctx: &Ctx<'_>) -> Node {
                     .attr("data-reveal", "")
                     .child(
                         a().class("btn")
-                            .href(format!("/{}/docs/", lang.code()))
+                            .href(link(&format!("/{}/docs/", lang.code())))
                             .attr("data-magnetic", "")
                             .text(h.cta_docs)
                             .text(" ")
@@ -716,7 +723,7 @@ fn sidebar(ctx: &Ctx<'_>, current: Option<&str>) -> Element {
                                 .child(h2().text(d.categories[i].title))
                                 .child(ul().children(pages.into_iter().map(|slug| {
                                     let link = a()
-                                        .href(format!("/{}/docs/{slug}/", lang.code()))
+                                        .href(link(&format!("/{}/docs/{slug}/", lang.code())))
                                         .text(docs.title(lang, slug).to_string());
                                     li().child(if Some(*slug) == current {
                                         link.attr("aria-current", "page")
@@ -769,7 +776,7 @@ fn docs_index(ctx: &Ctx<'_>) -> Node {
                             .child(ul().children(pages.into_iter().map(|slug| {
                                 let doc = docs.get(lang, slug);
                                 li().child(
-                                    a().href(format!("/{}/docs/{slug}/", lang.code()))
+                                    a().href(link(&format!("/{}/docs/{slug}/", lang.code())))
                                         .child(strong().text(
                                             doc.map_or(slug.to_string(), |d| d.title.clone()),
                                         ))
@@ -820,7 +827,7 @@ fn doc_page(ctx: &Ctx<'_>, slug: &str) -> Node {
         |slug: Option<&str>, label: String, class: &'static str, rel: &'static str| -> Node {
             match slug {
                 Some(s) => a()
-                    .href(format!("/{}/docs/{s}/", lang.code()))
+                    .href(link(&format!("/{}/docs/{s}/", lang.code())))
                     .attr("rel", rel)
                     .class(class)
                     .child(small().text(label))
@@ -840,7 +847,10 @@ fn doc_page(ctx: &Ctx<'_>, slug: &str) -> Node {
                     nav()
                         .class("crumbs")
                         .attr("aria-label", "Breadcrumb")
-                        .child(a().href(format!("/{}/docs/", lang.code())).text(d.title))
+                        .child(
+                            a().href(link(&format!("/{}/docs/", lang.code())))
+                                .text(d.title),
+                        )
                         .child(span().attr("aria-hidden", "true").text("/"))
                         .child(span().text(category)),
                 )
@@ -849,10 +859,10 @@ fn doc_page(ctx: &Ctx<'_>, slug: &str) -> Node {
                 .child(div().class("prose").html(doc.html.clone()))
                 .child(
                     a().class("edit")
-                        .href(format!(
+                        .href(link(&format!(
                             "{GITHUB}/edit/master/site/docs/{}/{slug}.md",
                             lang.code()
-                        ))
+                        )))
                         .attr("target", "_blank")
                         .attr("rel", "noopener noreferrer")
                         .text(d.edit),
@@ -871,7 +881,7 @@ fn doc_page(ctx: &Ctx<'_>, slug: &str) -> Node {
                     Node::from(h2().text(d.on_this_page)),
                     ul().children(doc.toc.iter().map(|h| {
                         li().class(format!("d{}", h.depth))
-                            .child(a().href(format!("#{}", h.id)).text(h.text.clone()))
+                            .child(a().href(link(&format!("#{}", h.id))).text(h.text.clone()))
                     }))
                     .into(),
                 ])
@@ -895,7 +905,7 @@ fn not_found(lang: Lang) -> Node {
         .child(p().text(d.text))
         .child(
             a().class("btn")
-                .href(format!("/{}/", lang.code()))
+                .href(link(&format!("/{}/", lang.code())))
                 .attr("data-magnetic", "")
                 .text(d.back),
         )
@@ -903,6 +913,36 @@ fn not_found(lang: Lang) -> Node {
 }
 
 /// Renders the page of `ctx.route`.
+/// The root page of a static export, where no server reads `Accept-Language`: it sends
+/// the visitor to the English home page at once and links the three languages.
+pub fn language_picker(origin: &str) -> String {
+    let seo = Seo::new()
+        .title("active")
+        .description(t(Lang::En).home.description)
+        .base_url(origin)
+        .canonical("/en/")
+        .noindex(true);
+    let body = main()
+        .class("doc-body")
+        .child(h1().text("active"))
+        .child(ul().children(Lang::ALL.map(|l| {
+            li().child(
+                a().href(link(&format!("/{}/", l.code())))
+                    .attr("hreflang", l.code())
+                    .attr("lang", l.code())
+                    .text(t(l).lang_name),
+            )
+        })));
+    Document::new(body)
+        .lang("en")
+        .seo(seo)
+        .head(format!(
+            r#"<meta http-equiv="refresh" content="0; url={}/en/"/>"#,
+            base()
+        ))
+        .render()
+}
+
 pub fn render(ctx: &Ctx<'_>) -> String {
     let (kind, content) = match &ctx.route.page {
         Page::Home => ("home", home(ctx)),
