@@ -61,7 +61,7 @@ Avec du CSS classique. Ajoutez des feuilles de style avec `Document::stylesheet(
 
 ## Quelle est la taille du WebAssembly ?
 
-Environ 22 ko avec gzip (55 ko bruts) pour une page avec un îlot compteur, et 42 ko avec gzip pour l'application de liste de tâches complète de `examples/spa`, compilés avec le profil optimisé pour la taille et servis compressés. Le contenu statique n'ajoute rien, et chaque îlot supplémentaire n'ajoute que son propre code. Chiffres, réglages et conseils : [Performances](../performance/#tailles).
+Environ 22 ko avec gzip (57 ko bruts) pour une page avec un îlot compteur, et 47 ko avec gzip pour l'application de liste de tâches complète de `examples/spa`, compilés avec le profil optimisé pour la taille et servis compressés. Le contenu statique n'ajoute rien, et chaque îlot supplémentaire n'ajoute que son propre code. Chiffres, réglages et conseils : [Performances](../performance/#tailles).
 
 ## Combien coûte l'hébergement sur Heroku ?
 

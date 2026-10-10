@@ -3,7 +3,7 @@
 use active::prelude::*;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct Todo {
     id: u32,
     text: String,
@@ -99,19 +99,24 @@ fn todo_page(todos: State<Vec<Todo>>) -> Node {
                 )
                 .child(button().text("Add")),
         )
-        .child(ul().children_dyn(move || {
-            let shown = filter();
-            todos
-                .get()
-                .into_iter()
-                .filter(|t| match shown {
-                    Filter::All => true,
-                    Filter::Active => !t.done,
-                    Filter::Done => t.done,
+        // Kept by id: adding, checking or removing a to-do rebuilds only that row.
+        .child(ul().children_keyed(
+            move || {
+                let shown = filter();
+                todos.with(|list| {
+                    list.iter()
+                        .filter(|t| match shown {
+                            Filter::All => true,
+                            Filter::Active => !t.done,
+                            Filter::Done => t.done,
+                        })
+                        .cloned()
+                        .collect()
                 })
-                .map(|t| item(todos, t))
-                .collect()
-        }))
+            },
+            |todo| todo.id,
+            move |todo| item(todos, todo.clone()),
+        ))
         .child(
             div()
                 .class("bar")

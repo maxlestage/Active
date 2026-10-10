@@ -5,7 +5,7 @@ The browser renders everything; the server only sends one page with the SEO defa
 the WebAssembly bundle.
 
 - `src/app.rs`: the app — components, `use_state`, an `effect` saving to `localStorage`,
-  lists with `children_dyn`, a form, and routing with `active::location()` and
+  a list kept by key with `children_keyed`, a form, and routing with `active::location()` and
   `active::query_param()` (the filter lives in the URL: `/?show=done`). Links to the
   same site change page without reloading, and each page's `Seo` updates the title and the
   meta tags.

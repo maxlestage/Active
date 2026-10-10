@@ -61,7 +61,7 @@ Con CSS normal. Añade hojas de estilo con `Document::stylesheet("/static/app.cs
 
 ## ¿Cuánto ocupa el WebAssembly?
 
-Unos 22 kB con gzip (55 kB sin comprimir) para una página con una isla de contador, y 42 kB con gzip para la aplicación de tareas completa de `examples/spa`, compiladas con el perfil optimizado para tamaño y servidas comprimidas. El contenido estático no añade nada, y cada isla adicional solo añade su propio código. Cifras, ajustes y consejos: [Rendimiento](../performance/#tamanos).
+Unos 22 kB con gzip (57 kB sin comprimir) para una página con una isla de contador, y 47 kB con gzip para la aplicación de tareas completa de `examples/spa`, compiladas con el perfil optimizado para tamaño y servidas comprimidas. El contenido estático no añade nada, y cada isla adicional solo añade su propio código. Cifras, ajustes y consejos: [Rendimiento](../performance/#tamanos).
 
 ## ¿Cuánto cuesta alojarlo en Heroku?
 

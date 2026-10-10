@@ -143,13 +143,37 @@ fn details() -> Element {
 }
 ```
 
-### Mantén las regiones pequeñas
+### Listas largas: filas por clave
 
-Una región se reconstruye entera: no hay diffing por claves. Eso es rápido para las listas de una página típica (decenas de elementos) y mantiene pequeña la biblioteca. Para listas grandes o que cambian a menudo:
+Una región `children_dyn` se reconstruye entera. Eso es rápido para las listas de una página típica (decenas de elementos) y es la opción más simple. Para listas largas o interactivas, `children_keyed` (o la función libre `keyed`) conserva cada fila por clave: cuando cambian los elementos, una fila cuya clave sigue ahí y cuyo elemento es igual conserva su DOM, sus estados, sus listeners y el foco, y se mueve si cambió el orden. Solo se construyen las filas nuevas o modificadas, y las eliminadas se liberan.
 
-- divide los datos en varios estados y varias regiones (una por grupo, por página de resultados…), para que un cambio reconstruya solo una de ellas;
-- deja los campos de texto **fuera** de las regiones: un campo dentro de una región se vuelve a crear en cada reconstrucción y pierde el foco;
-- dentro de los elementos, vincula los valores que cambian a menudo con `text_dyn` o `class_if` en lugar de reconstruir la lista.
+```rust
+use active::prelude::*;
+
+#[derive(Clone, PartialEq)]
+struct Todo {
+    id: u32,
+    text: String,
+    done: bool,
+}
+
+fn list(todos: State<Vec<Todo>>) -> Element {
+    ul().children_keyed(
+        move || todos.get(),
+        |todo| todo.id,
+        |todo| {
+            li().class(if todo.done { "done" } else { "" })
+                .text(todo.text.clone())
+                .into()
+        },
+    )
+}
+```
+
+- La primera closure devuelve los elementos (leer estados suscribe la lista), la segunda una clave que identifica un elemento a lo largo del tiempo (un id, no una posición) y la tercera construye una fila.
+- El tipo de los elementos implementa `PartialEq`: una fila cuyo elemento cambió se reconstruye, así que siempre muestra los valores actuales.
+- Haz que cada fila sea un solo elemento (`li`, `tr`…).
+- Con `children_dyn`, deja los campos de texto **fuera** de la región: se recrean en cada reconstrucción y pierden el foco. Una fila por clave que no cambia conserva su campo.
 
 ## Efectos
 

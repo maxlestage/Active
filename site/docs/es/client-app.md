@@ -317,4 +317,4 @@ En el servidor, `Document` encuentra el `Seo` de la página que muestra la regi�
 
 ## Tamaño
 
-La aplicación `examples/spa` completa (enrutamiento, formularios, filtros, almacenamiento) se compila en unos 106 kB de WebAssembly, 42 kB con gzip, con el perfil `wasm-release`. Consulta [Rendimiento](../performance/) para saber cómo medirlo y reducirlo.
+La aplicación `examples/spa` completa (enrutamiento, formularios, filtros, almacenamiento) se compila en unos 120 kB de WebAssembly, 47 kB con gzip, con el perfil `wasm-release`. Consulta [Rendimiento](../performance/) para saber cómo medirlo y reducirlo.

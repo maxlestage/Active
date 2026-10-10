@@ -317,4 +317,4 @@ Sur le serveur, `Document` trouve le `Seo` de la page affichée par la région d
 
 ## Taille
 
-L'application `examples/spa` complète (routage, formulaires, filtres, stockage) compile en environ 106 ko de WebAssembly, 42 ko avec gzip, avec le profil `wasm-release`. Voir [Performances](../performance/) pour savoir comment la mesurer et la réduire.
+L'application `examples/spa` complète (routage, formulaires, filtres, stockage) compile en environ 120 ko de WebAssembly, 47 ko avec gzip, avec le profil `wasm-release`. Voir [Performances](../performance/) pour savoir comment la mesurer et la réduire.

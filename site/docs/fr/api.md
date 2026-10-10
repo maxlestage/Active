@@ -21,7 +21,7 @@ Le crate utilise l'édition 2024 et nécessite Rust 1.85 ou plus récent. Il ne 
 | --- | --- |
 | `active::*` | tous les éléments ci-dessous |
 | `active::html` | une fonction par balise HTML et SVG |
-| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `island`, `text`, `text_dyn`, `use_state` ; avec `client`, aussi `location`, `navigate` et `query_param` |
+| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `island`, `keyed`, `text`, `text_dyn`, `use_state` ; avec `client`, aussi `location`, `navigate` et `query_param` |
 
 Absents du prélude : `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Utilisez-les sous la forme `active::hydrate`, etc.
 
@@ -54,6 +54,7 @@ Un morceau de vue. Vous construisez rarement les variantes à la main : les fonc
 | `Seo` | des balises SEO, écrites dans le `<head>` par `Document` |
 | `Island` | un îlot ([`island`](#island)) |
 | `Dynamic` | une région reconstruite quand ses états changent ([`fragment_dyn`](#fonctions-libres)) |
+| `Keyed` | une liste dont les lignes sont gardées par clé ([`keyed`](#fonctions-libres)) |
 
 | Méthode | Description |
 | --- | --- |
@@ -90,6 +91,7 @@ Un élément HTML en cours de construction, créé par une [fonction de balise](
 | `pub fn text(self, value: impl Into<Str>) -> Self` | Ajoute du texte échappé. |
 | `pub fn text_dyn(self, f: impl Fn() -> String + 'static) -> Self` | Ajoute du texte recalculé à partir d'états. |
 | `pub fn children_dyn(self, f: impl Fn() -> Vec<Node> + 'static) -> Self` | Ajoute une région dynamique, reconstruite quand les états lus par `f` changent. Équivaut à `.child(fragment_dyn(f))`. |
+| `pub fn children_keyed<T, K>(self, items: impl Fn() -> Vec<T> + 'static, key: impl Fn(&T) -> K + 'static, row: impl Fn(&T) -> Node + 'static) -> Self` (`T: PartialEq`, `K: Hash`) | Ajoute une liste gardée par clé. Équivaut à `.child(keyed(items, key, row))`. |
 | `pub fn html(self, html: impl Into<Str>) -> Self` | Remplace le contenu par du HTML de confiance, non échappé. |
 | `pub fn html_dyn(self, f: impl Fn() -> String + 'static) -> Self` | Idem, recalculé à partir d'états. |
 
@@ -111,6 +113,7 @@ Un élément HTML en cours de construction, créé par une [fonction de balise](
 | `pub fn text_dyn(f: impl Fn() -> String + 'static) -> Node` | Du texte recalculé à partir d'états. |
 | `pub fn fragment(nodes: impl IntoIterator<Item = impl Into<Node>>) -> Node` | Plusieurs nœuds sans élément englobant. |
 | `pub fn fragment_dyn(f: impl Fn() -> Vec<Node> + 'static) -> Node` | Une région dynamique : reconstruite d'un bloc dans le navigateur quand les états lus par `f` changent ; les états, effets et écouteurs créés pour les nœuds précédents sont libérés. Rendue entre `<!--[-->` et `<!--]-->` sur le serveur. |
+| `pub fn keyed<T, K>(items: impl Fn() -> Vec<T> + 'static, key: impl Fn(&T) -> K + 'static, row: impl Fn(&T) -> Node + 'static) -> Node` (`T: PartialEq`, `K: Hash`) | Une liste dont les lignes sont gardées par clé : dans le navigateur, les lignes dont la clé est toujours là et dont l'élément est identique gardent leur DOM, leurs états, leurs écouteurs et le focus (et se déplacent si l'ordre a changé) ; les lignes nouvelles ou modifiées sont construites, les lignes retirées libérées. Rendue comme `fragment_dyn` sur le serveur. Voir [État](../state/#longues-listes-lignes-par-cle). |
 
 ### Str
 
