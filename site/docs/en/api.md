@@ -279,6 +279,7 @@ A complete HTML page. Implements `Clone` and `Default`. Builder methods take `se
 | `pub fn client(self, js: impl Into<Str>, wasm: impl Into<Str>) -> Self` | Preloads and starts the `wasm-bindgen --target web --no-typescript` bundle. |
 | `pub fn manifest(self, href: &str, manifest: &pwa::Manifest) -> Self` | `<link rel="manifest">` to `href`, `theme-color`, the home screen title and the Apple touch icon (the largest PNG icon of purpose `any`). |
 | `pub fn service_worker(self, url: &str) -> Self` | An inline script that registers the service worker served at `url` once the page has loaded. |
+| `pub fn viewport(self, content: impl Into<Str>) -> Self` | `content` of `<meta name="viewport">` (default `width=device-width, initial-scale=1`). |
 | `pub fn html_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribute on `<html>`. |
 | `pub fn body_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribute on `<body>`. |
 | `pub fn final_seo(&self) -> Seo` | The merged SEO of the page, including islands and the current content of dynamic regions (evaluated separately from `render`). |

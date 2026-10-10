@@ -58,7 +58,7 @@ La salida es una sola línea de HTML. Formateada para leerla, su estructura es s
 </html>
 ```
 
-Las etiquetas charset y viewport se escriben siempre, así que todas las páginas están en UTF-8 y se adaptan a móviles. El pequeño estilo `active-island` evita que los contenedores de las [islas](../islands/) afecten al diseño.
+Las etiquetas charset y viewport se escriben siempre (`.viewport(…)` cambia la segunda), así que todas las páginas están en UTF-8 y se adaptan a móviles. El pequeño estilo `active-island` evita que los contenedores de las [islas](../islands/) afecten al diseño.
 
 ## El builder
 
@@ -66,6 +66,7 @@ Las etiquetas charset y viewport se escriben siempre, así que todas las página
 | --- | --- |
 | `Document::new(view)` | una página cuyo `<body>` contiene `view` (cualquier cosa que se convierta en un `Node`) |
 | `.lang(code)` | `<html lang="…">`, p. ej. `"en"`, `"fr"` |
+| `.viewport(content)` | sustituye el `content` de la etiqueta viewport (por defecto `width=device-width, initial-scale=1`), por ejemplo para añadir `viewport-fit=cover` |
 | `.seo(seo)` | el `Seo` base, fusionado con cada `Seo` que se encuentre en la vista; llamarlo de nuevo lo reemplaza |
 | `.stylesheet(href)` | un `<link rel="stylesheet">`; llámalo una vez por archivo |
 | `.head(html)` | HTML de confianza añadido al `<head>`: iconos, fuentes, analítica, `theme-color` |

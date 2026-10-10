@@ -58,7 +58,7 @@ The output is a single line of HTML. Laid out for reading, its structure is alwa
 </html>
 ```
 
-The charset and viewport tags are always written, so every page is UTF-8 and mobile-friendly. The small `active-island` style keeps [island](../islands/) wrappers out of the layout.
+The charset and viewport tags are always written (`.viewport(…)` changes the latter), so every page is UTF-8 and mobile-friendly. The small `active-island` style keeps [island](../islands/) wrappers out of the layout.
 
 ## The builder
 
@@ -66,6 +66,7 @@ The charset and viewport tags are always written, so every page is UTF-8 and mob
 | --- | --- |
 | `Document::new(view)` | a page whose `<body>` contains `view` (anything that converts into a `Node`) |
 | `.lang(code)` | `<html lang="…">`, e.g. `"en"`, `"fr"` |
+| `.viewport(content)` | replaces the viewport tag's `content` (default `width=device-width, initial-scale=1`), e.g. to add `viewport-fit=cover` |
 | `.seo(seo)` | the base `Seo`, merged with every `Seo` found in the view; calling it again replaces it |
 | `.stylesheet(href)` | a `<link rel="stylesheet">`; call it once per file |
 | `.head(html)` | trusted HTML appended to the `<head>`: icons, fonts, analytics, `theme-color` |

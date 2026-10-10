@@ -58,7 +58,7 @@ La sortie tient sur une seule ligne de HTML. Mise en forme pour la lecture, sa s
 </html>
 ```
 
-Les balises charset et viewport sont toujours écrites : chaque page est donc en UTF-8 et adaptée aux mobiles. Le petit style `active-island` empêche les conteneurs des [îlots](../islands/) d'influer sur la mise en page.
+Les balises charset et viewport sont toujours écrites (`.viewport(…)` change la seconde) : chaque page est donc en UTF-8 et adaptée aux mobiles. Le petit style `active-island` empêche les conteneurs des [îlots](../islands/) d'influer sur la mise en page.
 
 ## Le builder
 
@@ -66,6 +66,7 @@ Les balises charset et viewport sont toujours écrites : chaque page est donc en
 | --- | --- |
 | `Document::new(view)` | une page dont le `<body>` contient `view` (tout ce qui se convertit en `Node`) |
 | `.lang(code)` | `<html lang="…">`, par exemple `"en"`, `"fr"` |
+| `.viewport(content)` | remplace le `content` de la balise viewport (par défaut `width=device-width, initial-scale=1`), par exemple pour ajouter `viewport-fit=cover` |
 | `.seo(seo)` | le `Seo` de base, fusionné avec chaque `Seo` trouvé dans la vue ; un nouvel appel le remplace |
 | `.stylesheet(href)` | un `<link rel="stylesheet">` ; appelez-la une fois par fichier |
 | `.head(html)` | du HTML de confiance ajouté à la fin du `<head>` : icônes, polices, mesure d'audience, `theme-color` |

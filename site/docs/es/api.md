@@ -279,6 +279,7 @@ Una página HTML completa. Implementa `Clone` y `Default`. Los métodos del buil
 | `pub fn client(self, js: impl Into<Str>, wasm: impl Into<Str>) -> Self` | Precarga y arranca el bundle de `wasm-bindgen --target web --no-typescript`. |
 | `pub fn manifest(self, href: &str, manifest: &pwa::Manifest) -> Self` | `<link rel="manifest">` hacia `href`, `theme-color`, el título de la pantalla de inicio y el icono de Apple (el icono PNG más grande de tipo `any`). |
 | `pub fn service_worker(self, url: &str) -> Self` | Un script en línea que registra el service worker servido en `url` cuando la página ha cargado. |
+| `pub fn viewport(self, content: impl Into<Str>) -> Self` | `content` de `<meta name="viewport">` (por defecto `width=device-width, initial-scale=1`). |
 | `pub fn html_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Atributo en `<html>`. |
 | `pub fn body_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Atributo en `<body>`. |
 | `pub fn final_seo(&self) -> Seo` | El SEO fusionado de la página, incluidas las islas y el contenido actual de las regiones dinámicas (evaluadas por separado de `render`). |
