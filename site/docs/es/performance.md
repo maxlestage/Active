@@ -1,123 +1,102 @@
 ---
-title: Guía de rendimiento
-description: Lo que enseñan los benchmarks sobre cargar, llamar y dimensionar Rust/WebAssembly en React, y por qué el SEO con active-react no cuesta casi nada.
+title: Rendimiento
+description: Por qué active renderiza rápido en el servidor y pesa poco en el navegador: los ajustes de compilación que importan, tamaños medidos y cómo reducir los tuyos.
 ---
 
-Cada decisión de diseño de active-react se basa en mediciones. Esta página convierte los [benchmarks](../benchmarks/) en consejos prácticos: qué hace que un módulo WebAssembly se cargue rápido, se llame rápido y sea pequeño, y cuánto cuesta la parte SEO.
+`active` está diseñado para que el camino rápido sea el camino por defecto: en el servidor, las páginas se escriben directamente en una cadena, el navegador recibe primero el HTML completo y solo las partes interactivas cargan código. Esta página explica qué lo hace rápido, muestra tamaños medidos y enumera lo que puedes ajustar. Para comparaciones con otros frameworks de Rust, consulta [Benchmarks](../benchmarks/).
 
-## Carga: la red decide
+## En el servidor
 
-Los benchmarks midieron el tiempo desde la navegación hasta el primer resultado de Rust en pantalla, con todas las formas de cargar un módulo en una página renderizada en el cliente:
+- **Escritura directa en una cadena.** El renderizado recorre la vista una sola vez y agrega el HTML a un único `String`. No hay DOM virtual, ni árbol intermedio que comparar, ni plantilla que analizar en tiempo de ejecución. `Document::render` escribe primero el body, recogiendo sus valores `Seo` por el camino, y luego la página a su alrededor, así que cada región dinámica se evalúa una sola vez; `Seo` reserva el espacio que necesitan sus etiquetas antes de escribirlas.
+- **Escapado barato.** Los textos y los valores de atributos se recorren byte a byte y se copian por tramos; solo se reemplazan los cinco caracteres especiales (`&`, `<`, `>`, `"`, `'`).
+- **No se ejecuta nada que no produzca HTML.** Los manejadores de eventos y los efectos ni siquiera se guardan en el servidor.
+- **Memoria acotada.** Los estados viven en un almacén por hilo, y los que ya no usa ningún renderizado se liberan al final de los renderizados siguientes, así que un servidor que renderiza millones de páginas solo mantiene un puñado de estados vivos (consulta [Estado, En el servidor](../state/#en-el-servidor)).
+- **Sin dependencias.** Sin la feature `client`, el crate no tiene dependencias, lo que mantiene reducidos los tiempos de compilación y el tamaño de los binarios.
 
-| Escenario (renderizado en el cliente) | localhost | RTT de 100 ms |
-| --- | ---: | ---: |
-| active-react, `.wasm` puro | 28,8 ms | 331,5 ms |
-| react-wasm 1.0.1, `.wasm` puro | 28,5 ms | 327,1 ms |
-| `useEffect` escrito a mano, `.wasm` puro | 25,8 ms | 328,9 ms |
-| active-react + wasm-bindgen | 23,5 ms | 328,4 ms |
-| `useEffect` escrito a mano + wasm-bindgen | 24,6 ms | 332,9 ms |
+## En el navegador
 
-Con una latencia realista, todos rondan los **330 ms**. El código de carga no importa: el tiempo se va en los viajes de ida y vuelta por la red (el HTML, después el JavaScript, después el archivo `.wasm`) y en la compilación.
+- **Primero el HTML.** Los visitantes ven el contenido en cuanto llega el HTML; el bundle se precarga en paralelo (`Document::client` escribe enlaces `modulepreload` y `preload`) en lugar de descubrirse después de que se ejecute el cargador.
+- **Solo islas.** Las partes estáticas de una página no envían código y nunca se vuelven a renderizar. Una página sin islas no carga nada de WebAssembly.
+- **La hidratación reutiliza el HTML.** Las islas reclaman los elementos que renderizó el servidor en lugar de crear otros nuevos.
+- **Actualizaciones de grano fino.** Cada `text_dyn`, `attr_dyn`, `class_if` o `bool_attr` está vinculado a un nodo del DOM. Cambiar un estado solo vuelve a ejecutar los vínculos que lo leen: ningún componente se vuelve a renderizar y no hay diffing.
+- **Handles Copy.** Un `State` son dos enteros. Moverlo dentro de closures no cuesta nada y no necesita conteo de referencias.
+- **Pagas solo por lo que usas.** El código que mantiene actualizado el `<head>` en las aplicaciones del lado del cliente solo se incluye cuando el bundle llama a `mount` o `mount_to`; un bundle que solo hidrata islas no lo contiene.
 
-Así que hay dos cosas que marcan una diferencia real:
+Las regiones dinámicas (`children_dyn`, `fragment_dyn`) son la excepción: reconstruyen todo su contenido cuando cambia un estado que leen. Mantenlas pequeñas o divídelas (consulta [Mantén las regiones pequeñas](../state/#manten-las-regiones-pequenas)).
 
-1. **Empezar la descarga antes.** Con renderizado en servidor, active-react emite un preload para el binario, que entonces se descarga en paralelo con el JavaScript. Misma página, mismo módulo: **224,2 ms con preload frente a 330,0 ms sin él, un 32 % más rápido**.
-2. **Enviar un binario más pequeño.** Menos bytes que descargar y compilar. Consulta [tamaño del binario](#tamano-del-binario) más abajo.
+## Ajustes de compilación
 
-> **Consejo:** Pasa a `wasm()` la opción `url` y renderiza en el servidor o en tiempo de build. Obtienes el preload sin esfuerzo. Consulta [cargar WebAssembly](../loading-wasm/#preload).
+Estos perfiles, del `Cargo.toml` raíz del repositorio, dan un servidor rápido y un bundle pequeño:
 
-## Llamadas: agrupa el trabajo
+```toml
+[profile.release]
+opt-level = 3       # fastest code, for the server
+lto = true          # optimize across crates, drop unused code
+codegen-units = 1   # one unit: better optimization, slower build
+strip = true        # no symbols in the binaries
 
-Llamar a WebAssembly es rápido, pero no gratis. Medido en Chromium:
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"     # optimize for size: smaller downloads
+panic = "abort"     # no unwinding machinery
+```
 
-| Medida | JS puro | wasm puro | wasm-bindgen |
+| Ajuste | Por qué |
+| --- | --- |
+| `opt-level = "s"` | Los navegadores descargan el bundle: el tamaño importa más que el último porcentaje de velocidad. `"z"` está aún más orientado al tamaño; mide ambos. |
+| `lto = true` | La optimización en tiempo de enlazado elimina las partes de `std`, `web-sys` y tus dependencias que no usas. |
+| `codegen-units = 1` | Permite al compilador ver todo el crate a la vez. |
+| `strip = true` | Elimina los nombres de los símbolos. Desactívalo temporalmente para analizar el bundle (ver más abajo). |
+| `panic = "abort"` | Un pánico detiene el módulo en lugar de desenrollar la pila. Ya es el valor por defecto para `wasm32-unknown-unknown`; el perfil lo indica explícitamente. |
+
+La sección `[profile.dev.package."*"]` de este repositorio también optimiza las dependencias en las compilaciones de depuración (`opt-level = 2`), así que el servidor de desarrollo arranca rápido y tu propio código sigue compilando rápido.
+
+## Tamaños
+
+Medido en este repositorio con Rust 1.97, `wasm-bindgen` 0.2.129 y el perfil `wasm-release`, sin `wasm-opt`. Gzip con nivel 9 y Brotli con calidad 11 (los niveles que usaría un hosting estático o un paso de compilación).
+
+| Bundle | `_bg.wasm` sin comprimir | gzip | Brotli |
 | --- | ---: | ---: | ---: |
-| `add(a, b)`, por llamada | 0,55 ns | 4,05 ns | 4,81 ns |
-| `fib(30)`, recursivo | 11,4 ms | 2,1 ms | 1,9 ms |
-| `greet(str) -> String`, por llamada | 4,7 ns | — | 553,0 ns |
+| `examples/hello`: una isla de contador | 55 408 B | 21 926 B | 18 644 B |
+| `examples/spa`: aplicación de tareas con enrutamiento, formularios y almacenamiento | 105 895 B | 42 271 B | 35 381 B |
+| Este sitio web: cuatro islas, animaciones, búsqueda | 177 913 B | 64 747 B | 54 520 B |
 
-Tres lecciones:
+Los cargadores generados por `wasm-bindgen` añaden 4.2 kB (hello), 5.2 kB (spa) y 7.6 kB (sitio web) con gzip.
 
-- **Rust es unas 5 veces más rápido en trabajo real.** `fib(30)` tarda 2,1 ms en WebAssembly frente a 11,4 ms en JavaScript.
-- **Cada llamada cuesta unos 4 ns**, frente a 0,6 ns para una función JavaScript. Diez millones de llamadas diminutas desperdician tiempo cruzando la frontera.
-- **Las cadenas son caras: unos 550 ns por llamada.** wasm-bindgen copia y vuelve a codificar cada cadena en ambas direcciones.
+El mismo `examples/hello` compilado con el perfil `release` normal (`opt-level = 3`) da 61 100 B sin comprimir y 23 051 B con gzip: el perfil de tamaño ahorra alrededor de un 9 % sin comprimir y un 5 % comprimido.
 
-La regla: **envía grandes bloques de trabajo, no muchas llamadas pequeñas.** Pasa un typed array completo de una vez en lugar de llamar a Rust para cada elemento:
+La mayor parte de un bundle pequeño es maquinaria compartida (asignador de memoria, formateo de cadenas, el runtime de hidratación y reactividad, los bindings de `web-sys`), que se paga una vez por página. Cada isla adicional solo añade su propio código: este sitio web, con cuatro islas, sus animaciones y un cliente de búsqueda, ocupa unas tres veces lo que ocupa el contador solo.
 
-```rust
-use wasm_bindgen::prelude::*;
+## Mide el tuyo
 
-// One call processes the whole dataset.
-#[wasm_bindgen]
-pub fn smooth(values: &[f64], window: usize) -> Vec<f64> {
-    let window = window.max(1);
-    values
-        .windows(window)
-        .map(|w| w.iter().sum::<f64>() / window as f64)
-        .collect()
-}
+```sh
+cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
+wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
+ls -l pkg/my_site_bg.wasm                 # raw
+gzip -9 -c pkg/my_site_bg.wasm | wc -c    # gzip
+brotli -c -q 11 pkg/my_site_bg.wasm | wc -c   # Brotli, if the brotli tool is installed
 ```
 
-```ts
-// Good: one call, one copy in, one copy out.
-const smoothed = rust.smooth(new Float64Array(samples), 5);
+Mide siempre el archivo `_bg.wasm` que produce `wasm-bindgen`: el archivo de `target/` todavía contiene metadatos que `wasm-bindgen` elimina y es varias veces más grande.
 
-// Slow: one boundary crossing per item (scale being a tiny Rust function).
-const scaled = samples.map((x) => rust.scale(x, 2));
+Para ver qué ocupa espacio, compila una vez sin eliminar los símbolos e inspecciona el resultado con [twiggy](https://github.com/rustwasm/twiggy):
+
+```sh
+cargo install twiggy
+CARGO_PROFILE_WASM_RELEASE_STRIP=false cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
+wasm-bindgen --target web --out-dir pkg-debug target/wasm32-unknown-unknown/wasm-release/my_site.wasm
+twiggy top -n 20 pkg-debug/my_site_bg.wasm
 ```
 
-Reserva las cadenas para los extremos (un título, un resultado que mostrar), no para los bucles internos.
+## Hazlo más pequeño
 
-## Cuándo vale la pena Rust
+- **Sirve archivos comprimidos.** Brotli ahorra alrededor de un 15 % respecto a gzip en estos bundles. Con Axum, `tower_http::compression::CompressionLayer` comprime las respuestas al vuelo; los hostings estáticos y las CDN suelen hacerlo por ti.
+- **Caché para siempre.** Pon un hash del contenido en la URL del bundle y sírvelo como `immutable` (consulta [Documentos, Caché a largo plazo](../documents/#cache-a-largo-plazo)). Así, los visitantes que vuelven no descargan nada.
+- **Deja el trabajo pesado en el servidor.** Analizar Markdown, resaltar código o formatear fechas puede hacerse en el servidor y llegar a la isla como HTML o como props. Este sitio resalta sus ejemplos de código en el servidor y pasa el resultado como HTML sin escapar, así que el bundle no contiene ningún resaltador.
+- **Vigila las dependencias.** Cada crate que usa el código del navegador acaba en el bundle. Comprueba el tamaño después de añadir uno, y activa solo las features de `web-sys` que realmente uses.
+- **Prueba `opt-level = "z"`** y quédate con él si resulta más pequeño para tu código.
+- **Opcionalmente, ejecuta `wasm-opt`** de [Binaryen](https://github.com/WebAssembly/binaryen) después de `wasm-bindgen`: `wasm-opt -Oz -o out.wasm pkg/my_site_bg.wasm`. Suele recortar unos cuantos puntos porcentuales más. Si rechaza el módulo por una característica de WebAssembly, activa esa característica con la opción `--enable-…` correspondiente. Este repositorio no lo usa, así que las cifras de arriba son sin él.
 
-Buenos candidatos: bucles intensivos sobre números, parsing, compresión, procesamiento de imagen y audio, simulaciones, criptografía, búsqueda en grandes volúmenes de datos en memoria. Una tarea que tarda milisegundos en JavaScript y se ejecuta en una sola llamada es el caso ideal.
+## Renderizado en el servidor
 
-Malos candidatos: funciones pequeñas llamadas muy a menudo desde JavaScript, formateo de cadenas, trabajo con el DOM (WebAssembly no puede tocar el DOM sin pasar por JavaScript).
-
-## Tamaño del binario
-
-| Elemento | Minificado | Gzip |
-| --- | ---: | ---: |
-| active-react `wasm` + `useWasm` | 1,03 kB | 0,60 kB |
-| react-wasm 1.0.1 `useWasm` | 5,27 kB | 2,07 kB |
-| Glue JS de wasm-bindgen (3 funciones) | 1,89 kB | 0,93 kB |
-| Binario `extern "C"` puro (add + fib) | 144 B | 139 B |
-| Binario wasm-bindgen (add + fib + greet) | 15,87 kB | 6,76 kB |
-
-El binario de wasm-bindgen es unas 100 veces más grande que el puro, y casi todo procede de la función `greet`: `format!` y la maquinaria de `String` (asignador de memoria, manejo de UTF-8, formateo) pesan unos 15 kB. Las funciones puramente numéricas se compilan en unas pocas decenas de bytes.
-
-Para mantener los binarios pequeños:
-
-- Evita `format!`, `println!` y `to_string()` en el código que se envía al navegador cuando puedas devolver números en su lugar.
-- Vigila las dependencias pesadas: `serde_json`, `regex` o `chrono` añaden mucho cada una.
-- Para módulos solo numéricos, prescinde por completo de wasm-bindgen: consulta [WebAssembly puro](../raw-wasm/).
-
-## Perfiles de Cargo
-
-El mismo crate, medido en tamaño y velocidad (`lto = true`, `codegen-units = 1`, `panic = "abort"`, `strip = true` en todas las filas; `fib(30)` medido en Node):
-
-| Perfil | wasm puro | wasm-bindgen | wasm-bindgen gzip | `fib(30)` |
-| --- | ---: | ---: | ---: | ---: |
-| `opt-level = 3` | 144 B | 15,87 kB | 6,76 kB | 3,76 ms |
-| `opt-level = 3` + `wasm-opt -O3` | 112 B | 14,46 kB | 6,37 kB | 3,89 ms |
-| `opt-level = "s"` | 144 B | 14,71 kB | 6,51 kB | 4,17 ms |
-| `opt-level = "z"` | 137 B | 14,72 kB | 6,52 kB | 4,32 ms |
-| `opt-level = "z"` + `wasm-opt -Oz` | 109 B | 13,58 kB | 6,19 kB | 3,88 ms |
-
-## Recomendaciones
-
-- **Usa por defecto `opt-level = 3`** con `lto`, `codegen-units = 1`, `panic = "abort"` y `strip`. Es el perfil más rápido, y la diferencia de tamaño con los demás es pequeña.
-- **Si cada kilobyte cuenta**, usa `opt-level = "z"` más `wasm-opt -Oz` (de binaryen). Es aproximadamente un 8 % más pequeño en gzip (6,19 kB frente a 6,76 kB), con una velocidad similar en estas mediciones.
-- `opt-level = "s"` o `"z"`, sin nada más, son más lentos y apenas más pequeños: por sí solos no merecen la pena.
-- **Precarga** el binario con renderizado en servidor y la opción `url`.
-- **Agrupa** las llamadas y evita las cadenas en las rutas críticas.
-
-## El SEO no cuesta casi nada
-
-La parte SEO se midió frente a etiquetas escritas a mano (React 19 sin biblioteca) y las alternativas populares, en la misma página:
-
-- **Renderizado en servidor:** 42,4 µs por página, frente a 39,7 µs con etiquetas escritas a mano, es decir, +7 %. Es **1,5× más rápido que react-helmet** (66,5 µs). Con `renderWithHead` y una plantilla HTML: 44,1 µs.
-- **Actualizaciones del head al navegar:** una mediana de **0,3 ms** entre el renderizado de una nueva página y un `<head>` actualizado, lo mismo que con etiquetas escritas a mano.
-- **Tamaño del bundle:** 0,74 kB gzip, frente a entre 6,07 y 6,76 kB para @unhead/react, react-helmet-async y react-helmet.
-
-La razón es sencilla: React 19 hace el trabajo. `<Seo>` renderiza etiquetas y nada más: ni contexto, ni efecto, ni segunda pasada por el árbol.
+Los tiempos de renderizado en el servidor dependen de tus páginas y de tu máquina. La página [Benchmarks](../benchmarks/) compara una página completa renderizada por `active` con código `format!` escrito a mano y con otros frameworks de Rust, con el método y las cifras.

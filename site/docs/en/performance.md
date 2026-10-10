@@ -1,123 +1,102 @@
 ---
-title: Performance guide
-description: What the benchmarks teach about loading, calling and sizing Rust/WebAssembly in React, and why SEO with active-react costs almost nothing.
+title: Performance
+description: Why active renders fast on the server and stays small in the browser: the build settings that matter, measured bundle sizes, and how to shrink your own.
 ---
 
-Every design choice in active-react comes from measurements. This page turns the [benchmarks](../benchmarks/) into practical advice: what makes a WebAssembly module fast to load, fast to call and small, and what the SEO part costs.
+`active` is designed so that the fast path is the default one: pages are written straight to a string on the server, the browser receives complete HTML first, and only the interactive parts load code. This page explains what makes it fast, shows measured sizes, and lists what you can tune. For comparisons with other Rust frameworks, see [Benchmarks](../benchmarks/).
 
-## Loading: the network decides
+## On the server
 
-The benchmarks measured the time from navigation to the first Rust result on screen, with every way of loading a module in a client-rendered page:
+- **Direct string writing.** Rendering walks the view once and appends HTML to a single `String`. There is no virtual DOM, no intermediate tree to diff and no template to parse at runtime. `Document::render` writes the body first, collecting its `Seo` values on the way, then the page around it, so each dynamic region is evaluated once; `Seo` reserves the space its tags need before writing them.
+- **Cheap escaping.** Text and attribute values are scanned byte by byte and copied in runs; only the five special characters (`&`, `<`, `>`, `"`, `'`) are replaced.
+- **Nothing runs that does not produce HTML.** Event handlers and effects are not even stored on the server.
+- **Bounded memory.** States live in a per-thread store, and the ones no render uses any more are released at the end of the following renders, so a server that renders millions of pages keeps only a handful of live states (see [State, On the server](../state/#on-the-server)).
+- **No dependencies.** Without the `client` feature, the crate has no dependencies, which keeps compile times and binaries small.
 
-| Scenario (client rendering) | localhost | 100 ms RTT |
-| --- | ---: | ---: |
-| active-react, raw `.wasm` | 28.8 ms | 331.5 ms |
-| react-wasm 1.0.1, raw `.wasm` | 28.5 ms | 327.1 ms |
-| Hand-written `useEffect`, raw `.wasm` | 25.8 ms | 328.9 ms |
-| active-react + wasm-bindgen | 23.5 ms | 328.4 ms |
-| Hand-written `useEffect` + wasm-bindgen | 24.6 ms | 332.9 ms |
+## In the browser
 
-With realistic latency, they all land around **330 ms**. The loading code doesn't matter: the time goes into network round trips (HTML, then JavaScript, then the `.wasm` file) and compilation.
+- **HTML first.** Visitors see the content as soon as the HTML arrives; the bundle is preloaded in parallel (`Document::client` writes `modulepreload` and `preload` links) instead of being discovered after the loader runs.
+- **Islands only.** Static parts of a page ship no code and are never rendered again. A page without islands loads no WebAssembly at all.
+- **Hydration reuses the HTML.** Islands claim the elements the server rendered instead of creating new ones.
+- **Fine-grained updates.** Each `text_dyn`, `attr_dyn`, `class_if` or `bool_attr` is bound to one DOM node. Changing a state re-runs only the bindings that read it: no component re-renders, no diffing.
+- **Copy handles.** A `State` is two integers. Moving it into closures costs nothing and needs no reference counting.
+- **Pay for what you use.** The code that keeps the `<head>` up to date in client-side apps is only included when the bundle calls `mount` or `mount_to`; a bundle that only hydrates islands does not contain it.
 
-So two things make a real difference:
+Dynamic regions (`children_dyn`, `fragment_dyn`) are the exception: they rebuild their content as a whole when a state they read changes. Keep them small, or split them (see [Keep regions small](../state/#keep-regions-small)).
 
-1. **Start the download earlier.** With server rendering, active-react emits a preload for the binary, which then downloads in parallel with the JavaScript. Same page, same module: **224.2 ms with preload against 330.0 ms without, 32% faster**.
-2. **Ship a smaller binary.** Fewer bytes to download and compile. See [binary size](#binary-size) below.
+## Build settings
 
-> **Tip:** Give `wasm()` the `url` option and render on the server or at build time. You get the preload for free. See [loading WebAssembly](../loading-wasm/#preloading).
+These profiles, from the repository's root `Cargo.toml`, give a fast server and a small bundle:
 
-## Calls: batch your work
+```toml
+[profile.release]
+opt-level = 3       # fastest code, for the server
+lto = true          # optimize across crates, drop unused code
+codegen-units = 1   # one unit: better optimization, slower build
+strip = true        # no symbols in the binaries
 
-Calling into WebAssembly is fast, but not free. Measured in Chromium:
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"     # optimize for size: smaller downloads
+panic = "abort"     # no unwinding machinery
+```
 
-| Measure | Pure JS | Raw wasm | wasm-bindgen |
+| Setting | Why |
+| --- | --- |
+| `opt-level = "s"` | Browsers download the bundle: size matters more than the last percent of speed. `"z"` is even more size-oriented; measure both. |
+| `lto = true` | Link-time optimization removes the parts of `std`, `web-sys` and your dependencies you do not use. |
+| `codegen-units = 1` | Lets the compiler see the whole crate at once. |
+| `strip = true` | Removes symbol names. Turn it off temporarily to analyze the bundle (see below). |
+| `panic = "abort"` | A panic stops the module instead of unwinding. It is already the default for `wasm32-unknown-unknown`; the profile states it explicitly. |
+
+The `[profile.dev.package."*"]` section of this repository also optimizes dependencies in debug builds (`opt-level = 2`), so the development server starts fast while your own code still compiles quickly.
+
+## Sizes
+
+Measured on this repository with Rust 1.97, `wasm-bindgen` 0.2.129 and the `wasm-release` profile, without `wasm-opt`. Gzip at level 9, Brotli at quality 11 (the levels a static host or a build step would use).
+
+| Bundle | `_bg.wasm` raw | gzip | Brotli |
 | --- | ---: | ---: | ---: |
-| `add(a, b)`, per call | 0.55 ns | 4.05 ns | 4.81 ns |
-| `fib(30)`, recursive | 11.4 ms | 2.1 ms | 1.9 ms |
-| `greet(str) -> String`, per call | 4.7 ns | — | 553.0 ns |
+| `examples/hello`: one counter island | 55,408 B | 21,926 B | 18,644 B |
+| `examples/spa`: to-do app with routing, forms and storage | 105,895 B | 42,271 B | 35,381 B |
+| This website: four islands, animations, search | 177,913 B | 64,747 B | 54,520 B |
 
-Three lessons:
+The loaders generated by `wasm-bindgen` add 4.2 kB (hello), 5.2 kB (spa) and 7.6 kB (website) gzipped.
 
-- **Rust is about 5× faster on real work.** `fib(30)` takes 2.1 ms in WebAssembly against 11.4 ms in JavaScript.
-- **Each call costs about 4 ns**, against 0.6 ns for a JavaScript function. Ten million tiny calls waste time crossing the boundary.
-- **Strings are expensive: about 550 ns per call.** wasm-bindgen copies and re-encodes every string in both directions.
+The same `examples/hello` built with the plain `release` profile (`opt-level = 3`) gives 61,100 B raw, 23,051 B gzip: the size profile saves about 9% raw and 5% compressed.
 
-The rule: **send big chunks of work, not many small calls.** Pass a whole typed array once instead of calling Rust for each item:
+Most of a small bundle is shared machinery (memory allocator, string formatting, the hydration and reactive runtime, `web-sys` bindings), paid once per page. Each additional island adds only its own code: this website, with four islands, its animations and a search client, is about three times the size of the single counter.
 
-```rust
-use wasm_bindgen::prelude::*;
+## Measure your own
 
-// One call processes the whole dataset.
-#[wasm_bindgen]
-pub fn smooth(values: &[f64], window: usize) -> Vec<f64> {
-    let window = window.max(1);
-    values
-        .windows(window)
-        .map(|w| w.iter().sum::<f64>() / window as f64)
-        .collect()
-}
+```sh
+cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
+wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
+ls -l pkg/my_site_bg.wasm                 # raw
+gzip -9 -c pkg/my_site_bg.wasm | wc -c    # gzip
+brotli -c -q 11 pkg/my_site_bg.wasm | wc -c   # Brotli, if the brotli tool is installed
 ```
 
-```ts
-// Good: one call, one copy in, one copy out.
-const smoothed = rust.smooth(new Float64Array(samples), 5);
+Always measure the `_bg.wasm` file produced by `wasm-bindgen`: the file in `target/` still contains metadata that `wasm-bindgen` removes and is several times larger.
 
-// Slow: one boundary crossing per item (scale being a tiny Rust function).
-const scaled = samples.map((x) => rust.scale(x, 2));
+To see what takes space, build once without stripping and inspect the result with [twiggy](https://github.com/rustwasm/twiggy):
+
+```sh
+cargo install twiggy
+CARGO_PROFILE_WASM_RELEASE_STRIP=false cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
+wasm-bindgen --target web --out-dir pkg-debug target/wasm32-unknown-unknown/wasm-release/my_site.wasm
+twiggy top -n 20 pkg-debug/my_site_bg.wasm
 ```
 
-Keep strings for the edges (a title, a result to display), not for inner loops.
+## Make it smaller
 
-## When Rust is worth it
+- **Serve compressed files.** Brotli saves about 15% over gzip on these bundles. With Axum, `tower_http::compression::CompressionLayer` compresses responses on the fly; static hosts and CDNs usually do it for you.
+- **Cache forever.** Put a content hash in the bundle's URL and serve it as `immutable` (see [Documents, Long-term caching](../documents/#long-term-caching)). Returning visitors then download nothing.
+- **Keep heavy work on the server.** Parsing Markdown, highlighting code or formatting dates can run on the server and reach the island as HTML or props. This website highlights its code examples on the server and passes the result as raw HTML, so the bundle contains no highlighter.
+- **Watch dependencies.** Every crate used by browser code ends up in the bundle. Check the size after adding one, and prefer `web-sys` features you actually use.
+- **Try `opt-level = "z"`** and keep it if it is smaller for your code.
+- **Optionally run `wasm-opt`** from [Binaryen](https://github.com/WebAssembly/binaryen) after `wasm-bindgen`: `wasm-opt -Oz -o out.wasm pkg/my_site_bg.wasm`. It usually removes a few more percent. If it rejects the module because of a WebAssembly feature, enable that feature with the matching `--enable-…` flag. This repository does not use it, so the numbers above are without it.
 
-Good candidates: heavy loops over numbers, parsing, compression, image and audio processing, simulations, cryptography, search over large in-memory data. A task that takes milliseconds in JavaScript and runs in one call is the sweet spot.
+## Rendering on the server
 
-Poor candidates: small functions called very often from JavaScript, string formatting, DOM work (WebAssembly can't touch the DOM without going through JavaScript).
-
-## Binary size
-
-| Item | Minified | Gzip |
-| --- | ---: | ---: |
-| active-react `wasm` + `useWasm` | 1.03 kB | 0.60 kB |
-| react-wasm 1.0.1 `useWasm` | 5.27 kB | 2.07 kB |
-| wasm-bindgen JS glue (3 functions) | 1.89 kB | 0.93 kB |
-| Raw `extern "C"` binary (add + fib) | 144 B | 139 B |
-| wasm-bindgen binary (add + fib + greet) | 15.87 kB | 6.76 kB |
-
-The wasm-bindgen binary is about 100 times larger than the raw one, and almost all of that comes from the `greet` function: `format!` and the `String` machinery (allocator, UTF-8 handling, formatting) weigh about 15 kB. Pure numeric functions compile to a few dozen bytes.
-
-To keep binaries small:
-
-- Avoid `format!`, `println!` and `to_string()` in code that ships to the browser when you can return numbers instead.
-- Watch heavy dependencies: `serde_json`, `regex` or `chrono` each add a lot.
-- For numbers-only modules, skip wasm-bindgen entirely: see [raw WebAssembly](../raw-wasm/).
-
-## Cargo profiles
-
-Same crate, measured for size and speed (`lto = true`, `codegen-units = 1`, `panic = "abort"`, `strip = true` in every row; `fib(30)` measured in Node):
-
-| Profile | Raw wasm | wasm-bindgen | wasm-bindgen gzip | `fib(30)` |
-| --- | ---: | ---: | ---: | ---: |
-| `opt-level = 3` | 144 B | 15.87 kB | 6.76 kB | 3.76 ms |
-| `opt-level = 3` + `wasm-opt -O3` | 112 B | 14.46 kB | 6.37 kB | 3.89 ms |
-| `opt-level = "s"` | 144 B | 14.71 kB | 6.51 kB | 4.17 ms |
-| `opt-level = "z"` | 137 B | 14.72 kB | 6.52 kB | 4.32 ms |
-| `opt-level = "z"` + `wasm-opt -Oz` | 109 B | 13.58 kB | 6.19 kB | 3.88 ms |
-
-## Recommendations
-
-- **Default to `opt-level = 3`** with `lto`, `codegen-units = 1`, `panic = "abort"` and `strip`. It is the fastest profile, and the size difference with the others is small.
-- **If every kilobyte counts**, use `opt-level = "z"` plus `wasm-opt -Oz` (from binaryen). It is about 8% smaller gzipped (6.19 kB against 6.76 kB) with similar speed in these measurements.
-- `opt-level = "s"` or `"z"` alone are slower and barely smaller: not worth it on their own.
-- **Preload** the binary with server rendering and the `url` option.
-- **Batch** calls and avoid strings in hot paths.
-
-## SEO costs almost nothing
-
-The SEO part was measured against hand-written tags (React 19 with no library) and the popular alternatives, on the same page:
-
-- **Server rendering:** 42.4 µs per page, against 39.7 µs for hand-written tags, so +7%. That is **1.5× faster than react-helmet** (66.5 µs). With `renderWithHead` and an HTML template: 44.1 µs.
-- **Head updates on navigation:** a median of **0.3 ms** between rendering a new page and an up-to-date `<head>`, the same as hand-written tags.
-- **Bundle size:** 0.74 kB gzip, against 6.07 to 6.76 kB for @unhead/react, react-helmet-async and react-helmet.
-
-The reason is simple: React 19 does the work. `<Seo>` renders tags and nothing else: no context, no effect and no second pass over the tree.
+Server render times depend on your pages and machine. The [Benchmarks](../benchmarks/) page compares a full page rendered by `active` with hand-written `format!` code and other Rust frameworks, with the method and the numbers.

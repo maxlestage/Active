@@ -3,14 +3,49 @@ name = "active"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "Zero-dependency SEO <head> tags (title, meta, canonical, Open Graph, Twitter, hreflang, JSON-LD) for Rust servers, static generators and WebAssembly. Rust twin of active-react's <Seo>."
+description = "A simple, fast front-end library for Rust: components, state, routing, complete SEO tags, server rendering and WebAssembly islands."
 license = "MIT"
 repository = "https://github.com/maxlestage/Active"
 homepage = "https://github.com/maxlestage/Active"
 documentation = "https://docs.rs/active"
 readme = "README.md"
-keywords = ["seo", "meta", "open-graph", "json-ld", "html"]
-categories = ["web-programming", "template-engine"]
+keywords = ["frontend", "web", "seo", "wasm", "ssr"]
+categories = ["web-programming", "wasm", "gui"]
 include = ["src", "README.md", "LICENSE"]
 
+[features]
+default = []
+# Browser side (compile for wasm32): hydrate islands, mount client-side apps, run effects,
+# listen to events, route and update the <head>.
+client = ["dep:wasm-bindgen", "dep:web-sys"]
+
 [dependencies]
+wasm-bindgen = { version = "0.2.100", optional = true }
+web-sys = { version = "0.3.77", optional = true, features = [
+  "CharacterData",
+  "Comment",
+  "console",
+  "Document",
+  "DomTokenList",
+  "Element",
+  "Event",
+  "EventTarget",
+  "History",
+  "HtmlAnchorElement",
+  "HtmlCollection",
+  "HtmlHeadElement",
+  "HtmlInputElement",
+  "HtmlSelectElement",
+  "HtmlTextAreaElement",
+  "KeyboardEvent",
+  "Location",
+  "MouseEvent",
+  "Node",
+  "NodeList",
+  "Text",
+  "UrlSearchParams",
+  "Window",
+] }
+
+[package.metadata.docs.rs]
+features = ["client"]

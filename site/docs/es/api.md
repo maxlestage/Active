@@ -1,179 +1,356 @@
 ---
 title: Referencia de la API
-description: Todas las exportaciones de active-react con su firma TypeScript, props, valores por defecto y comportamiento, más un resumen del crate de Rust active.
+description: Cada elemento público del crate active con su firma: vistas, elementos, estado, efectos, eventos, Seo, Document, islas, funciones del navegador y features.
 ---
 
-active-react tiene dos puntos de entrada:
+Esta página enumera todos los elementos públicos del crate `active`, agrupados por tema, con su firma exacta y una descripción de una línea. Las guías explican cómo usarlos; la documentación generada en [docs.rs/active](https://docs.rs/active) contiene los mismos elementos con ejemplos.
 
-| Punto de entrada | Exportaciones |
-| --- | --- |
-| `active-react` | `Seo`, `createSeo`, `SeoProps`, `wasm`, `useWasm`, `Wasm` |
-| `active-react/server` | `renderWithHead` |
+## Features de Cargo
 
-## Seo
-
-```ts
-function Seo(props: SeoProps): JSX.Element;
-```
-
-Renderiza las etiquetas SEO de una página: `<title>`, meta description, robots, canonical, alternativas hreflang, Open Graph, Twitter y JSON-LD. React 19 traslada las etiquetas `<title>`, `<meta>` y `<link>` al `<head>`, en el servidor y en el navegador. El `<script>` JSON-LD se queda donde se renderiza el componente.
-
-No usa ningún hook, ni contexto, ni efecto, así que puede renderizarse en Server Components. Renderiza un solo `<Seo>` por página. Guía: [el componente `<Seo>`](../seo-component/).
-
-## SeoProps
-
-```ts
-interface SeoProps {
-  title?: string;
-  titleTemplate?: string;
-  description?: string;
-  canonical?: string;
-  image?: string;
-  type?: string;
-  siteName?: string;
-  locale?: string;
-  twitter?: string;
-  baseUrl?: string;
-  noindex?: boolean;
-  nofollow?: boolean;
-  alternates?: Record<string, string>;
-  jsonLd?: object | object[];
-  meta?: Array<{ name?: string; property?: string; content: string }>;
-}
-```
-
-| Prop | Valor por defecto | Descripción |
+| Feature | Por defecto | Añade |
 | --- | --- | --- |
-| `title` | ninguno | Título de la página. Se le aplica `titleTemplate` para `<title>`; se usa tal cual para `og:title`. Si falta, se usa `siteName` |
-| `titleTemplate` | ninguno | Plantilla en la que el primer `%s` se reemplaza por `title`, por ejemplo `"%s · Acme"`. Sin uso si no hay `title` |
-| `description` | ninguno | `<meta name="description">` y `og:description` |
-| `canonical` | ninguno | `<link rel="canonical">` y `og:url`. Las rutas relativas se resuelven con `baseUrl` |
-| `image` | ninguno | `og:image`. Las rutas relativas se resuelven con `baseUrl`. Cambia `twitter:card` a `summary_large_image` |
-| `type` | `"website"` | `og:type` |
-| `siteName` | ninguno | `og:site_name`, y el título cuando falta `title` |
-| `locale` | ninguno | `og:locale`, por ejemplo `"en_US"` |
-| `twitter` | ninguno | `twitter:site`, por ejemplo `"@acme"` |
-| `baseUrl` | ninguno | Origen (o prefijo) para las URLs relativas de `canonical`, `image` y `alternates`, por ejemplo `"https://acme.com"` |
-| `noindex` | `false` | Añade `noindex` a `<meta name="robots">` |
-| `nofollow` | `false` | Añade `nofollow` a `<meta name="robots">` |
-| `alternates` | ninguno | Alternativas hreflang: `{ en: "/en", fr: "/fr", "x-default": "/en" }` |
-| `jsonLd` | ninguno | Datos estructurados JSON-LD, un objeto o un array, serializados con `<` escapado |
-| `meta` | ninguno | Etiquetas meta adicionales: `[{ name: "theme-color", content: "#000" }]` |
+| `client` | desactivada | El runtime del navegador: [`hydrate`](#hydrate), [`mount`](#mount), [`mount_to`](#mount-to), [`location`](#location), [`query`](#query), [`query_param`](#query-param), [`navigate`](#navigate), [`update_head`](#update-head), `Event::raw`, listeners de eventos reales, efectos y callbacks `on_mount`. Depende de `wasm-bindgen` y `web-sys`. |
 
-Siempre se renderizan: `og:type` y `twitter:card` (`summary`, o `summary_large_image` si hay imagen). `<meta name="robots">` solo aparece cuando `noindex` o `nofollow` es true.
+Sin `client`, el crate no tiene dependencias. Los manejadores de eventos, los efectos y los callbacks `on_mount` se aceptan y se ignoran, así que los mismos componentes compilan en el servidor. Activa `client` solo para la compilación `wasm32` (consulta [Instalación](../installation/#un-crate-dos-destinos)).
 
-Resolución de URLs: las URLs con esquema (`https:`, `mailto:`…) o que empiezan por `//` se conservan; en los demás casos se antepone `baseUrl`, sin su posible barra final, con una `/` entre ambos cuando la ruta no empieza por una.
+El crate usa la edición 2024 y necesita Rust 1.85 o posterior. No contiene código `unsafe`.
 
-## createSeo
+## Estructura del crate
 
-```ts
-function createSeo(defaults: SeoProps): (props: SeoProps) => ReactNode;
-```
-
-Devuelve un componente `<Seo>` con valores por defecto para todo el sitio. Las props de la página se fusionan sobre los valores por defecto con un spread superficial (`{ ...defaults, ...props }`): las props de tipo objeto y array reemplazan el valor por defecto, y un `undefined` explícito lo elimina.
-
-```ts
-export const Seo = createSeo({ siteName: "Acme", titleTemplate: "%s · Acme", baseUrl: "https://acme.com" });
-```
-
-Guía: [valores por defecto del sitio](../site-defaults/).
-
-## wasm
-
-```ts
-function wasm<T>(source: () => Promise<T>, options?: { url?: string }): Wasm<T>;
-
-function wasm<T = WebAssembly.Exports>(
-  source: string | URL,
-  options?: { imports?: WebAssembly.Imports },
-): Wasm<T>;
-```
-
-Declara un módulo WebAssembly. **No se descarga nada** hasta `load()` o `useWasm()`.
-
-- **Sobrecarga con loader**, para la salida de wasm-bindgen o wasm-pack: `wasm(() => import("./pkg/my_crate.js"), { url })`. Si el módulo tiene una función como exportación por defecto (`--target web`), se llama una vez con `{ module_or_path: url }`, o sin argumento cuando falta `url`. En caso contrario (`--target bundler`, o un objeto simple), el módulo se usa tal cual. `url` es la URL pública del binario `.wasm` y habilita el preload.
-- **Sobrecarga con URL**, para un módulo puro sin glue: `wasm<Exports>("/my_crate.wasm", { imports })`. El archivo se descarga y se compila con `WebAssembly.instantiateStreaming` cuando la respuesta tiene el content type `application/wasm`, o con `WebAssembly.instantiate` sobre sus bytes en caso contrario. Una respuesta que no sea 2xx rechaza la promesa con `wasm: <url> responded <status>`. Se resuelve con las exportaciones de la instancia.
-
-Guías: [cargar WebAssembly](../loading-wasm/), [WebAssembly puro](../raw-wasm/).
-
-## Wasm
-
-```ts
-interface Wasm<T> {
-  /** URL of the `.wasm` binary when known; preloaded from `<head>` by `useWasm`. */
-  readonly url?: string;
-  /** Starts loading once and resolves with the exports. Calling it again after a failure retries. */
-  load(): Promise<T>;
-  /** The exports once loaded, `undefined` before; throws if loading failed. */
-  get(): T | undefined;
-  /** Notifies `listener` when loading settles; starts loading. */
-  subscribe(listener: () => void): () => void;
-}
-```
-
-| Miembro | Comportamiento |
+| Ruta | Contenido |
 | --- | --- |
-| `url` | La opción `url` de la sobrecarga con loader, o la URL que se pasa a la sobrecarga con URL |
-| `load()` | Inicia la carga en la primera llamada. Las llamadas posteriores devuelven la misma promesa. Después de un fallo, la siguiente llamada inicia un nuevo intento |
-| `get()` | Lectura síncrona: las exportaciones, `undefined` mientras no se ha cargado, o lanza el error de carga |
-| `subscribe(listener)` | Llama a `listener` cuando la carga tiene éxito o falla, e inicia la carga si hace falta. Devuelve una función para cancelar la suscripción |
+| `active::*` | todos los elementos de abajo |
+| `active::html` | una función por etiqueta HTML y SVG |
+| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `island`, `text`, `text_dyn`, `use_state`; con `client`, también `location`, `navigate` y `query_param` |
 
-## useWasm
+No están en el prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Úsalos como `active::hydrate`, etc.
 
-```ts
-function useWasm<T>(mod: Wasm<T>): T | undefined;
-```
+## Vistas
 
-Devuelve las exportaciones del módulo, o `undefined` mientras se carga. Se basa en `useSyncExternalStore`:
-
-- el primer componente que usa un módulo inicia su carga; todos los componentes comparten la misma carga;
-- siempre devuelve `undefined` durante el renderizado en servidor y la hidratación, para que el marcado del servidor y el del cliente coincidan;
-- cuando la carga falla, el error se lanza durante el renderizado, hacia el error boundary más cercano; llama a `mod.load()` para reintentar;
-- mientras el módulo no está cargado y se conoce `mod.url`, llama a `preload(url, { as: "fetch", crossOrigin: "anonymous", type: "application/wasm" })` de React DOM. Durante el renderizado en servidor, esto emite `<link rel="preload" as="fetch" crossorigin type="application/wasm">` en el `<head>`.
-
-Para usar Suspense, usa `use(mod.load())` de React en un componente que solo se renderice en el navegador.
-
-## renderWithHead
-
-```ts
-import { renderWithHead } from "active-react/server";
-
-function renderWithHead(node: ReactNode): { head: string; html: string };
-```
-
-Para plantillas HTML en las que React no renderiza `<html>` por sí mismo, como Vite SSR con los marcadores `<!--app-head-->` y `<!--app-html-->`, o la generación estática. Renderiza `node` con `renderToString` y divide el resultado:
-
-- `head`: las etiquetas que React trasladó (title, meta, link, preloads), para insertarlas en el `<head>` de la plantilla;
-- `html`: el resto del marcado, para insertarlo en el contenedor de la app.
-
-```tsx
-const { head, html } = renderWithHead(<App url={url} />);
-const page = template.replace("<!--app-head-->", head).replace("<!--app-html-->", html);
-```
-
-Síncrono: los límites de Suspense que todavía están pendientes renderizan su fallback. Si tu árbol renderiza `<html>`, usa directamente `renderToString` o `renderToPipeableStream` de `react-dom/server`. Guía: [renderizado en servidor](../server-rendering/).
-
-## Crate de Rust
-
-El crate `active` ([crates.io](https://crates.io/crates/active)) genera las mismas etiquetas desde Rust:
+### Node
 
 ```rust
-use active::Seo;
-
-let site = Seo::new().site_name("Acme").title_template("%s · Acme").base_url("https://acme.com");
-let head: String = site.clone().title("Contact").description("Write to us.").canonical("/contact").to_html();
+pub enum Node {
+    Empty,
+    Element(Box<Element>),
+    Text(Str),
+    DynText(/* closure */),
+    Fragment(Vec<Node>),
+    Seo(Box<Seo>),
+    Island(Box</* island data */>),
+    Dynamic(/* closure */),
+}
 ```
 
-| Elemento | Descripción |
-| --- | --- |
-| `Seo::new()` | Builder vacío; `Seo` también implementa `Default`, `Clone`, `Debug`, `PartialEq`, `Eq` y `Hash` |
-| `title`, `title_template`, `description`, `canonical`, `image`, `og_type`, `site_name`, `locale`, `twitter`, `base_url` | Setters que reciben `impl Into<String>` |
-| `noindex(bool)`, `nofollow(bool)` | Indicadores de robots |
-| `alternate(lang, url)` | Añade o reemplaza una alternativa hreflang |
-| `json_ld(json)` | Añade un script JSON-LD a partir de una cadena JSON serializada |
-| `meta_name(name, content)`, `meta_property(property, content)` | Etiquetas meta adicionales |
-| `to_html(&self) -> String` | Renderiza las etiquetas |
-| `write_html(&self, out: &mut String)` | Añade las etiquetas al final de `out` |
-| `impl Display` | `format!("{seo}")` renderiza las etiquetas |
+Una pieza de una vista. Rara vez construirás las variantes a mano: lo hacen las funciones de etiqueta, `text`, `fragment`, `island` y las conversiones `From`.
 
-Guía: [el crate de Rust](../rust-crate/). Documentación completa: [docs.rs/active](https://docs.rs/active).
+| Variante | Significado |
+| --- | --- |
+| `Empty` | nada (el valor `Default`) |
+| `Element` | un elemento HTML |
+| `Text` | texto escapado |
+| `DynText` | texto calculado a partir de estados ([`text_dyn`](#funciones-libres)) |
+| `Fragment` | varios nodos, uno junto a otro |
+| `Seo` | etiquetas SEO, que `Document` escribe en el `<head>` |
+| `Island` | una isla ([`island`](#island)) |
+| `Dynamic` | una región que se reconstruye cuando cambian sus estados ([`fragment_dyn`](#funciones-libres)) |
+
+| Método | Descripción |
+| --- | --- |
+| `pub fn render(&self) -> String` | Renderiza la vista a HTML. Se puede llamar cualquier número de veces. |
+| `pub fn render_into(&self, out: &mut String)` | Igual, pero agrega el resultado a `out`. |
+
+Implementa `Clone`, `Default` y `Debug` (que imprime el HTML renderizado).
+
+Conversiones a `Node` (`From`): `Element`, `&'static str`, `String`, `Str`, `Seo`, `Vec<T>`, `Option<T>` y `[T; N]` para cualquier `T: Into<Node>`.
+
+### Element
+
+Un elemento HTML en construcción, creado por una [función de etiqueta](#funciones-de-etiqueta) o por [`el`](#funciones-libres). Cada método recibe `self` y devuelve el `Element` actualizado (`#[must_use]`), así que las llamadas se encadenan. Implementa `Clone` e `Into<Node>`.
+
+**Atributos y clases**
+
+| Método | Descripción |
+| --- | --- |
+| `pub fn attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Define un atributo; volver a definir el mismo nombre reemplaza el valor. `attr("class", …)` añade clases, igual que `class`. |
+| `pub fn attr_dyn(self, name: impl Into<Str>, f: impl Fn() -> String + 'static) -> Self` | Atributo recalculado a partir de estados (reemplaza uno anterior con el mismo nombre). Para `value`, también define el valor actual del campo en el navegador. |
+| `pub fn bool_attr(self, name: impl Into<Str>, f: impl Fn() -> bool + 'static) -> Self` | Atributo booleano, presente mientras `f()` sea true (reemplaza uno anterior con el mismo nombre). Para `checked`, también define el estado de la casilla en el navegador. |
+| `pub fn id(self, id: impl Into<Str>) -> Self` | `id="…"` (reemplaza un id anterior). |
+| `pub fn class(self, class: impl Into<Str>) -> Self` | Añade clases (separadas por espacios); las cadenas vacías se ignoran. |
+| `pub fn class_if(self, class: impl Into<Str>, f: impl Fn() -> bool + 'static) -> Self` | Añade `class` mientras `f()` sea true. |
+| `pub fn style(self, style: impl Into<Str>) -> Self` | `style="…"` (reemplaza un estilo anterior). |
+| `pub fn href(self, href: impl Into<Str>) -> Self` | `href="…"` (reemplaza un href anterior). |
+
+**Contenido**
+
+| Método | Descripción |
+| --- | --- |
+| `pub fn child(self, child: impl Into<Node>) -> Self` | Agrega un hijo. Después de `html`/`html_dyn`, empieza una nueva lista de hijos. |
+| `pub fn children(self, children: impl IntoIterator<Item = impl Into<Node>>) -> Self` | Agrega varios hijos. |
+| `pub fn text(self, value: impl Into<Str>) -> Self` | Agrega texto escapado. |
+| `pub fn text_dyn(self, f: impl Fn() -> String + 'static) -> Self` | Agrega texto recalculado a partir de estados. |
+| `pub fn children_dyn(self, f: impl Fn() -> Vec<Node> + 'static) -> Self` | Agrega una región dinámica, que se reconstruye cuando cambian los estados que lee `f`. Equivale a `.child(fragment_dyn(f))`. |
+| `pub fn html(self, html: impl Into<Str>) -> Self` | Reemplaza el contenido por HTML de confianza sin escapar. |
+| `pub fn html_dyn(self, f: impl Fn() -> String + 'static) -> Self` | Igual, pero recalculado a partir de estados. |
+
+**Eventos y acceso al DOM** (solo en el navegador; se ignoran sin `client`)
+
+| Método | Descripción |
+| --- | --- |
+| `pub fn on(self, event: &'static str, handler: impl Fn(Event) + 'static) -> Self` | Escucha un evento del DOM. |
+| `pub fn on_click(self, handler: impl Fn(Event) + 'static) -> Self` | `on("click", …)`. |
+| `pub fn on_input(self, handler: impl Fn(Event) + 'static) -> Self` | `on("input", …)`. |
+| `pub fn on_mount(self, f: impl Fn(&Dom) + 'static) -> Self` | Ejecuta `f` con el elemento del DOM en cuanto está en la página. |
+
+### Funciones libres
+
+| Firma | Descripción |
+| --- | --- |
+| `pub fn el(tag: &'static str) -> Element` | Un elemento con cualquier nombre de etiqueta, p. ej. `el("my-widget")`. |
+| `pub fn text(value: impl Into<Str>) -> Node` | Un nodo de texto. |
+| `pub fn text_dyn(f: impl Fn() -> String + 'static) -> Node` | Texto recalculado a partir de estados. |
+| `pub fn fragment(nodes: impl IntoIterator<Item = impl Into<Node>>) -> Node` | Varios nodos sin elemento contenedor. |
+| `pub fn fragment_dyn(f: impl Fn() -> Vec<Node> + 'static) -> Node` | Una región dinámica: en el navegador se reconstruye entera cuando cambian los estados que lee `f`; se liberan los estados, los efectos y los listeners creados para los nodos anteriores. En el servidor se renderiza entre `<!--[-->` y `<!--]-->`. |
+
+### Str
+
+```rust
+pub type Str = std::borrow::Cow<'static, str>;
+```
+
+El tipo de cadena de los nombres y valores de atributos, los textos y las URL: un `&'static str` o un `String`.
+
+### Funciones de etiqueta
+
+`active::html` tiene una función por etiqueta, cada una `pub fn name() -> Element`:
+
+`a` `abbr` `address` `area` `article` `aside` `audio` `b` `bdi` `blockquote` `br` `button` `canvas` `caption` `cite` `code` `col` `colgroup` `data` `datalist` `dd` `del` `details` `dfn` `dialog` `div` `dl` `dt` `em` `embed` `fieldset` `figcaption` `figure` `footer` `form` `h1` `h2` `h3` `h4` `h5` `h6` `header` `hgroup` `hr` `i` `iframe` `img` `input` `ins` `kbd` `label` `legend` `li` `main` `map` `mark` `menu` `meter` `nav` `noscript` `object` `ol` `optgroup` `option` `output` `p` `picture` `pre` `progress` `q` `s` `samp` `search` `section` `select` `small` `source` `span` `strong` `sub` `summary` `sup` `table` `tbody` `td` `template` `textarea` `tfoot` `th` `thead` `time` `tr` `track` `u` `ul` `var` `video` `wbr`
+
+SVG: `svg` `circle` `ellipse` `g` `line` `path` `polygon` `polyline` `rect` `tspan` `defs` `stop`, más `text_svg` (`<text>`), `use_svg` (`<use>`) y `linear_gradient` (`<linearGradient>`).
+
+Los elementos vacíos (`area`, `br`, `col`, `embed`, `hr`, `img`, `input`, `source`, `track`, `wbr`, y `base`, `link`, `meta` mediante `el`) se escriben como `<tag …/>` e ignoran los hijos. No hay función `html`, `head` ni `body`: [`Document`](#document) escribe esas etiquetas.
+
+## Estado
+
+### use_state
+
+```rust
+pub fn use_state<T: 'static>(initial: T) -> State<T>
+```
+
+Crea un valor reactivo que pertenece al componente que se está construyendo. En el navegador se libera junto con su región dinámica; en el servidor, al final del segundo renderizado de nivel superior que ni lo lee ni lo crea.
+
+### State
+
+```rust
+pub struct State<T> { /* index into the state store */ }
+```
+
+Un handle a un valor reactivo. Implementa `Copy`, `Clone` y `Debug` para cualquier `T`. No es ni `Send` ni `Sync`: el valor vive en el almacén del hilo que lo creó, así que un handle no puede moverse a otro hilo ni conservarse a través de un `.await` en un future multihilo (`Send`).
+
+| Método | Descripción |
+| --- | --- |
+| `pub fn get(self) -> T where T: Clone` | Un clon del valor. Dentro de un efecto o de un vínculo, crea una suscripción. |
+| `pub fn with<R>(self, f: impl FnOnce(&T) -> R) -> R` | Lee el valor por referencia. Crea una suscripción igual que `get`. |
+| `pub fn set(self, value: T)` | Reemplaza el valor y vuelve a ejecutar lo que lo leyó. |
+| `pub fn update(self, f: impl FnOnce(&mut T))` | Modifica el valor en el sitio y vuelve a ejecutar lo que lo leyó. |
+
+### effect
+
+```rust
+pub fn effect(f: impl Fn() + 'static)
+```
+
+Ejecuta `f` ahora, y de nuevo cada vez que cambia un estado que leyó durante su última ejecución. Solo en el navegador: sin `client`, no hace nada. Un efecto que escribe un estado que él mismo lee no se vuelve a disparar.
+
+### scope y Scope
+
+```rust
+pub fn scope<R>(f: impl FnOnce() -> R) -> (R, Scope)
+pub struct Scope(/* … */);
+impl Scope { pub fn dispose(self) }
+```
+
+`scope` ejecuta `f` y devuelve su resultado con un `Scope` que posee los estados, los efectos y los listeners de eventos creados dentro. `dispose` los libera. `Scope` es `#[must_use]`. En el servidor, un renderizado dentro de un scope abierto no vacía el almacén de estados.
+
+## Eventos
+
+### Event
+
+Un evento del DOM que se pasa a los manejadores. Implementa `Debug` y `Clone`.
+
+| Método | Descripción |
+| --- | --- |
+| `pub fn value(&self) -> String` | Valor actual del `<input>`, `<textarea>` o `<select>` que disparó el evento; vacío en otro caso. |
+| `pub fn key(&self) -> String` | La tecla de un evento de teclado (`"Enter"`, `"k"`…); vacía en otro caso. |
+| `pub fn prevent_default(&self)` | Cancela la acción por defecto del navegador. |
+| `pub fn current_target(&self) -> Option<Dom>` | El elemento al que está conectado el listener. `None` en el servidor. |
+| `pub fn raw(&self) -> &web_sys::Event` | El evento subyacente. Solo con `client`. |
+
+### Dom
+
+```rust
+pub type Dom = web_sys::Element; // with `client`
+pub struct Dom;                  // without: an empty placeholder (Debug, Clone, Copy, Default)
+```
+
+El tipo de elemento que recibe `on_mount` y que devuelve `Event::current_target`.
+
+## SEO
+
+### Seo
+
+```rust
+pub struct Seo { /* … */ }
+```
+
+Las etiquetas del `<head>` de una página. Implementa `Clone`, `Debug`, `Default`, `PartialEq`, `Eq`, `Hash`, `Display` (misma salida que `to_html`) e `Into<Node>`. `#[must_use]`: los setters devuelven el valor actualizado. Reglas y ejemplos: [SEO](../seo/).
+
+| Método | Descripción |
+| --- | --- |
+| `pub fn new() -> Self` | Vacío; solo renderiza `og:type` (`website`) y `twitter:card` (`summary`). |
+| `pub fn title(self, title: impl Into<String>) -> Self` | `<title>` y `og:title`. |
+| `pub fn title_template(self, template: impl Into<String>) -> Self` | Plantilla para `<title>`; el primer `%s` se reemplaza por el título. |
+| `pub fn description(self, description: impl Into<String>) -> Self` | Meta description y `og:description`. |
+| `pub fn canonical(self, url: impl Into<String>) -> Self` | `<link rel="canonical">` y `og:url`. |
+| `pub fn image(self, url: impl Into<String>) -> Self` | `og:image`; cambia `twitter:card` a `summary_large_image`. |
+| `pub fn og_type(self, og_type: impl Into<String>) -> Self` | `og:type`. |
+| `pub fn site_name(self, site_name: impl Into<String>) -> Self` | `og:site_name`, y el título cuando no se define ninguno. |
+| `pub fn locale(self, locale: impl Into<String>) -> Self` | `og:locale`. |
+| `pub fn twitter(self, handle: impl Into<String>) -> Self` | `twitter:site`. |
+| `pub fn base_url(self, url: impl Into<String>) -> Self` | Origen para las URL relativas de canonical, image y alternate. |
+| `pub fn noindex(self, noindex: bool) -> Self` | `noindex` en `<meta name="robots">`. |
+| `pub fn nofollow(self, nofollow: bool) -> Self` | `nofollow` en `<meta name="robots">`. |
+| `pub fn alternate(self, lang: impl Into<String>, url: impl Into<String>) -> Self` | `<link rel="alternate" hreflang>`; volver a usar el mismo idioma reemplaza la URL. |
+| `pub fn json_ld(self, json: impl Into<String>) -> Self` | Un `<script>` JSON-LD, uno por llamada; `<` se escapa como `\u003c`. |
+| `pub fn meta_name(self, name: impl Into<String>, content: impl Into<String>) -> Self` | `<meta name content>` adicional. |
+| `pub fn meta_property(self, property: impl Into<String>, content: impl Into<String>) -> Self` | `<meta property content>` adicional. |
+| `pub fn merge(&mut self, other: &Seo)` | Aplica `other` encima: sus valores definidos ganan, las alternativas y las meta adicionales se reemplazan por clave, y el JSON-LD se añade al final. |
+| `pub fn merged(&self, other: &Seo) -> Seo` | `merge` en un valor nuevo. |
+| `pub fn to_html(&self) -> String` | Renderiza las etiquetas. |
+| `pub fn write_html(&self, out: &mut String)` | Agrega las etiquetas a `out`. |
+
+## Documentos
+
+### Document
+
+```rust
+pub struct Document { /* … */ }
+```
+
+Una página HTML completa. Implementa `Clone` y `Default`. Los métodos del builder reciben `self` y son `#[must_use]`. Guía: [Documentos](../documents/).
+
+| Método | Descripción |
+| --- | --- |
+| `pub fn new(body: impl Into<Node>) -> Self` | Una página cuyo `<body>` es `body`. |
+| `pub fn lang(self, lang: impl Into<Str>) -> Self` | `<html lang>`. |
+| `pub fn seo(self, seo: Seo) -> Self` | SEO base, fusionado con cada `Seo` del body; reemplaza una base anterior. |
+| `pub fn stylesheet(self, href: impl Into<Str>) -> Self` | `<link rel="stylesheet">`, en el orden de las llamadas. |
+| `pub fn head(self, html: impl Into<Str>) -> Self` | HTML de confianza añadido al `<head>`. |
+| `pub fn client(self, js: impl Into<Str>, wasm: impl Into<Str>) -> Self` | Precarga y arranca el bundle de `wasm-bindgen --target web`. |
+| `pub fn html_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Atributo en `<html>`. |
+| `pub fn body_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Atributo en `<body>`. |
+| `pub fn final_seo(&self) -> Seo` | El SEO fusionado de la página, incluidas las islas y el contenido actual de las regiones dinámicas (evaluadas por separado de `render`). |
+| `pub fn render(&self) -> String` | La página completa. Renderiza primero el body y recoge sus valores `Seo` por el camino, así que cada región dinámica se evalúa una sola vez. Se puede llamar cualquier número de veces. |
+
+## Islas
+
+### island
+
+```rust
+pub fn island(name: &'static str, props: impl Into<Str>, component: IslandFn) -> Node
+```
+
+Llama a `component(&props)` y envuelve su vista en `<active-island data-island="name" data-props="props">`, para que la hidrate en el navegador el componente registrado con el nombre `name`.
+
+### IslandFn
+
+```rust
+pub type IslandFn = fn(&str) -> Node;
+```
+
+Un componente de isla: construye su vista a partir de una cadena de props, de forma idéntica en el servidor y en el navegador.
+
+## Funciones del navegador
+
+Disponibles con la feature `client`, en la raíz del crate.
+
+### hydrate
+
+```rust
+pub fn hydrate(islands: &[(&str, IslandFn)])
+```
+
+Hidrata cada `<active-island>` de la página cuyo nombre esté en `islands`: ejecuta el componente con sus props y vincula los listeners, los textos, los atributos y las clases dinámicos al HTML existente. Las islas ya hidratadas y los nombres desconocidos se omiten. Si la estructura no coincide, muestra una advertencia en la consola y renderiza la isla desde cero. Nunca cambia el `<head>`.
+
+### mount
+
+```rust
+pub fn mount(view: &Node, parent: &web_sys::Element)
+```
+
+Crea el DOM de `view` después de los hijos existentes de `parent`. Fusiona los valores `Seo` de la vista y los escribe en el head con `update_head`; las regiones dinámicas de la vista actualizan el head cuando se reconstruyen.
+
+### mount_to
+
+```rust
+pub fn mount_to(selector: &str, view: impl Into<Node>)
+```
+
+Reemplaza el contenido del primer elemento que coincide con el `selector` CSS por `view` (usando `mount`). Muestra una advertencia en la consola si nada coincide. Es el punto de entrada habitual de una [aplicación del lado del cliente](../client-app/).
+
+### location
+
+```rust
+pub fn location() -> State<String>
+```
+
+La ruta actual (`window.location.pathname`, p. ej. `"/search"`), como estado. La primera llamada a `location`, `query` o `query_param` inicia el enrutador: Atrás y Adelante lo actualizan, y los clics en enlaces `<a href>` del mismo origen llaman a `navigate` en lugar de cargar una página (salvo los enlaces con un `target` distinto de `_self` o con un atributo `download`, los clics con una tecla modificadora o con un botón que no sea el principal, y las anclas de la página actual).
+
+### query
+
+```rust
+pub fn query() -> State<String>
+```
+
+La cadena de consulta actual sin el `?` (`"q=rust&page=2"`, vacía si no hay ninguna), como un estado que el enrutador actualiza igual que `location`.
+
+### query_param
+
+```rust
+pub fn query_param(name: &str) -> Option<String>
+```
+
+Un parámetro de la cadena de consulta, decodificado (`query_param("q")` en `/search?q=caf%C3%A9` da `Some("café")`), o `None`. Leerlo en una vista, una región dinámica o un efecto crea una suscripción a `query`.
+
+### navigate
+
+```rust
+pub fn navigate(to: &str)
+```
+
+Añade una entrada al historial para `to` (`"/about"`, `"/search?q=rust"`, `"/docs#install"`), actualiza `location()` y `query()` (solo los que cambiaron, así que solo se reconstruyen las vistas que dependen de ellos) y después se desplaza al principio, o al elemento cuyo id es el `#fragment`.
+
+### update_head
+
+```rust
+pub fn update_head(seo: &Seo)
+```
+
+Escribe `seo` en el `<head>` de la página: define `document.title` (con un título vacío cuando `seo` no tiene ni título ni nombre de sitio) y reemplaza las etiquetas de descripción, robots, canonical, alternativas `hreflang`, Open Graph, Twitter y JSON-LD, así como cualquier metaetiqueta con el mismo nombre o la misma propiedad que una de las metaetiquetas adicionales. Los demás elementos del head no se tocan.
+
+## Marcadores HTML
+
+La salida del servidor contiene algunos marcadores de los que depende la hidratación. Forman parte del formato: no elimines los comentarios HTML de las páginas con islas.
+
+| Marcador | Significado |
+| --- | --- |
+| `<!--#-->` | inicio de un texto dinámico |
+| `<!---->` | separador entre dos textos adyacentes |
+| `<!--[-->` … `<!--]-->` | una región dinámica |
+| `<active-island data-island data-props>` | una isla; recibe `data-hydrated` una vez hidratada |
+
+## Pánicos
+
+- Usar un `State` después de liberarlo provoca un pánico con "this state was disposed". En el navegador ocurre después de que se reconstruya su región dinámica o se libere su scope; en el servidor, después de dos renderizados de nivel superior que no lo usaron.
+- Leer un estado dentro de su propio closure de `update` provoca un pánico con "a state was read inside its own `update`; read it before updating". Llamar a `set` o `update` sobre un estado dentro de su propio `with` provoca un pánico con "a state was updated while being read or updated".

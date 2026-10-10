@@ -1,0 +1,9 @@
+[package]
+name = "bench-common"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+description = "What every benchmark shares: the SSR page data and checks, the timing loop, the counter page shell and the browser readiness mark."
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = ["Document", "Element", "HtmlElement", "Performance", "Window"] }

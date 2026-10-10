@@ -1,105 +1,96 @@
 ---
 title: Introducción
-description: active-react lleva las etiquetas SEO y Rust/WebAssembly a React 19 en unos 1,3 kB gzip, sin dependencias y con soporte para SSR, SSG y RSC.
+description: active es una pequeña biblioteca front-end para Rust: componentes como funciones, HTML con etiquetas SEO completas y WebAssembly solo donde haga falta.
 ---
 
-active-react es una pequeña biblioteca para React 19 que hace bien dos cosas: renderiza las etiquetas SEO que necesita cada página y permite que tus componentes llamen a código Rust compilado a WebAssembly (WASM).
+`active` es una pequeña biblioteca de Rust para construir el front-end de un sitio web. Escribes los componentes como funciones de Rust normales, guardas el estado en handles de `use_state`, describes cada página para los buscadores con `Seo` y compilas las partes interactivas a WebAssembly. El mismo código se ejecuta en el servidor y en el navegador, y nunca escribes JavaScript.
 
-La biblioteca completa pesa unos **1,3 kB gzip**. Tiene **cero dependencias** (React es una peer dependency), ejecuta **cero efectos** y funciona con renderizado en servidor (SSR), generación estática de sitios (SSG) y React Server Components (RSC).
+## Un primer vistazo
 
-```tsx
-import { createSeo, wasm, useWasm } from "active-react";
+Un componente es una función que devuelve una vista. Las vistas se construyen con una función por etiqueta HTML y métodos encadenados:
 
-const Seo = createSeo({ siteName: "Acme", titleTemplate: "%s · Acme", baseUrl: "https://acme.com" });
-const rust = wasm(() => import("./pkg/my_crate.js"));
+```rust
+use active::prelude::*;
 
-export function Page() {
-  const lib = useWasm(rust); // undefined while loading
-  return (
-    <>
-      <Seo title="Home" description="The Acme website." canonical="/" image="/og.png" />
-      <p>{lib ? lib.greet("you") : "Loading…"}</p>
-    </>
-  );
+/// Una tarjeta de producto: HTML simple, renderizado en el servidor.
+fn card(name: &str, price: u32) -> Element {
+    article()
+        .class("card")
+        .child(h2().text(name.to_string()))
+        .child(p().class("price").text(format!("{price} €")))
+}
+
+/// Un contador: renderizado en el servidor, interactivo en el navegador.
+fn counter(props: &str) -> Node {
+    let count = use_state(props.parse::<i32>().unwrap_or(0));
+    button()
+        .on_click(move |_| count.update(|n| *n += 1))
+        .text_dyn(move || format!("Clicked {} times", count.get()))
+        .into()
+}
+
+fn page() -> String {
+    let body = div()
+        .child(Seo::new().title("Oak chair").description("Solid oak, built to last."))
+        .child(card("Oak chair", 249))
+        .child(island("counter", "0", counter));
+    Document::new(body).lang("en").render()
 }
 ```
 
-## Lo que obtienes
+`page()` devuelve un documento HTML completo: el doctype, el `<head>` con el título, la descripción y las etiquetas Open Graph, y después el body. La tarjeta es HTML estático. El contador es una *isla*: su HTML también se renderiza en el servidor y, en cuanto se carga el bundle de WebAssembly, la misma función `counter` toma el control del botón que ya existe.
 
-- **`<Seo>` y `createSeo()`**: título, descripción, URL canónica, Open Graph, tarjetas de Twitter, robots, alternativas hreflang y datos estructurados JSON-LD, desde un solo componente.
-- **`wasm()` y `useWasm()`**: declara un módulo Rust una vez, cárgalo una vez y úsalo desde cualquier componente. El binario se precarga durante el renderizado en servidor.
-- **`renderWithHead()`**: un helper de servidor para plantillas HTML (Vite SSR, generación estática) que devuelve por separado las etiquetas del head y el body.
-- **El crate `active`**: el gemelo en Rust de `<Seo>`, que produce las mismas etiquetas desde servidores Rust, generadores estáticos o WebAssembly.
+## Tres formas de entregar tu sitio
 
-## Cómo funciona
+Los mismos componentes funcionan en tres tipos de proyecto. Elige el que mejor encaje, o combínalos.
 
-### SEO: React se encarga del hoisting
+| Modo | Cómo funciona | Ideal para |
+| --- | --- | --- |
+| Páginas renderizadas en el servidor con islas | Un servidor Rust (Axum o cualquier otro) renderiza cada petición con `Document::render()`. El navegador solo hidrata las islas. | Sitios con datos dinámicos, inicio de sesión, búsqueda, comercio electrónico |
+| Sitio estático | Un pequeño programa renderiza cada página como archivo HTML en tiempo de compilación. Las islas se siguen hidratando. | Documentación, blogs, landing pages, portafolios |
+| Aplicación del lado del cliente | Toda la interfaz se monta en el navegador desde WebAssembly. | Paneles y herramientas detrás de un inicio de sesión, donde el SEO no importa |
 
-Desde React 19, los elementos `<title>`, `<meta>` y `<link>` renderizados en cualquier parte de tu árbol de componentes son trasladados ("hoisting") al `<head>` del documento por el propio React, tanto en el servidor como en el navegador.
+Consulta [Axum](../axum/), [Sitios estáticos](../static-site/) y [Aplicaciones del lado del cliente](../client-app/) para cada uno.
 
-A una biblioteca de SEO le queda muy poco por hacer. `<Seo>` simplemente renderiza las etiquetas correctas. No hay provider, ni contexto, ni store, ni efecto, ni segunda pasada de renderizado. Cuando el usuario navega, React elimina las etiquetas de la página anterior e inserta las nuevas, de modo que el `<head>` siempre corresponde a la página que está en pantalla.
+## Por qué el renderizado en el servidor va primero
 
-### WASM: declarar, cargar una vez, precargar
+La mayoría de los sitios web son sobre todo texto e imágenes, con unas pocas partes interactivas. `active` está construido en torno a ese hecho:
 
-- `wasm()` **declara** un módulo. Todavía no se descarga nada.
-- `useWasm()` lo **carga** la primera vez que un componente lo necesita, con una única petición compartida, sin importar cuántos componentes lo usen. Devuelve las exportaciones del módulo, o `undefined` mientras se carga.
-- Cuando se conoce la URL del binario, `useWasm()` le pide a React que lo **precargue**. Durante el SSR, esto coloca un `<link rel="preload">` en el `<head>`, de modo que el navegador descarga el archivo `.wasm` en paralelo con tu JavaScript en lugar de después.
+- **Los buscadores y las vistas previas de enlaces leen HTML.** Cada página llega completa desde el servidor, con su título, descripción, URL canónica, enlaces `hreflang`, etiquetas Open Graph y JSON-LD. Nada depende de que un rastreador ejecute tu código.
+- **El contenido aparece antes de que se ejecute ningún código.** Los visitantes ven la página en cuanto llega el HTML. El bundle de WebAssembly se descarga en paralelo y solo despierta a las islas.
+- **Las partes estáticas no cuestan nada en el navegador.** Un párrafo renderizado en el servidor nunca se vuelve a renderizar, y no se envía código para él.
 
-## Cifras clave
+Cuando una página no necesita ninguna interactividad, no envía nada de WebAssembly.
 
-Según [los benchmarks](../benchmarks/) (la misma página para cada biblioteca, builds de producción):
+## Decisiones de diseño
 
-| Medida | active-react | Para comparar |
-| --- | ---: | --- |
-| Código SEO en el bundle del cliente | 0,74 kB gzip | react-helmet 6,76 kB, react-helmet-async 6,29 kB, @unhead/react 6,07 kB |
-| Tiempo de SSR por página | 42,4 µs | 39,7 µs con etiquetas escritas a mano, 66,5 µs con react-helmet |
-| Actualización del head tras un cambio de ruta | 0,3 ms de mediana | 16,7 ms con react-helmet |
-| Cargador WASM en el bundle del cliente | 0,60 kB gzip | react-wasm 2,07 kB |
-| Primer resultado de Rust en pantalla, RTT de 100 ms | 224 ms con preload en SSR | 330 ms sin preload |
+- **Los componentes son funciones.** Sin macros ni sintaxis especial: rust-analyzer, rustfmt y los mensajes de error del compilador funcionan como siempre.
+- **Estado de grano fino.** `use_state` devuelve un pequeño handle `Copy` que mueves dentro de los closures. Cuando un estado cambia, solo se actualiza el texto, el atributo o la clase que lo lee. No hay DOM virtual ni se vuelve a renderizar el componente.
+- **Un solo lenguaje.** Los componentes, el servidor, la compilación y las pruebas son Rust. El único JavaScript que recibe el navegador es el cargador generado por `wasm-bindgen` y una línea `<script type="module">` escrita por `Document::client`.
+- **Pequeño.** La compilación para el servidor no tiene dependencias. La feature `client` añade `wasm-bindgen` y `web-sys`. Una página con una isla de contador carga unos 22 kB de WebAssembly comprimido con gzip (consulta [Rendimiento](../performance/)).
 
-En resumen: el SEO cuesta apenas un pequeño porcentaje más que escribir las etiquetas a mano, el renderizado en servidor es 1,5× más rápido que con react-helmet y el preload automático reduce un 32 % el tiempo hasta el primer resultado de Rust.
+La API toma prestadas ideas conocidas (componentes como funciones, `use_state`, efectos), pero `active` es una biblioteca de Rust de principio a fin.
 
-## Cuándo usarlo
+## Cómo encajan las piezas
 
-active-react encaja bien cuando:
+```text
+                 tu crate: src/lib.rs (componentes e islas)
+                  /                                       \
+     compilación nativa (servidor o generador)   compilación wasm32 (feature "client")
+     Document::new(view).render() -> HTML        active::hydrate(&[("counter", counter)])
+                  \                                       /
+                   navegador: primero llega el HTML, luego despiertan las islas
+```
 
-- desarrollas con **React 19** y quieres etiquetas SEO correctas y completas con muy poco código: Vite (SPA, SSR o SSG), React Router v7, TanStack Start, Waku o tu propio servidor;
-- quieres trasladar el trabajo pesado (parsing, cálculos matemáticos, procesamiento de imágenes o de datos) a **Rust** sin escribir código repetitivo de carga;
-- te importa el **tamaño del bundle**.
+Un solo crate contiene tus componentes. Se compila dos veces: una para el servidor (o el generador del sitio estático) y otra a WebAssembly para el navegador. [Instalación](../installation/) muestra el `Cargo.toml` que lo hace posible.
 
-## Cuándo no usarlo
+## Lo que `active` no hace
 
-- **React 18 o anterior** no está soportado. Trasladar las etiquetas al `<head>` es una funcionalidad de React 19, y la biblioteca se basa en ella.
-- **Next.js App Router** tiene su propia Metadata API (`metadata` y `generateMetadata`), integrada con su enrutamiento y su streaming. Puede que la prefieras para el SEO. `wasm()` y `useWasm()` siguen funcionando en los componentes cliente.
-- **Los cálculos diminutos** no necesitan Rust: cada llamada a WebAssembly tiene un pequeño costo fijo. Consulta la [guía de rendimiento](../performance/).
+`active` es pequeño a propósito. No incluye un servidor web, una capa de base de datos, un bundler ni una solución de CSS. Usa el servidor Rust que prefieras (esta documentación muestra [Axum](../axum/)), archivos CSS normales, y `cargo` junto con `wasm-bindgen` para compilar.
 
-## Mapa de la documentación
+## Próximos pasos
 
-**Primeros pasos**
-
-- [Instalación](../installation/): requisitos, comandos de instalación y puntos de entrada.
-- [Inicio rápido](../quick-start/): una app de Vite con SEO y Rust en cinco minutos.
-
-**SEO**
-
-- [El componente `<Seo>`](../seo-component/): cada prop y el HTML que produce.
-- [Valores por defecto del sitio](../site-defaults/): `createSeo`, plantillas de título, URLs, robots y hreflang.
-- [Datos estructurados](../structured-data/): recetas JSON-LD para resultados enriquecidos.
-- [Renderizado en servidor](../server-rendering/): SSR, generación estática y `renderWithHead`.
-
-**Rust y WebAssembly**
-
-- [Configuración de Rust](../rust-setup/): toolchain, perfil de Cargo y primer build.
-- [Cargar WebAssembly](../loading-wasm/): `wasm()`, `useWasm()`, preload, errores y Suspense.
-- [WebAssembly puro](../raw-wasm/): módulos diminutos sin wasm-bindgen.
-- [Guía de rendimiento](../performance/): lo que enseñan los benchmarks.
-- [El crate de Rust](../rust-crate/): las mismas etiquetas SEO, generadas desde Rust.
-
-**Puesta en producción**
-
-- [Desplegar en Heroku](../deploy-heroku/): desde tu teléfono, sin necesidad de computadora.
-- [Publicación](../publishing/): publica en npm y crates.io a partir de una GitHub Release.
-
-**Referencia**
-
-- [Referencia de la API](../api/), [Benchmarks](../benchmarks/) y [Preguntas frecuentes](../faq/).
+1. [Instala](../installation/) las herramientas y el crate.
+2. Sigue el [Inicio rápido](../quick-start/) para tener una página con una isla funcionando en cinco minutos.
+3. Aprende sobre [componentes](../components/), [estado](../state/) y [eventos](../events/).
+4. Haz que tus páginas sean fáciles de encontrar con [SEO](../seo/).

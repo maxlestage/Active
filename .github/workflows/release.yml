@@ -1,21 +1,21 @@
 name: Release
 
 # Publish a GitHub Release with a tag like v0.2.0 (works from the GitHub website on a phone):
-# the version is taken from the tag, then the npm package and the Rust crate are published.
-# Each registry is skipped while its secret (NPM_TOKEN / CARGO_REGISTRY_TOKEN) is missing.
+# the version is taken from the tag, the tests run, then the `active` crate is published on
+# crates.io. Skipped with a warning while the CARGO_REGISTRY_TOKEN secret is missing.
 on:
   release:
     types: [published]
 
 jobs:
-  version:
+  crate:
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.v.outputs.version }}
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      TAG: ${{ github.event.release.tag_name }}
     steps:
-      - id: v
-        env:
-          TAG: ${{ github.event.release.tag_name }}
+      - name: Check the tag
+        id: version
         run: |
           VERSION="${TAG#v}"
           if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
@@ -23,47 +23,15 @@ jobs:
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-  npm:
-    needs: version
-    runs-on: ubuntu-latest
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    steps:
-      - if: env.NODE_AUTH_TOKEN == ''
-        run: echo "::warning::NPM_TOKEN secret missing — npm publish skipped."
-      - if: env.NODE_AUTH_TOKEN != ''
-        uses: actions/checkout@v4
-      - if: env.NODE_AUTH_TOKEN != ''
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
-      - if: env.NODE_AUTH_TOKEN != ''
-        run: |
-          npm ci
-          npm test
-          npm version "${{ needs.version.outputs.version }}" --no-git-tag-version --allow-same-version
-          npm publish --access public
-
-  crate:
-    needs: version
-    runs-on: ubuntu-latest
-    env:
-      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-    defaults:
-      run:
-        working-directory: crates/active
-    steps:
       - if: env.CARGO_REGISTRY_TOKEN == ''
-        working-directory: .
         run: echo "::warning::CARGO_REGISTRY_TOKEN secret missing — cargo publish skipped."
       - if: env.CARGO_REGISTRY_TOKEN != ''
         uses: actions/checkout@v4
       - if: env.CARGO_REGISTRY_TOKEN != ''
         uses: dtolnay/rust-toolchain@stable
       - if: env.CARGO_REGISTRY_TOKEN != ''
+        name: Publish
         run: |
-          sed -i '0,/^version = ".*"/s//version = "${{ needs.version.outputs.version }}"/' Cargo.toml
-          cargo test
-          cargo publish --allow-dirty
+          sed -i '0,/^version = ".*"/s//version = "${{ steps.version.outputs.version }}"/' crates/active/Cargo.toml
+          cargo test -p active
+          cargo publish -p active --allow-dirty

@@ -1,208 +1,194 @@
 ---
-title: Données structurées (JSON-LD)
-description: Ajoutez du JSON-LD schema.org à toute page avec la prop jsonLd pour décrire produits, articles ou fils d'Ariane, et obtenir des résultats enrichis.
+title: Données structurées
+description: Ajoutez des données structurées JSON-LD à vos pages avec Seo::json_ld : organisations, fils d'Ariane, articles, produits et FAQ, via serde_json ou à la main.
 ---
 
-Les données structurées décrivent le sujet d'une page dans un format que les machines comprennent : cette page est un produit qui coûte 249 euros, celle-ci est un article écrit par Ada le 1er octobre. Les moteurs de recherche s'en servent pour afficher des **résultats enrichis** : prix et stock, fils d'Ariane, dates d'articles, noms de sites, etc.
+Les données structurées indiquent aux moteurs de recherche, sous une forme lisible par une machine, de quoi parle une page : cette page est un produit avec un prix, celle-ci un article écrit par un auteur, ces liens forment un fil d'Ariane. Google s'en sert pour les résultats enrichis (étoiles, prix, fils d'Ariane, questions de FAQ). Le format standard est [JSON-LD](https://json-ld.org) avec le vocabulaire [schema.org](https://schema.org), dans une balise `<script type="application/ld+json">`.
 
-Le format standard est **JSON-LD** : un objet JSON qui utilise le vocabulaire [schema.org](https://schema.org), placé dans une balise `<script type="application/ld+json">`.
+`active` les ajoute au moyen du même builder `Seo` que les autres balises.
 
-## La prop jsonLd
+## Seo::json_ld
 
-Passez un objet à `jsonLd` :
+`.json_ld(json)` reçoit une chaîne de JSON déjà sérialisée et ajoute une balise `<script type="application/ld+json">` par appel, après les autres balises du `<head>` :
 
-```tsx
-<Seo
-  title="Oslo chair"
-  jsonLd={{
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: "Oslo chair",
-  }}
-/>
+```rust
+use active::Seo;
+
+let seo = Seo::new().json_ld(
+    r#"{"@context":"https://schema.org","@type":"Organization","name":"Acme","url":"https://acme.com"}"#,
+);
+assert!(seo.to_html().ends_with(
+    r#"<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"Acme","url":"https://acme.com"}</script>"#
+));
 ```
 
-Ou un tableau, quand la page décrit plusieurs choses. Il est rendu sous la forme d'un seul script contenant un tableau JSON, ce que les moteurs de recherche prennent en charge :
+Le JSON est écrit tel quel, à une modification près : chaque `<` devient `\u003c`. C'est toujours la même valeur JSON, mais une chaîne comme `</script>` dans vos données ne peut jamais fermer la balise prématurément et injecter du HTML. Une chaîne vide n'ajoute rien.
 
-```tsx
-<Seo title="Oslo chair" jsonLd={[productLd, breadcrumbLd]} />
+## Construire le JSON avec serde_json
+
+Le moyen le plus sûr de produire le JSON est [`serde_json`](https://docs.rs/serde_json), qui échappe correctement chaque valeur :
+
+```toml
+[dependencies]
+serde_json = "1"
 ```
 
-Passez de simples objets : active-react les sérialise avec `JSON.stringify` et les échappe pour vous.
+```rust
+use active::Seo;
+use serde_json::json;
 
-## Recettes
-
-Copiez, adaptez et validez. Chaque recette a besoin de `"@context": "https://schema.org"`.
-
-### Organization
-
-Sur votre page d'accueil, décrivez qui vous êtes. Les moteurs de recherche peuvent utiliser votre logo et vos profils sociaux.
-
-```tsx
-const organization = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  name: "Acme",
-  url: "https://acme.com",
-  logo: "https://acme.com/logo.png",
-  sameAs: ["https://github.com/acme", "https://www.linkedin.com/company/acme"],
-};
-```
-
-### WebSite
-
-Indique aux moteurs de recherche le nom de votre site, qui peut apparaître au-dessus de vos résultats.
-
-```tsx
-const website = {
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  name: "Acme",
-  url: "https://acme.com",
-};
-
-<Seo title="Acme, furniture made to last" titleTemplate="%s" canonical="/" jsonLd={[organization, website]} />;
-```
-
-### Product avec Offer
-
-Le prix, la devise et la disponibilité peuvent apparaître directement dans les résultats de recherche.
-
-```tsx
-function ProductSeo({ product }: { product: Product }) {
-  return (
-    <Seo
-      title={product.name}
-      description={product.summary}
-      canonical={`/products/${product.slug}`}
-      image={product.image}
-      type="product"
-      jsonLd={{
+fn product_seo(name: &str, price: &str, image: &str) -> Seo {
+    let data = json!({
         "@context": "https://schema.org",
         "@type": "Product",
-        name: product.name,
-        description: product.summary,
-        image: `https://acme.com${product.image}`,
-        sku: product.sku,
-        brand: { "@type": "Brand", name: "Acme" },
-        offers: {
-          "@type": "Offer",
-          price: product.price,
-          priceCurrency: "EUR",
-          availability: "https://schema.org/InStock",
-          url: `https://acme.com/products/${product.slug}`,
-        },
-      }}
-    />
-  );
+        "name": name,
+        "image": image,
+        "offers": {
+            "@type": "Offer",
+            "price": price,
+            "priceCurrency": "EUR",
+            "availability": "https://schema.org/InStock"
+        }
+    });
+    Seo::new().title(name.to_string()).og_type("product").json_ld(data.to_string())
+}
+
+let html = product_seo("Oak chair", "249.00", "https://acme.com/oak.jpg").to_html();
+assert!(html.contains(r#""@type":"Product""#));
+```
+
+`json!` construit une `serde_json::Value`, et `to_string()` la sérialise sans espaces. Avec vos propres types, dérivez `serde::Serialize` et appelez `serde_json::to_string(&value)`.
+
+## Sans dépendance
+
+Pour quelques champs, `format!` fait l'affaire, à condition que chaque valeur texte soit échappée comme une chaîne JSON :
+
+```rust
+use active::Seo;
+
+/// `s` sous forme de littéral de chaîne JSON, guillemets compris.
+fn json_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+let title = r#"Say "hello" to Rust"#;
+let seo = Seo::new().json_ld(format!(
+    r#"{{"@context":"https://schema.org","@type":"Article","headline":{}}}"#,
+    json_string(title)
+));
+assert!(seo.to_html().contains(r#""headline":"Say \"hello\" to Rust""#));
+```
+
+Pensez à doubler les accolades (`{{` et `}}`) du JSON lui-même à l'intérieur de `format!`.
+
+## Types courants
+
+Chaque exemple ci-dessous est un objet JSON-LD ; passez-le à `.json_ld(...)` comme montré plus haut.
+
+### Organisation et site web
+
+Une fois par site, généralement dans la mise en page ou sur la page d'accueil :
+
+```text
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Acme",
+  "url": "https://acme.com",
+  "logo": "https://acme.com/logo.png",
+  "sameAs": ["https://github.com/acme"]
 }
 ```
 
-> **Remarque :** `baseUrl` ne touche pas au JSON-LD : écrivez des URL absolues dans vos données structurées.
+### Fil d'Ariane
+
+Affiche la position de la page dans le site au sein des résultats de recherche. Ce site en ajoute un à chaque page de documentation :
+
+```text
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Docs", "item": "https://acme.com/docs/" },
+    { "@type": "ListItem", "position": 2, "name": "SEO", "item": "https://acme.com/docs/seo/" }
+  ]
+}
+```
 
 ### Article
 
-Utilisez `Article`, ou les types plus spécifiques `BlogPosting` ou `NewsArticle`.
+Pour les billets de blog et les actualités. Associez-le à `.og_type("article")` :
 
-```tsx
-<Seo
-  title={post.title}
-  description={post.excerpt}
-  canonical={`/blog/${post.slug}`}
-  image={post.cover}
-  type="article"
-  jsonLd={{
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    headline: post.title,
-    image: [`https://acme.com${post.cover}`],
-    datePublished: post.publishedAt, // "2026-10-01T09:00:00+02:00"
-    dateModified: post.updatedAt,
-    author: [{ "@type": "Person", name: post.author, url: post.authorUrl }],
-  }}
-/>
-```
-
-### BreadcrumbList
-
-Affiche la position de la page dans votre site au lieu d'une URL brute.
-
-```tsx
-const breadcrumb = {
+```text
+{
   "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Shop", item: "https://acme.com/shop" },
-    { "@type": "ListItem", position: 2, name: "Chairs", item: "https://acme.com/shop/chairs" },
-    { "@type": "ListItem", position: 3, name: "Oslo chair" },
-  ],
-};
+  "@type": "Article",
+  "headline": "Shipping a Rust website",
+  "datePublished": "2026-03-01",
+  "author": { "@type": "Person", "name": "Ada" },
+  "image": "https://acme.com/posts/rust-site.png"
+}
 ```
 
-Le dernier élément, la page courante, n'a pas besoin d'URL `item`.
+### FAQ
 
-### FAQPage
-
-```tsx
-const faq = {
+```text
+{
   "@context": "https://schema.org",
   "@type": "FAQPage",
-  mainEntity: [
+  "mainEntity": [
     {
       "@type": "Question",
-      name: "How long does delivery take?",
-      acceptedAnswer: { "@type": "Answer", text: "48 hours in mainland France." },
-    },
-    {
-      "@type": "Question",
-      name: "Can I return a chair?",
-      acceptedAnswer: { "@type": "Answer", text: "Yes, within 30 days, for free." },
-    },
-  ],
-};
+      "name": "Do you ship abroad?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes, to the whole European Union." }
+    }
+  ]
+}
 ```
 
-> **Remarque :** Google n'affiche actuellement les résultats enrichis FAQ que pour un nombre restreint de sites faisant autorité. Le balisage reste valide et d'autres consommateurs peuvent toujours le lire, mais ne comptez pas sur le rendu visuel.
+Le JSON est présenté ici sur plusieurs lignes pour la lecture ; `serde_json` produit une seule ligne, et les deux formes sont valides.
 
-## Typer vos données
+## Plusieurs blocs sur une page
 
-`jsonLd` accepte n'importe quel objet. Si vous voulez l'autocomplétion et des vérifications pour les types schema.org, le paquet `schema-dts` de Google fournit des définitions TypeScript :
+Chaque appel à `json_ld` ajoute sa propre balise `<script>`, et lorsque [les valeurs `Seo` sont fusionnées](../seo/#fusion), les blocs JSON-LD **s'additionnent** au lieu de se remplacer. Une mise en page peut déclarer l'organisation pendant que chaque page ajoute son fil d'Ariane :
 
-```ts
-import type { Product, WithContext } from "schema-dts";
+```rust
+use active::prelude::*;
 
-const productLd: WithContext<Product> = {
-  "@context": "https://schema.org",
-  "@type": "Product",
-  name: "Oslo chair",
-};
+let organization = r#"{"@context":"https://schema.org","@type":"Organization","name":"Acme"}"#;
+let breadcrumbs = r#"{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[]}"#;
+
+let page = div()
+    .child(Seo::new().json_ld(organization))
+    .child(article().child(Seo::new().title("Chairs").json_ld(breadcrumbs)));
+
+let html = Document::new(page).render();
+assert_eq!(html.matches(r#"<script type="application/ld+json">"#).count(), 2);
 ```
 
-C'est un paquet qui ne contient que des types : il n'ajoute rien à votre bundle.
+> **Attention :** Comme les blocs s'additionnent, un bloc déclaré à la fois par la mise en page et par une page apparaît deux fois. Déclarez chaque bloc commun à tout le site à un seul endroit.
 
-## Sécurité
+## Vérifier votre balisage
 
-Les données structurées contiennent souvent du contenu utilisateur : noms de produits, avis, titres d'articles. Si une valeur contenait `</script>`, un sérialiseur naïf fermerait la balise script trop tôt et laisserait le reste s'exécuter comme du HTML.
+- Testez une page publique avec le [test des résultats enrichis](https://search.google.com/test/rich-results) de Google (Rich Results Test) ou avec le [Schema Markup Validator](https://validator.schema.org).
+- Dans vos propres tests, rendez la page et examinez les balises fusionnées avec `Document::final_seo()` :
 
-active-react échappe chaque `<` en `\u003c` dans le JSON. Pour les parseurs, c'est toujours exactement le même JSON, mais il ne peut jamais fermer la balise `<script>` :
+```rust
+use active::prelude::*;
 
-```html
-<script type="application/ld+json">{"@type":"Thing","name":"\u003c/script>\u003cscript>alert(1)\u003c/script>"}</script>
+let page = main().child(Seo::new().json_ld(r#"{"@type":"Thing"}"#));
+let seo = Document::new(page).final_seo();
+assert!(seo.to_html().contains(r#"{"@type":"Thing"}"#));
 ```
-
-Passez toujours des objets, jamais des chaînes JSON préconstruites, pour que l'échappement s'applique.
-
-## Où il est rendu
-
-React 19 remonte `<title>`, `<meta>` et `<link>` dans le `<head>`, mais pas les scripts ordinaires. Le `<script>` JSON-LD reste donc là où `<Seo>` est rendu, dans le `<body>`. Google lit le JSON-LD n'importe où dans le document : ce n'est donc pas un problème.
-
-Avec le rendu serveur, le script fait partie du HTML que reçoit le robot d'indexation. Avec `renderWithHead`, il se trouve dans la partie `html`, pas dans la partie `head`. Voir [rendu serveur](../server-rendering/).
-
-## Valider
-
-Avant la mise en production, testez vos pages :
-
-- [Test des résultats enrichis de Google](https://search.google.com/test/rich-results) : indique à quels résultats enrichis une page est éligible. Collez une URL publique, ou le HTML d'une page locale.
-- [Schema Markup Validator](https://validator.schema.org) : vérifie le balisage par rapport à l'ensemble du vocabulaire schema.org.
-
-> **Astuce :** Après le lancement, les rapports sur les résultats enrichis de Google Search Console listent les erreurs de données structurées sur l'ensemble de votre site.

@@ -1,208 +1,194 @@
 ---
-title: Structured data (JSON-LD)
-description: Add schema.org JSON-LD to any page with the jsonLd prop to describe products, articles, breadcrumbs and more, and unlock rich search results.
+title: Structured data
+description: Add JSON-LD structured data to your pages with Seo::json_ld: organizations, breadcrumbs, articles, products and FAQs, built with serde_json or by hand.
 ---
 
-Structured data describes what a page is about in a format machines understand: this page is a product that costs 249 euros, that one is an article written by Ada on October 1st. Search engines use it to show **rich results**: prices and stock, breadcrumbs, article dates, site names and more.
+Structured data tells search engines what a page is about in a machine-readable form: this page is a product with a price, this one an article by an author, these links are a breadcrumb trail. Google uses it for rich results (stars, prices, breadcrumbs, FAQ entries). The standard format is [JSON-LD](https://json-ld.org) with the [schema.org](https://schema.org) vocabulary, in a `<script type="application/ld+json">` tag.
 
-The standard format is **JSON-LD**: a JSON object using the [schema.org](https://schema.org) vocabulary, placed in a `<script type="application/ld+json">` tag.
+`active` adds it through the same `Seo` builder as the other tags.
 
-## The jsonLd prop
+## Seo::json_ld
 
-Pass an object to `jsonLd`:
+`.json_ld(json)` takes a string of JSON you have already serialized and adds one `<script type="application/ld+json">` tag per call, after the other head tags:
 
-```tsx
-<Seo
-  title="Oslo chair"
-  jsonLd={{
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: "Oslo chair",
-  }}
-/>
+```rust
+use active::Seo;
+
+let seo = Seo::new().json_ld(
+    r#"{"@context":"https://schema.org","@type":"Organization","name":"Acme","url":"https://acme.com"}"#,
+);
+assert!(seo.to_html().ends_with(
+    r#"<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"Acme","url":"https://acme.com"}</script>"#
+));
 ```
 
-Or an array, when the page describes several things. It is rendered as one script containing a JSON array, which search engines support:
+The JSON is written as is, with one change: every `<` becomes `\u003c`. That is still the same JSON value, but a string such as `</script>` in your data can never close the tag early and inject HTML. An empty string adds nothing.
 
-```tsx
-<Seo title="Oslo chair" jsonLd={[productLd, breadcrumbLd]} />
+## Building the JSON with serde_json
+
+The safest way to produce the JSON is [`serde_json`](https://docs.rs/serde_json), which escapes every value correctly:
+
+```toml
+[dependencies]
+serde_json = "1"
 ```
 
-Pass plain objects: active-react serializes them with `JSON.stringify` and escapes them for you.
+```rust
+use active::Seo;
+use serde_json::json;
 
-## Recipes
-
-Copy, adapt and validate. Every recipe needs `"@context": "https://schema.org"`.
-
-### Organization
-
-On your home page, describe who you are. Search engines may use your logo and social profiles.
-
-```tsx
-const organization = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  name: "Acme",
-  url: "https://acme.com",
-  logo: "https://acme.com/logo.png",
-  sameAs: ["https://github.com/acme", "https://www.linkedin.com/company/acme"],
-};
-```
-
-### WebSite
-
-Tells search engines the name of your site, which can appear above your results.
-
-```tsx
-const website = {
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  name: "Acme",
-  url: "https://acme.com",
-};
-
-<Seo title="Acme, furniture made to last" titleTemplate="%s" canonical="/" jsonLd={[organization, website]} />;
-```
-
-### Product with Offer
-
-Price, currency and availability can show up directly in search results.
-
-```tsx
-function ProductSeo({ product }: { product: Product }) {
-  return (
-    <Seo
-      title={product.name}
-      description={product.summary}
-      canonical={`/products/${product.slug}`}
-      image={product.image}
-      type="product"
-      jsonLd={{
+fn product_seo(name: &str, price: &str, image: &str) -> Seo {
+    let data = json!({
         "@context": "https://schema.org",
         "@type": "Product",
-        name: product.name,
-        description: product.summary,
-        image: `https://acme.com${product.image}`,
-        sku: product.sku,
-        brand: { "@type": "Brand", name: "Acme" },
-        offers: {
-          "@type": "Offer",
-          price: product.price,
-          priceCurrency: "EUR",
-          availability: "https://schema.org/InStock",
-          url: `https://acme.com/products/${product.slug}`,
-        },
-      }}
-    />
-  );
+        "name": name,
+        "image": image,
+        "offers": {
+            "@type": "Offer",
+            "price": price,
+            "priceCurrency": "EUR",
+            "availability": "https://schema.org/InStock"
+        }
+    });
+    Seo::new().title(name.to_string()).og_type("product").json_ld(data.to_string())
+}
+
+let html = product_seo("Oak chair", "249.00", "https://acme.com/oak.jpg").to_html();
+assert!(html.contains(r#""@type":"Product""#));
+```
+
+`json!` builds a `serde_json::Value`, and `to_string()` serializes it without whitespace. With your own types, derive `serde::Serialize` and call `serde_json::to_string(&value)`.
+
+## Without a dependency
+
+For a few fields, `format!` works, provided every text value is escaped as a JSON string:
+
+```rust
+use active::Seo;
+
+/// `s` as a JSON string literal, quotes included.
+fn json_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+let title = r#"Say "hello" to Rust"#;
+let seo = Seo::new().json_ld(format!(
+    r#"{{"@context":"https://schema.org","@type":"Article","headline":{}}}"#,
+    json_string(title)
+));
+assert!(seo.to_html().contains(r#""headline":"Say \"hello\" to Rust""#));
+```
+
+Remember to double the braces (`{{` and `}}`) of the JSON itself inside `format!`.
+
+## Common types
+
+Every example below is a JSON-LD object; pass it to `.json_ld(...)` as shown above.
+
+### Organization and website
+
+Once per site, typically in the layout or the home page:
+
+```text
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Acme",
+  "url": "https://acme.com",
+  "logo": "https://acme.com/logo.png",
+  "sameAs": ["https://github.com/acme"]
 }
 ```
 
-> **Note:** `baseUrl` does not touch JSON-LD: write absolute URLs inside your structured data.
+### Breadcrumbs
+
+Shows the page's position in the site in search results. This website adds one to every documentation page:
+
+```text
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Docs", "item": "https://acme.com/docs/" },
+    { "@type": "ListItem", "position": 2, "name": "SEO", "item": "https://acme.com/docs/seo/" }
+  ]
+}
+```
 
 ### Article
 
-Use `Article`, or the more specific `BlogPosting` or `NewsArticle`.
+For blog posts and news. Pair it with `.og_type("article")`:
 
-```tsx
-<Seo
-  title={post.title}
-  description={post.excerpt}
-  canonical={`/blog/${post.slug}`}
-  image={post.cover}
-  type="article"
-  jsonLd={{
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    headline: post.title,
-    image: [`https://acme.com${post.cover}`],
-    datePublished: post.publishedAt, // "2026-10-01T09:00:00+02:00"
-    dateModified: post.updatedAt,
-    author: [{ "@type": "Person", name: post.author, url: post.authorUrl }],
-  }}
-/>
-```
-
-### BreadcrumbList
-
-Shows the page's position in your site instead of a raw URL.
-
-```tsx
-const breadcrumb = {
+```text
+{
   "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Shop", item: "https://acme.com/shop" },
-    { "@type": "ListItem", position: 2, name: "Chairs", item: "https://acme.com/shop/chairs" },
-    { "@type": "ListItem", position: 3, name: "Oslo chair" },
-  ],
-};
+  "@type": "Article",
+  "headline": "Shipping a Rust website",
+  "datePublished": "2026-03-01",
+  "author": { "@type": "Person", "name": "Ada" },
+  "image": "https://acme.com/posts/rust-site.png"
+}
 ```
 
-The last item, the current page, doesn't need an `item` URL.
+### FAQ
 
-### FAQPage
-
-```tsx
-const faq = {
+```text
+{
   "@context": "https://schema.org",
   "@type": "FAQPage",
-  mainEntity: [
+  "mainEntity": [
     {
       "@type": "Question",
-      name: "How long does delivery take?",
-      acceptedAnswer: { "@type": "Answer", text: "48 hours in mainland France." },
-    },
-    {
-      "@type": "Question",
-      name: "Can I return a chair?",
-      acceptedAnswer: { "@type": "Answer", text: "Yes, within 30 days, for free." },
-    },
-  ],
-};
+      "name": "Do you ship abroad?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes, to the whole European Union." }
+    }
+  ]
+}
 ```
 
-> **Note:** Google currently shows FAQ rich results for a limited set of authoritative sites only. The markup stays valid and other consumers can still read it, but don't count on the visual result.
+The JSON is shown on several lines here for reading; `serde_json` produces a single line, and both are valid.
 
-## Typing your data
+## Several blocks on one page
 
-`jsonLd` accepts any object. If you want autocompletion and checks for schema.org types, the `schema-dts` package from Google provides TypeScript definitions:
+Each `json_ld` call adds its own `<script>` tag, and when [`Seo` values merge](../seo/#merging), JSON-LD blocks are **added up** rather than replaced. A layout can declare the organization while each page adds its breadcrumbs:
 
-```ts
-import type { Product, WithContext } from "schema-dts";
+```rust
+use active::prelude::*;
 
-const productLd: WithContext<Product> = {
-  "@context": "https://schema.org",
-  "@type": "Product",
-  name: "Oslo chair",
-};
+let organization = r#"{"@context":"https://schema.org","@type":"Organization","name":"Acme"}"#;
+let breadcrumbs = r#"{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[]}"#;
+
+let page = div()
+    .child(Seo::new().json_ld(organization))
+    .child(article().child(Seo::new().title("Chairs").json_ld(breadcrumbs)));
+
+let html = Document::new(page).render();
+assert_eq!(html.matches(r#"<script type="application/ld+json">"#).count(), 2);
 ```
 
-It is a types-only package: it adds nothing to your bundle.
+> **Warning:** Because blocks add up, a block declared by both the layout and a page appears twice. Declare each site-wide block in one place only.
 
-## Security
+## Check your markup
 
-Structured data often contains user content: product names, reviews, article titles. If a value contained `</script>`, a naive serializer would close the script tag early and let the rest run as HTML.
+- Test a public page with Google's [Rich Results Test](https://search.google.com/test/rich-results) or the [Schema Markup Validator](https://validator.schema.org).
+- In your own tests, render the page and look at the merged tags with `Document::final_seo()`:
 
-active-react escapes every `<` as `\u003c` inside the JSON. It is still exactly the same JSON for parsers, but it can never close the `<script>` tag:
+```rust
+use active::prelude::*;
 
-```html
-<script type="application/ld+json">{"@type":"Thing","name":"\u003c/script>\u003cscript>alert(1)\u003c/script>"}</script>
+let page = main().child(Seo::new().json_ld(r#"{"@type":"Thing"}"#));
+let seo = Document::new(page).final_seo();
+assert!(seo.to_html().contains(r#"{"@type":"Thing"}"#));
 ```
-
-Always pass objects, never pre-built JSON strings, so the escaping applies.
-
-## Where it is rendered
-
-React 19 hoists `<title>`, `<meta>` and `<link>` into the `<head>`, but not regular scripts. The JSON-LD `<script>` therefore stays where `<Seo>` is rendered, inside the `<body>`. Google reads JSON-LD anywhere in the document, so this is fine.
-
-With server rendering, the script is part of the HTML the crawler receives. With `renderWithHead`, it is in the `html` part, not the `head` part. See [server rendering](../server-rendering/).
-
-## Validate
-
-Before shipping, test your pages:
-
-- [Google Rich Results Test](https://search.google.com/test/rich-results): shows which rich results a page is eligible for. Paste a public URL, or paste the HTML of a local page.
-- [Schema Markup Validator](https://validator.schema.org): checks the markup against the whole schema.org vocabulary.
-
-> **Tip:** After launch, the rich result reports in Google Search Console list structured data errors across your whole site.

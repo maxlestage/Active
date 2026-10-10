@@ -1,12 +1,8 @@
-//! Port of `test/seo.test.tsx`, plus parity cases checked against React 19.3
-//! `renderToString` output of active-react's `<Seo>`.
-//!
-//! Adaptations: React prints `hrefLang`, `active` prints `hreflang`; React keeps the JSON-LD
-//! `<script>` in the body, `active` appends it to the head tags.
+//! `Seo`: which tags are rendered, in which order, escaped and resolved how.
 
 use active::Seo;
 
-/// `createSeo({ siteName: "Acme", titleTemplate: "%s · Acme", baseUrl, image: "/og.png" })`
+/// Site-wide defaults, cloned by every page.
 fn site() -> Seo {
     Seo::new()
         .site_name("Acme")
@@ -123,10 +119,10 @@ fn starts_with_title_and_description() {
     assert!(!head.contains("<div"));
 }
 
-// Parity with React 19.3 `renderToString(<Seo …/>)` (hrefLang → hreflang, JSON-LD moved last).
+// Every option at once, in the documented order.
 
 #[test]
-fn full_example_matches_react() {
+fn full_example_renders_every_tag_in_order() {
     let site = Seo::new()
         .site_name("Acme")
         .title_template("%s · Acme")
@@ -171,7 +167,7 @@ fn full_example_matches_react() {
 }
 
 #[test]
-fn escapes_text_and_attributes_like_react() {
+fn escapes_text_and_attributes() {
     let html = Seo::new()
         .title(r#"<"Tom" & 'Jerry'>"#)
         .description(r#"a<b>&"'"#)
@@ -218,7 +214,7 @@ fn empty_builder_renders_og_type_and_twitter_card_only() {
 
 #[test]
 fn empty_title_does_not_fall_back_to_site_name() {
-    // `title ?? siteName` in active-react.
+    // No title: the site name is used.
     assert_eq!(
         Seo::new().title("").site_name("Acme").to_html(),
         concat!(
@@ -231,7 +227,7 @@ fn empty_title_does_not_fall_back_to_site_name() {
 
 #[test]
 fn empty_og_type_is_kept() {
-    // `type ?? "website"` in active-react.
+    // No type: `website`.
     assert!(
         Seo::new()
             .og_type("")
@@ -269,7 +265,7 @@ fn template_replaces_the_first_placeholder_only() {
 }
 
 #[test]
-fn resolves_urls_like_react() {
+fn resolves_relative_urls_against_the_base_url() {
     let h = Seo::new()
         .base_url("https://a.com/")
         .canonical("HTTP://X")

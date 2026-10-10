@@ -1,222 +1,196 @@
 ---
 title: Quick start
-description: Build a React 19 app with complete SEO tags and a Rust function compiled to WebAssembly in about five minutes, using Vite and wasm-pack.
+description: Run a server-rendered page with a WebAssembly counter island in five minutes, first with the bundled example, then in a new project of your own.
 ---
 
-In this tutorial you will create a Vite + React 19 app, give it proper SEO tags, then call a Rust function compiled to WebAssembly. It takes about five minutes if Rust is already installed.
+This page gets a real page on your screen: HTML rendered by a Rust server, with complete SEO tags, and one interactive counter compiled to WebAssembly. It assumes the tools from [Installation](../installation/) are installed (Rust, the `wasm32-unknown-unknown` target and `wasm-bindgen-cli`).
 
-## 1. Create the app
+## Run the example
 
-```sh
-npm create vite@latest my-app -- --template react-ts
-cd my-app
-npm install
-npm i github:maxlestage/Active
-```
-
-Vite's React template uses React 19, which active-react requires. You can check with `npm ls react`.
-
-## 2. Write your site defaults
-
-Create `src/seo.ts`. These values are shared by every page, so you write them once:
-
-```ts
-import { createSeo } from "active-react";
-
-export const Seo = createSeo({
-  siteName: "My App",
-  titleTemplate: "%s · My App",
-  baseUrl: "https://my-app.example", // relative URLs become absolute
-  image: "/og.png",
-  locale: "en_US",
-});
-```
-
-`createSeo` returns a `<Seo>` component with these defaults built in. Learn more in [site defaults](../site-defaults/).
-
-## 3. Add SEO to a page
-
-Replace `src/App.tsx`:
-
-```tsx
-import { Seo } from "./seo";
-
-export default function App() {
-  return (
-    <main>
-      <Seo title="Home" description="A React 19 app with SEO tags and Rust." canonical="/" />
-      <h1>Hello</h1>
-    </main>
-  );
-}
-```
-
-Start the dev server with `npm run dev` and inspect the page with your browser's developer tools. The `<head>` now also contains:
-
-```html
-<title>Home · My App</title>
-<meta name="description" content="A React 19 app with SEO tags and Rust."/>
-<link rel="canonical" href="https://my-app.example/"/>
-<meta property="og:title" content="Home"/>
-<meta property="og:description" content="A React 19 app with SEO tags and Rust."/>
-<meta property="og:type" content="website"/>
-<meta property="og:url" content="https://my-app.example/"/>
-<meta property="og:image" content="https://my-app.example/og.png"/>
-<meta property="og:site_name" content="My App"/>
-<meta property="og:locale" content="en_US"/>
-<meta name="twitter:card" content="summary_large_image"/>
-```
-
-You rendered `<Seo>` inside `<main>`, yet the tags are in the `<head>`: React 19 moved them there.
-
-> **Note:** `index.html` still has a static `<title>`. React inserts its own title before it, so the browser tab shows the right one. You can delete the static title if you prefer a single element.
-
-## 4. Create a Rust crate
-
-Install the tools once (see [Rust setup](../rust-setup/) for details):
+The repository contains a minimal app, [`examples/hello`](https://github.com/maxlestage/Active/tree/master/examples/hello). Clone it, build the browser bundle, start the server:
 
 ```sh
-# Rust itself: https://rustup.rs
-rustup target add wasm32-unknown-unknown
-cargo install wasm-pack
+git clone https://github.com/maxlestage/Active
+cd Active
+cargo build -p hello --lib --target wasm32-unknown-unknown --profile wasm-release
+wasm-bindgen --target web --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
+cargo run -p hello
 ```
 
-Then create a library crate next to `src/`:
+Open [http://localhost:3000](http://localhost:3000) and click the buttons. The example's server uses only the standard library, so it builds quickly.
+
+## Create your own project
+
+The same app, in a new crate, with an [Axum](../axum/) server.
+
+### 1. Create the crate
 
 ```sh
-cargo new --lib hello --vcs none
+cargo new my-site
+cd my-site
 ```
 
-Replace `hello/Cargo.toml`:
+### 2. Declare the dependencies
+
+Replace `Cargo.toml` with:
 
 ```toml
 [package]
-name = "hello"
+name = "my-site"
 version = "0.1.0"
 edition = "2024"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-wasm-bindgen = "0.2"
+active = "0.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
+tower-http = { version = "0.7", features = ["fs"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+active = { version = "0.1", features = ["client"] }
+wasm-bindgen = "=0.2.129"
 
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
-panic = "abort"
 strip = true
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"
+panic = "abort"
 ```
 
-And `hello/src/lib.rs`:
+> **Note:** Before the crate is published on crates.io, replace both `active = …` values with `{ git = "https://github.com/maxlestage/Active" }` (adding `features = ["client"]` to the second one).
+
+### 3. Write the page
+
+Create `src/lib.rs`. It is shared by the server and the browser:
 
 ```rust
-use wasm_bindgen::prelude::*;
+use active::prelude::*;
 
-#[wasm_bindgen]
-pub fn greet(name: &str) -> String {
-    format!("Hello {name}, from Rust!")
+/// An island: rendered on the server, interactive in the browser.
+pub fn counter(props: &str) -> Node {
+    let count = use_state(props.parse::<i32>().unwrap_or(0));
+    div()
+        .class("counter")
+        .child(button().on_click(move |_| count.update(|n| *n -= 1)).text("−"))
+        .child(span().text_dyn(move || count.get().to_string()))
+        .child(button().on_click(move |_| count.update(|n| *n += 1)).text("+"))
+        .into()
 }
 
-/// Number of primes below `n` (sieve of Eratosthenes).
-#[wasm_bindgen]
-pub fn count_primes(n: u32) -> u32 {
-    let n = n as usize;
-    if n < 2 {
-        return 0;
-    }
-    let mut sieve = vec![true; n];
-    sieve[0] = false;
-    sieve[1] = false;
-    let mut i = 2;
-    while i * i < n {
-        if sieve[i] {
-            let mut j = i * i;
-            while j < n {
-                sieve[j] = false;
-                j += i;
-            }
-        }
-        i += 1;
-    }
-    sieve.iter().filter(|&&p| p).count() as u32
+/// The whole page. Everything except the counter is plain HTML.
+pub fn page() -> String {
+    let body = main()
+        .child(Seo::new().title("Home").description("My first page with active."))
+        .child(h1().text("Hello from Rust"))
+        .child(p().text("This paragraph is plain HTML. The counter below is an island:"))
+        .child(island("counter", "0", counter));
+    Document::new(body)
+        .lang("en")
+        .seo(Seo::new().site_name("My site").title_template("%s · My site"))
+        .client("/pkg/my_site.js", "/pkg/my_site_bg.wasm")
+        .render()
+}
+
+/// Browser entry point: runs once the WebAssembly module has loaded.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen(start)]
+pub fn start() {
+    active::hydrate(&[("counter", counter)]);
 }
 ```
 
-## 5. Build it to WebAssembly
+### 4. Write the server
+
+Replace `src/main.rs`:
+
+```rust
+use axum::{Router, response::Html, routing::get};
+use tower_http::services::ServeDir;
+
+#[tokio::main]
+async fn main() {
+    let app = Router::new()
+        .route("/", get(|| async { Html(my_site::page()) }))
+        .nest_service("/pkg", ServeDir::new("pkg"));
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    println!("http://localhost:3000");
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+### 5. Build the browser bundle
 
 ```sh
-wasm-pack build hello --target web --out-dir ../src/pkg
+cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
+wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
 ```
 
-The `--out-dir` path is relative to the crate, so the output lands in `src/pkg/`:
+This writes `pkg/my_site.js` (the loader) and `pkg/my_site_bg.wasm` (your code). Run these two commands again whenever you change code that runs in the browser.
 
-- `hello.js`: the JavaScript glue generated by wasm-bindgen;
-- `hello_bg.wasm`: the compiled Rust;
-- `hello.d.ts`: TypeScript types for your functions.
-
-Save the command as a script in `package.json`, and run it before each build:
-
-```json
-{
-  "scripts": {
-    "wasm": "wasm-pack build hello --target web --out-dir ../src/pkg",
-    "build": "npm run wasm && tsc -b && vite build"
-  }
-}
-```
-
-## 6. Declare the module
-
-Create `src/wasm.ts`:
-
-```ts
-import { wasm } from "active-react";
-import url from "./pkg/hello_bg.wasm?url";
-
-export const hello = wasm(() => import("./pkg/hello.js"), { url });
-```
-
-Nothing is downloaded yet: `wasm()` only declares the module. The `?url` import asks Vite for the final URL of the binary, which lets active-react preload it during server rendering.
-
-## 7. Call Rust from a component
-
-Update `src/App.tsx`:
-
-```tsx
-import { useWasm } from "active-react";
-import { Seo } from "./seo";
-import { hello } from "./wasm";
-
-export default function App() {
-  const rust = useWasm(hello); // undefined while loading
-
-  return (
-    <main>
-      <Seo title="Home" description="A React 19 app with SEO tags and Rust." canonical="/" />
-      <h1>Hello</h1>
-      <p>{rust ? rust.greet("you") : "Loading the Rust module…"}</p>
-      <p>{rust && `${rust.count_primes(1_000_000)} primes below one million`}</p>
-    </main>
-  );
-}
-```
-
-`rust` is fully typed from `hello.d.ts`: try a typo in `count_primes` and TypeScript will catch it.
-
-## 8. Run it
+### 6. Run it
 
 ```sh
-npm run dev
+cargo run
 ```
 
-The page first shows "Loading the Rust module…", then the greeting and 78,498 primes. Run `npm run build` and `npm run preview` to try the production build.
+Open [http://localhost:3000](http://localhost:3000). The counter works, and the page source contains the whole text of the page.
 
-## Where to go next
+## What just happened
 
-Your app is a single-page app: the SEO tags are added by JavaScript in the browser. Google runs JavaScript, but many crawlers and link-preview bots don't. For the best SEO, pre-render your pages to HTML:
+Open the page source in your browser (usually `Ctrl+U` or `⌘+⌥+U`). Shortened and indented for reading, it looks like this:
 
-- [Server rendering](../server-rendering/) explains SSR, static generation and `renderWithHead`.
-- The [vite-ssg example](https://github.com/maxlestage/Active/tree/master/examples/vite-ssg) in the repository is the same kind of app, plus static generation: every page ships as HTML with its `<head>` filled and the `.wasm` binary preloaded, then hydrates and calls Rust.
-- [Loading WebAssembly](../loading-wasm/) covers errors, Suspense and loading outside React.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Home · My site</title>
+  <meta name="description" content="My first page with active."/>
+  <meta property="og:title" content="Home"/>
+  <meta property="og:description" content="My first page with active."/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:site_name" content="My site"/>
+  <meta name="twitter:card" content="summary"/>
+  <style>active-island{display:contents}</style>
+  <link rel="modulepreload" href="/pkg/my_site.js"/>
+  <link rel="preload" href="/pkg/my_site_bg.wasm" as="fetch" type="application/wasm" crossorigin=""/>
+  <script type="module">import init from "/pkg/my_site.js";init({module_or_path:"/pkg/my_site_bg.wasm"});</script>
+</head>
+<body>
+  <main>
+    <h1>Hello from Rust</h1>
+    <p>This paragraph is plain HTML. The counter below is an island:</p>
+    <active-island data-island="counter" data-props="0">
+      <div class="counter"><button>−</button><span><!--#-->0</span><button>+</button></div>
+    </active-island>
+  </main>
+</body>
+</html>
+```
+
+Step by step:
+
+1. **The server renders everything.** `Document::render()` writes the doctype, the `<head>` and the body into one `String`. The `Seo` placed in the body and the one given to `Document::seo` are merged into a single set of tags (see [SEO](../seo/#merging)).
+2. **The island is marked.** `island("counter", "0", counter)` rendered the counter's HTML inside an `<active-island>` element that records its name and props. The `<!--#-->` comment marks the dynamic text so the browser can find it.
+3. **The bundle loads in parallel.** The two `preload` links start downloading the loader and the `.wasm` file while the page is parsed. The one-line module script starts the WebAssembly module.
+4. **The island wakes up.** `start()` calls `active::hydrate`, which finds the `<active-island data-island="counter">` element, runs `counter("0")` again in the browser and attaches the click listeners and the dynamic text to the HTML that is already there. Nothing is re-created.
+
+The heading and paragraph never run any code in the browser.
+
+## Next steps
+
+- Build views with [components](../components/), then add [state](../state/) and [events](../events/).
+- Describe every page for search engines with [SEO](../seo/).
+- Learn how [islands](../islands/) hydrate, or ship the same components as a [static site](../static-site/).
+- Put the site online with [Deploy to Heroku](../deploy-heroku/).

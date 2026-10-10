@@ -1,179 +1,356 @@
 ---
 title: API reference
-description: Every export of active-react with its TypeScript signature, props, defaults and behaviour, plus a summary of the active Rust crate.
+description: Every public item of the active crate with its signature: views, elements, state, effects, events, Seo, Document, islands, browser functions and feature flags.
 ---
 
-active-react has two entry points:
+This page lists every public item of the `active` crate, grouped by topic, with its exact signature and a one-line description. The guides explain how to use them; the generated documentation on [docs.rs/active](https://docs.rs/active) has the same items with examples.
 
-| Entry point | Exports |
-| --- | --- |
-| `active-react` | `Seo`, `createSeo`, `SeoProps`, `wasm`, `useWasm`, `Wasm` |
-| `active-react/server` | `renderWithHead` |
+## Feature flags
 
-## Seo
-
-```ts
-function Seo(props: SeoProps): JSX.Element;
-```
-
-Renders the SEO tags of a page: `<title>`, meta description, robots, canonical, hreflang alternates, Open Graph, Twitter and JSON-LD. React 19 hoists the `<title>`, `<meta>` and `<link>` tags into the `<head>`, on the server and in the browser. The JSON-LD `<script>` stays where the component is rendered.
-
-Uses no hook, no context and no effect, so it can render in Server Components. Render one `<Seo>` per page. Guide: [the `<Seo>` component](../seo-component/).
-
-## SeoProps
-
-```ts
-interface SeoProps {
-  title?: string;
-  titleTemplate?: string;
-  description?: string;
-  canonical?: string;
-  image?: string;
-  type?: string;
-  siteName?: string;
-  locale?: string;
-  twitter?: string;
-  baseUrl?: string;
-  noindex?: boolean;
-  nofollow?: boolean;
-  alternates?: Record<string, string>;
-  jsonLd?: object | object[];
-  meta?: Array<{ name?: string; property?: string; content: string }>;
-}
-```
-
-| Prop | Default | Description |
+| Feature | Default | Adds |
 | --- | --- | --- |
-| `title` | none | Page title. `titleTemplate` is applied to it for `<title>`; used as is for `og:title`. Falls back to `siteName` |
-| `titleTemplate` | none | Template where the first `%s` is replaced by `title`, for example `"%s · Acme"`. Unused without `title` |
-| `description` | none | `<meta name="description">` and `og:description` |
-| `canonical` | none | `<link rel="canonical">` and `og:url`. Relative paths are resolved with `baseUrl` |
-| `image` | none | `og:image`. Relative paths are resolved with `baseUrl`. Switches `twitter:card` to `summary_large_image` |
-| `type` | `"website"` | `og:type` |
-| `siteName` | none | `og:site_name`, and the title when `title` is missing |
-| `locale` | none | `og:locale`, for example `"en_US"` |
-| `twitter` | none | `twitter:site`, for example `"@acme"` |
-| `baseUrl` | none | Origin (or prefix) for relative `canonical`, `image` and `alternates` URLs, for example `"https://acme.com"` |
-| `noindex` | `false` | Adds `noindex` to `<meta name="robots">` |
-| `nofollow` | `false` | Adds `nofollow` to `<meta name="robots">` |
-| `alternates` | none | hreflang alternates: `{ en: "/en", fr: "/fr", "x-default": "/en" }` |
-| `jsonLd` | none | JSON-LD structured data, one object or an array, serialized with `<` escaped |
-| `meta` | none | Extra meta tags: `[{ name: "theme-color", content: "#000" }]` |
+| `client` | off | The browser runtime: [`hydrate`](#hydrate), [`mount`](#mount), [`mount_to`](#mount-to), [`location`](#location), [`query`](#query), [`query_param`](#query-param), [`navigate`](#navigate), [`update_head`](#update-head), `Event::raw`, real event listeners, effects and `on_mount` callbacks. Depends on `wasm-bindgen` and `web-sys`. |
 
-Always rendered: `og:type` and `twitter:card` (`summary`, or `summary_large_image` with an image). `<meta name="robots">` only appears when `noindex` or `nofollow` is true.
+Without `client`, the crate has no dependencies. Event handlers, effects and `on_mount` callbacks are accepted and ignored, so the same components compile on the server. Enable `client` only for the `wasm32` build (see [Installation](../installation/#one-crate-two-targets)).
 
-URL resolution: URLs with a scheme (`https:`, `mailto:`…) or starting with `//` are kept; otherwise `baseUrl`, minus one trailing slash, is prepended, with a `/` in between when the path doesn't start with one.
+The crate uses the 2024 edition and needs Rust 1.85 or newer. It contains no `unsafe` code.
 
-## createSeo
+## Crate layout
 
-```ts
-function createSeo(defaults: SeoProps): (props: SeoProps) => ReactNode;
-```
-
-Returns a `<Seo>` component with site-wide defaults. Page props are merged over the defaults with a shallow spread (`{ ...defaults, ...props }`): object and array props replace the default, and an explicit `undefined` removes it.
-
-```ts
-export const Seo = createSeo({ siteName: "Acme", titleTemplate: "%s · Acme", baseUrl: "https://acme.com" });
-```
-
-Guide: [site defaults](../site-defaults/).
-
-## wasm
-
-```ts
-function wasm<T>(source: () => Promise<T>, options?: { url?: string }): Wasm<T>;
-
-function wasm<T = WebAssembly.Exports>(
-  source: string | URL,
-  options?: { imports?: WebAssembly.Imports },
-): Wasm<T>;
-```
-
-Declares a WebAssembly module. **Nothing is fetched** until `load()` or `useWasm()`.
-
-- **Loader overload**, for wasm-bindgen or wasm-pack output: `wasm(() => import("./pkg/my_crate.js"), { url })`. If the module has a default export function (`--target web`), it is called once with `{ module_or_path: url }`, or with no argument when `url` is missing. Otherwise (`--target bundler`, or a plain object) the module is used as is. `url` is the public URL of the `.wasm` binary and enables preloading.
-- **URL overload**, for a raw module without glue: `wasm<Exports>("/my_crate.wasm", { imports })`. The file is fetched and compiled with `WebAssembly.instantiateStreaming` when the response has the `application/wasm` content type, or with `WebAssembly.instantiate` on its bytes otherwise. A non-2xx response rejects with `wasm: <url> responded <status>`. Resolves with the instance's exports.
-
-Guides: [loading WebAssembly](../loading-wasm/), [raw WebAssembly](../raw-wasm/).
-
-## Wasm
-
-```ts
-interface Wasm<T> {
-  /** URL of the `.wasm` binary when known; preloaded from `<head>` by `useWasm`. */
-  readonly url?: string;
-  /** Starts loading once and resolves with the exports. Calling it again after a failure retries. */
-  load(): Promise<T>;
-  /** The exports once loaded, `undefined` before; throws if loading failed. */
-  get(): T | undefined;
-  /** Notifies `listener` when loading settles; starts loading. */
-  subscribe(listener: () => void): () => void;
-}
-```
-
-| Member | Behaviour |
+| Path | Contents |
 | --- | --- |
-| `url` | The loader overload's `url` option, or the URL passed to the URL overload |
-| `load()` | Starts loading on the first call. Later calls return the same promise. After a failure, the next call starts a new attempt |
-| `get()` | Synchronous read: the exports, `undefined` while not loaded, or throws the loading error |
-| `subscribe(listener)` | Calls `listener` when loading succeeds or fails, and starts loading if needed. Returns an unsubscribe function |
+| `active::*` | every item below |
+| `active::html` | one function per HTML and SVG tag |
+| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `island`, `text`, `text_dyn`, `use_state`; with `client`, also `location`, `navigate` and `query_param` |
 
-## useWasm
+Not in the prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Use them as `active::hydrate`, etc.
 
-```ts
-function useWasm<T>(mod: Wasm<T>): T | undefined;
-```
+## Views
 
-Returns the module's exports, or `undefined` while loading. Built on `useSyncExternalStore`:
-
-- the first component to use a module starts loading it; all components share the same load;
-- it always returns `undefined` during server rendering and hydration, so server and client markup match;
-- when loading fails, the error is thrown during render, to the nearest error boundary; call `mod.load()` to retry;
-- while the module is not loaded and `mod.url` is known, it calls React DOM's `preload(url, { as: "fetch", crossOrigin: "anonymous", type: "application/wasm" })`. During server rendering this emits `<link rel="preload" as="fetch" crossorigin type="application/wasm">` in the `<head>`.
-
-For Suspense, use React's `use(mod.load())` in a component that only renders in the browser.
-
-## renderWithHead
-
-```ts
-import { renderWithHead } from "active-react/server";
-
-function renderWithHead(node: ReactNode): { head: string; html: string };
-```
-
-For HTML templates where React doesn't render `<html>` itself, such as Vite SSR with `<!--app-head-->` and `<!--app-html-->` placeholders, or static generation. Renders `node` with `renderToString` and splits the result:
-
-- `head`: the tags React hoisted (title, meta, link, preloads), to insert in the template's `<head>`;
-- `html`: the rest of the markup, to insert in the app container.
-
-```tsx
-const { head, html } = renderWithHead(<App url={url} />);
-const page = template.replace("<!--app-head-->", head).replace("<!--app-html-->", html);
-```
-
-Synchronous: Suspense boundaries that are still pending render their fallback. If your tree renders `<html>`, use `renderToString` or `renderToPipeableStream` from `react-dom/server` directly. Guide: [server rendering](../server-rendering/).
-
-## Rust crate
-
-The `active` crate ([crates.io](https://crates.io/crates/active)) generates the same tags from Rust:
+### Node
 
 ```rust
-use active::Seo;
-
-let site = Seo::new().site_name("Acme").title_template("%s · Acme").base_url("https://acme.com");
-let head: String = site.clone().title("Contact").description("Write to us.").canonical("/contact").to_html();
+pub enum Node {
+    Empty,
+    Element(Box<Element>),
+    Text(Str),
+    DynText(/* closure */),
+    Fragment(Vec<Node>),
+    Seo(Box<Seo>),
+    Island(Box</* island data */>),
+    Dynamic(/* closure */),
+}
 ```
 
-| Item | Description |
-| --- | --- |
-| `Seo::new()` | Empty builder; `Seo` also implements `Default`, `Clone`, `Debug`, `PartialEq`, `Eq` and `Hash` |
-| `title`, `title_template`, `description`, `canonical`, `image`, `og_type`, `site_name`, `locale`, `twitter`, `base_url` | Setters taking `impl Into<String>` |
-| `noindex(bool)`, `nofollow(bool)` | Robots flags |
-| `alternate(lang, url)` | Adds or replaces an hreflang alternate |
-| `json_ld(json)` | Adds a JSON-LD script from a serialized JSON string |
-| `meta_name(name, content)`, `meta_property(property, content)` | Extra meta tags |
-| `to_html(&self) -> String` | Renders the tags |
-| `write_html(&self, out: &mut String)` | Appends the tags to `out` |
-| `impl Display` | `format!("{seo}")` renders the tags |
+One piece of a view. You rarely build variants by hand: tag functions, `text`, `fragment`, `island` and the `From` conversions do it.
 
-Guide: [the Rust crate](../rust-crate/). Full documentation: [docs.rs/active](https://docs.rs/active).
+| Variant | Meaning |
+| --- | --- |
+| `Empty` | nothing (the `Default`) |
+| `Element` | an HTML element |
+| `Text` | escaped text |
+| `DynText` | text computed from states ([`text_dyn`](#free-functions)) |
+| `Fragment` | several nodes side by side |
+| `Seo` | SEO tags, written in the `<head>` by `Document` |
+| `Island` | an island ([`island`](#island)) |
+| `Dynamic` | a region rebuilt when its states change ([`fragment_dyn`](#free-functions)) |
+
+| Method | Description |
+| --- | --- |
+| `pub fn render(&self) -> String` | Renders the view to HTML. Can be called any number of times. |
+| `pub fn render_into(&self, out: &mut String)` | Same, appending to `out`. |
+
+Implements `Clone`, `Default` and `Debug` (which prints the rendered HTML).
+
+Conversions into `Node` (`From`): `Element`, `&'static str`, `String`, `Str`, `Seo`, `Vec<T>`, `Option<T>` and `[T; N]` for any `T: Into<Node>`.
+
+### Element
+
+An HTML element under construction, created by a [tag function](#tag-functions) or [`el`](#free-functions). Every method takes `self` and returns the updated `Element` (`#[must_use]`), so calls chain. Implements `Clone` and `Into<Node>`.
+
+**Attributes and classes**
+
+| Method | Description |
+| --- | --- |
+| `pub fn attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Sets an attribute; setting the same name again replaces the value. `attr("class", …)` adds classes like `class`. |
+| `pub fn attr_dyn(self, name: impl Into<Str>, f: impl Fn() -> String + 'static) -> Self` | Attribute recomputed from states (replaces a previous one with the same name). For `value`, also sets the field's current value in the browser. |
+| `pub fn bool_attr(self, name: impl Into<Str>, f: impl Fn() -> bool + 'static) -> Self` | Boolean attribute, present while `f()` is true (replaces a previous one with the same name). For `checked`, also sets the checkbox state in the browser. |
+| `pub fn id(self, id: impl Into<Str>) -> Self` | `id="…"` (replaces a previous id). |
+| `pub fn class(self, class: impl Into<Str>) -> Self` | Adds classes (space separated); empty strings are ignored. |
+| `pub fn class_if(self, class: impl Into<Str>, f: impl Fn() -> bool + 'static) -> Self` | Adds `class` while `f()` is true. |
+| `pub fn style(self, style: impl Into<Str>) -> Self` | `style="…"` (replaces a previous style). |
+| `pub fn href(self, href: impl Into<Str>) -> Self` | `href="…"` (replaces a previous href). |
+
+**Content**
+
+| Method | Description |
+| --- | --- |
+| `pub fn child(self, child: impl Into<Node>) -> Self` | Appends a child. After `html`/`html_dyn`, starts a new list of children. |
+| `pub fn children(self, children: impl IntoIterator<Item = impl Into<Node>>) -> Self` | Appends several children. |
+| `pub fn text(self, value: impl Into<Str>) -> Self` | Appends escaped text. |
+| `pub fn text_dyn(self, f: impl Fn() -> String + 'static) -> Self` | Appends text recomputed from states. |
+| `pub fn children_dyn(self, f: impl Fn() -> Vec<Node> + 'static) -> Self` | Appends a dynamic region, rebuilt when the states `f` read change. Same as `.child(fragment_dyn(f))`. |
+| `pub fn html(self, html: impl Into<Str>) -> Self` | Replaces the content with trusted, unescaped HTML. |
+| `pub fn html_dyn(self, f: impl Fn() -> String + 'static) -> Self` | Same, recomputed from states. |
+
+**Events and DOM access** (browser only; ignored without `client`)
+
+| Method | Description |
+| --- | --- |
+| `pub fn on(self, event: &'static str, handler: impl Fn(Event) + 'static) -> Self` | Listens to a DOM event. |
+| `pub fn on_click(self, handler: impl Fn(Event) + 'static) -> Self` | `on("click", …)`. |
+| `pub fn on_input(self, handler: impl Fn(Event) + 'static) -> Self` | `on("input", …)`. |
+| `pub fn on_mount(self, f: impl Fn(&Dom) + 'static) -> Self` | Runs `f` with the DOM element once it is in the page. |
+
+### Free functions
+
+| Signature | Description |
+| --- | --- |
+| `pub fn el(tag: &'static str) -> Element` | An element with any tag name, e.g. `el("my-widget")`. |
+| `pub fn text(value: impl Into<Str>) -> Node` | A text node. |
+| `pub fn text_dyn(f: impl Fn() -> String + 'static) -> Node` | Text recomputed from states. |
+| `pub fn fragment(nodes: impl IntoIterator<Item = impl Into<Node>>) -> Node` | Several nodes without a wrapper element. |
+| `pub fn fragment_dyn(f: impl Fn() -> Vec<Node> + 'static) -> Node` | A dynamic region: rebuilt as a whole in the browser when the states `f` read change; the states, effects and listeners created for the previous nodes are released. Rendered between `<!--[-->` and `<!--]-->` on the server. |
+
+### Str
+
+```rust
+pub type Str = std::borrow::Cow<'static, str>;
+```
+
+The string type of attribute names and values, text and URLs: a `&'static str` or a `String`.
+
+### Tag functions
+
+`active::html` has one function per tag, each `pub fn name() -> Element`:
+
+`a` `abbr` `address` `area` `article` `aside` `audio` `b` `bdi` `blockquote` `br` `button` `canvas` `caption` `cite` `code` `col` `colgroup` `data` `datalist` `dd` `del` `details` `dfn` `dialog` `div` `dl` `dt` `em` `embed` `fieldset` `figcaption` `figure` `footer` `form` `h1` `h2` `h3` `h4` `h5` `h6` `header` `hgroup` `hr` `i` `iframe` `img` `input` `ins` `kbd` `label` `legend` `li` `main` `map` `mark` `menu` `meter` `nav` `noscript` `object` `ol` `optgroup` `option` `output` `p` `picture` `pre` `progress` `q` `s` `samp` `search` `section` `select` `small` `source` `span` `strong` `sub` `summary` `sup` `table` `tbody` `td` `template` `textarea` `tfoot` `th` `thead` `time` `tr` `track` `u` `ul` `var` `video` `wbr`
+
+SVG: `svg` `circle` `ellipse` `g` `line` `path` `polygon` `polyline` `rect` `tspan` `defs` `stop`, plus `text_svg` (`<text>`), `use_svg` (`<use>`) and `linear_gradient` (`<linearGradient>`).
+
+Void elements (`area`, `br`, `col`, `embed`, `hr`, `img`, `input`, `source`, `track`, `wbr`, and `base`, `link`, `meta` through `el`) are written as `<tag …/>` and ignore children. There is no `html`, `head` or `body` function: [`Document`](#document) writes them.
+
+## State
+
+### use_state
+
+```rust
+pub fn use_state<T: 'static>(initial: T) -> State<T>
+```
+
+Creates a reactive value owned by the component being built. In the browser it is released with its dynamic region; on the server, at the end of the second top-level render that neither reads nor creates it.
+
+### State
+
+```rust
+pub struct State<T> { /* index into the state store */ }
+```
+
+A handle to a reactive value. Implements `Copy`, `Clone` and `Debug` for every `T`. It is neither `Send` nor `Sync`: the value lives in the store of the thread that created it, so a handle cannot move to another thread or be kept across an `.await` in a multi-threaded (`Send`) future.
+
+| Method | Description |
+| --- | --- |
+| `pub fn get(self) -> T where T: Clone` | A clone of the value. Inside an effect or binding, subscribes it. |
+| `pub fn with<R>(self, f: impl FnOnce(&T) -> R) -> R` | Reads the value by reference. Subscribes like `get`. |
+| `pub fn set(self, value: T)` | Replaces the value and re-runs what read it. |
+| `pub fn update(self, f: impl FnOnce(&mut T))` | Changes the value in place and re-runs what read it. |
+
+### effect
+
+```rust
+pub fn effect(f: impl Fn() + 'static)
+```
+
+Runs `f` now, then again whenever a state it read during its last run changes. Browser only: without `client`, does nothing. An effect that writes a state it reads does not re-trigger itself.
+
+### scope and Scope
+
+```rust
+pub fn scope<R>(f: impl FnOnce() -> R) -> (R, Scope)
+pub struct Scope(/* … */);
+impl Scope { pub fn dispose(self) }
+```
+
+`scope` runs `f` and returns its result with a `Scope` owning the states, effects and event listeners created inside. `dispose` releases them. `Scope` is `#[must_use]`. On the server, a render inside an open scope does not empty the state store.
+
+## Events
+
+### Event
+
+A DOM event passed to handlers. Implements `Debug` and `Clone`.
+
+| Method | Description |
+| --- | --- |
+| `pub fn value(&self) -> String` | Current value of the `<input>`, `<textarea>` or `<select>` that fired the event; empty otherwise. |
+| `pub fn key(&self) -> String` | The key of a keyboard event (`"Enter"`, `"k"`…); empty otherwise. |
+| `pub fn prevent_default(&self)` | Cancels the browser's default action. |
+| `pub fn current_target(&self) -> Option<Dom>` | The element the listener is attached to. `None` on the server. |
+| `pub fn raw(&self) -> &web_sys::Event` | The underlying event. Only with `client`. |
+
+### Dom
+
+```rust
+pub type Dom = web_sys::Element; // with `client`
+pub struct Dom;                  // without: an empty placeholder (Debug, Clone, Copy, Default)
+```
+
+The element type given to `on_mount` and returned by `Event::current_target`.
+
+## SEO
+
+### Seo
+
+```rust
+pub struct Seo { /* … */ }
+```
+
+The `<head>` tags of a page. Implements `Clone`, `Debug`, `Default`, `PartialEq`, `Eq`, `Hash`, `Display` (same output as `to_html`) and `Into<Node>`. `#[must_use]`: setters return the updated value. Rules and examples: [SEO](../seo/).
+
+| Method | Description |
+| --- | --- |
+| `pub fn new() -> Self` | Empty; renders only `og:type` (`website`) and `twitter:card` (`summary`). |
+| `pub fn title(self, title: impl Into<String>) -> Self` | `<title>` and `og:title`. |
+| `pub fn title_template(self, template: impl Into<String>) -> Self` | Template for `<title>`; the first `%s` is replaced by the title. |
+| `pub fn description(self, description: impl Into<String>) -> Self` | Meta description and `og:description`. |
+| `pub fn canonical(self, url: impl Into<String>) -> Self` | `<link rel="canonical">` and `og:url`. |
+| `pub fn image(self, url: impl Into<String>) -> Self` | `og:image`; switches `twitter:card` to `summary_large_image`. |
+| `pub fn og_type(self, og_type: impl Into<String>) -> Self` | `og:type`. |
+| `pub fn site_name(self, site_name: impl Into<String>) -> Self` | `og:site_name`, and the title when none is set. |
+| `pub fn locale(self, locale: impl Into<String>) -> Self` | `og:locale`. |
+| `pub fn twitter(self, handle: impl Into<String>) -> Self` | `twitter:site`. |
+| `pub fn base_url(self, url: impl Into<String>) -> Self` | Origin for relative canonical, image and alternate URLs. |
+| `pub fn noindex(self, noindex: bool) -> Self` | `noindex` in `<meta name="robots">`. |
+| `pub fn nofollow(self, nofollow: bool) -> Self` | `nofollow` in `<meta name="robots">`. |
+| `pub fn alternate(self, lang: impl Into<String>, url: impl Into<String>) -> Self` | `<link rel="alternate" hreflang>`; same language again replaces the URL. |
+| `pub fn json_ld(self, json: impl Into<String>) -> Self` | A JSON-LD `<script>`, one per call; `<` is escaped as `\u003c`. |
+| `pub fn meta_name(self, name: impl Into<String>, content: impl Into<String>) -> Self` | Extra `<meta name content>`. |
+| `pub fn meta_property(self, property: impl Into<String>, content: impl Into<String>) -> Self` | Extra `<meta property content>`. |
+| `pub fn merge(&mut self, other: &Seo)` | Applies `other` on top: its set values win, alternates and extra meta are replaced by key, JSON-LD is appended. |
+| `pub fn merged(&self, other: &Seo) -> Seo` | `merge` into a new value. |
+| `pub fn to_html(&self) -> String` | Renders the tags. |
+| `pub fn write_html(&self, out: &mut String)` | Appends the tags to `out`. |
+
+## Documents
+
+### Document
+
+```rust
+pub struct Document { /* … */ }
+```
+
+A complete HTML page. Implements `Clone` and `Default`. Builder methods take `self` and are `#[must_use]`. Guide: [Documents](../documents/).
+
+| Method | Description |
+| --- | --- |
+| `pub fn new(body: impl Into<Node>) -> Self` | A page whose `<body>` is `body`. |
+| `pub fn lang(self, lang: impl Into<Str>) -> Self` | `<html lang>`. |
+| `pub fn seo(self, seo: Seo) -> Self` | Base SEO, merged with every `Seo` in the body; replaces a previous base. |
+| `pub fn stylesheet(self, href: impl Into<Str>) -> Self` | `<link rel="stylesheet">`, in call order. |
+| `pub fn head(self, html: impl Into<Str>) -> Self` | Trusted HTML appended to `<head>`. |
+| `pub fn client(self, js: impl Into<Str>, wasm: impl Into<Str>) -> Self` | Preloads and starts the `wasm-bindgen --target web` bundle. |
+| `pub fn html_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribute on `<html>`. |
+| `pub fn body_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribute on `<body>`. |
+| `pub fn final_seo(&self) -> Seo` | The merged SEO of the page, including islands and the current content of dynamic regions (evaluated separately from `render`). |
+| `pub fn render(&self) -> String` | The whole page. Renders the body first and collects its `Seo` values on the way, so each dynamic region is evaluated once. Can be called any number of times. |
+
+## Islands
+
+### island
+
+```rust
+pub fn island(name: &'static str, props: impl Into<Str>, component: IslandFn) -> Node
+```
+
+Calls `component(&props)` and wraps its view in `<active-island data-island="name" data-props="props">`, to be hydrated in the browser by the component registered under `name`.
+
+### IslandFn
+
+```rust
+pub type IslandFn = fn(&str) -> Node;
+```
+
+An island component: builds its view from a props string, identically on the server and in the browser.
+
+## Browser functions
+
+Available with the `client` feature, at the crate root.
+
+### hydrate
+
+```rust
+pub fn hydrate(islands: &[(&str, IslandFn)])
+```
+
+Hydrates every `<active-island>` of the page whose name is in `islands`: runs the component with its props and binds listeners, dynamic text, attributes and classes to the existing HTML. Already hydrated islands and unknown names are skipped. On a structure mismatch, prints a console warning and renders the island from scratch. Never changes the `<head>`.
+
+### mount
+
+```rust
+pub fn mount(view: &Node, parent: &web_sys::Element)
+```
+
+Creates the DOM for `view` after the existing children of `parent`. Merges the view's `Seo` values and writes them to the head with `update_head`; dynamic regions inside the view update the head when they are rebuilt.
+
+### mount_to
+
+```rust
+pub fn mount_to(selector: &str, view: impl Into<Node>)
+```
+
+Replaces the content of the first element matching the CSS `selector` with `view` (using `mount`). Prints a console warning if nothing matches. The usual entry point of a [client-side app](../client-app/).
+
+### location
+
+```rust
+pub fn location() -> State<String>
+```
+
+The current path (`window.location.pathname`, e.g. `"/search"`), as a state. The first call to `location`, `query` or `query_param` starts the router: back and forward update it, and clicks on same-origin `<a href>` links call `navigate` instead of loading a page (except links with a `target` other than `_self`, a `download` attribute, a modifier key or a non-primary button, and anchors on the current page).
+
+### query
+
+```rust
+pub fn query() -> State<String>
+```
+
+The current query string without the `?` (`"q=rust&page=2"`, empty when there is none), as a state updated by the router like `location`.
+
+### query_param
+
+```rust
+pub fn query_param(name: &str) -> Option<String>
+```
+
+One parameter of the query string, decoded (`query_param("q")` on `/search?q=caf%C3%A9` gives `Some("café")`), or `None`. Reading it in a view, a dynamic region or an effect subscribes to `query`.
+
+### navigate
+
+```rust
+pub fn navigate(to: &str)
+```
+
+Adds a history entry for `to` (`"/about"`, `"/search?q=rust"`, `"/docs#install"`), updates `location()` and `query()` (only the ones that changed, so only the views that depend on them are rebuilt), then scrolls to the top, or to the element whose id is the `#fragment`.
+
+### update_head
+
+```rust
+pub fn update_head(seo: &Seo)
+```
+
+Writes `seo` into the page's `<head>`: sets `document.title` (to an empty title when `seo` has neither a title nor a site name) and replaces the description, robots, canonical, `hreflang` alternates, Open Graph, Twitter and JSON-LD tags, and any meta tag with the same name or property as one of the extra meta tags. Other head elements are left alone.
+
+## HTML markers
+
+The server output contains a few markers that hydration relies on. They are part of the format: do not strip HTML comments from pages with islands.
+
+| Marker | Meaning |
+| --- | --- |
+| `<!--#-->` | start of a dynamic text |
+| `<!---->` | separator between two adjacent texts |
+| `<!--[-->` … `<!--]-->` | a dynamic region |
+| `<active-island data-island data-props>` | an island; gets `data-hydrated` once hydrated |
+
+## Panics
+
+- Using a `State` after it was released panics with "this state was disposed". In the browser this happens after its dynamic region was rebuilt or its scope disposed; on the server, after two top-level renders that did not use it.
+- Reading a state inside its own `update` closure panics with "a state was read inside its own `update`; read it before updating". Calling `set` or `update` on a state inside its own `with` panics with "a state was updated while being read or updated".

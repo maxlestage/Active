@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = ["crates/active", "examples/hello", "examples/spa", "site"]
+# The benchmarks pull in several web frameworks: they live in their own workspace.
+exclude = ["bench"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+# Browser bundles: `cargo build --profile wasm-release --target wasm32-unknown-unknown`.
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"
+panic = "abort"
+
+# Dependencies (syntect, axum…) optimised even in debug builds: fast startup while developing.
+[profile.dev.package."*"]
+opt-level = 2
