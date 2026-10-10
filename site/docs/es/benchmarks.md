@@ -1,142 +1,78 @@
 ---
 title: Benchmarks
-description: Cómo se compara active-react con react-helmet, react-head, @unhead/react y react-wasm en tamaño, velocidad de SSR, navegador y carga de WASM.
+description: active frente a Leptos, Dioxus, Yew, Sycamore, maud y HTML escrito a mano: renderizado en el servidor, tamaño del WebAssembly y tiempo hasta la interactividad.
 ---
 
-Cada decisión de diseño de active-react se ha contrastado con mediciones. Esta página presenta el método, todos los resultados y cómo reproducirlos en tu máquina. Para las conclusiones prácticas, lee la [guía de rendimiento](../performance/).
+`active` se comparó con los principales frameworks web de Rust en tres preguntas: con qué rapidez renderiza el servidor una página completa, cuánto WebAssembly descarga el navegador para un pequeño componente interactivo y cuánto tarda ese componente en poder usarse. Todo es Rust: las páginas, los servidores y el arnés de pruebas que controla Chromium. La suite completa está en [`bench/`](https://github.com/maxlestage/Active/tree/master/bench).
 
-## Metodología
+## Resumen
 
-**Entorno:** Intel(R) Xeon(R) Processor @ 2,80 GHz (4 núcleos), Node v22.22.0, Chromium 141.0.7390.37, React 19.3.0.
-
-**La misma página para cada biblioteca**, compilada en modo producción: un `<title>` con plantilla, una descripción, una URL canónica, 6 etiquetas Open Graph, 2 etiquetas de Twitter, un `Product` en JSON-LD y un body de 30 elementos.
-
-**Bibliotecas de SEO comparadas:** React 19 con etiquetas escritas a mano y sin biblioteca (la referencia), active-react, react-helmet 6.1.0, react-helmet-async 3.0.0, @unhead/react 3.4.2 y react-head 3.4.2.
-
-- **Tamaño:** solo los imports que cada página usa realmente, empaquetados y minificados con esbuild, sin contar React ni React DOM. Comprimidos con gzip (nivel 9) y Brotli (calidad 11).
-- **Renderizado en servidor:** el documento HTML completo (head y body). Cada biblioteca se ejecuta en **su propio proceso de Node** para que el estado del JIT nunca se filtre de una a otra. Tras un calentamiento, los renderizados se cronometran por lotes durante unos 2,5 segundos; el resultado es la mediana de 3 procesos.
-- **Navegador:** Chromium headless, builds de producción, una página nueva por biblioteca. Después de las mediciones se audita el `<head>` final: sin duplicados y con los valores correctos.
-
-**WASM:** dos crates de Rust con las mismas funciones, uno con exportaciones `extern "C"` simples (puro) y otro con wasm-bindgen, compilados con cada perfil de Cargo.
-
-- **Carga:** tiempo desde el inicio de la navegación hasta que el primer resultado de Rust se renderiza en pantalla, en localhost y con **100 ms de latencia de ida y vuelta emulada mediante el Chrome DevTools Protocol** (realista para redes móviles). Mediana de 15 cargas en localhost y de 7 con latencia.
-- **Costo de las llamadas:** 10 millones de llamadas a `add` y 300 000 llamadas a `greet` por variante, cada variante en su propio bucle para que los puntos de llamada sigan siendo monomórficos; mediana de 7 ejecuciones tras el calentamiento.
-
-## Resultados de SEO
-
-### Tamaño del bundle del cliente
-
-JavaScript añadido al bundle por los imports realmente usados (minificado, sin contar React ni React DOM).
-
-| Biblioteca | min | gzip | brotli |
-| --- | ---: | ---: | ---: |
-| React 19 nativo (sin biblioteca) | 0 | 0 | 0 |
-| **active-react** | 1,53 kB | 0,74 kB | 0,62 kB |
-| react-helmet-async 3.0.0 | 17,30 kB | 6,29 kB | 5,59 kB |
-| @unhead/react 3.4.2 | 15,17 kB | 6,07 kB | 5,55 kB |
-| react-head 3.4.2 | 3,20 kB | 1,35 kB | 1,21 kB |
-| react-helmet 6.1.0 | 18,46 kB | 6,76 kB | 5,99 kB |
-
-### Renderizado en servidor (Node)
-
-Tiempo para producir el documento HTML completo (head y body), mediana de 3 procesos de unos 2,5 s cada uno.
-
-| Biblioteca | µs / página | páginas / s | frente a React nativo |
-| --- | ---: | ---: | ---: |
-| React 19 nativo (sin biblioteca) | 39,7 | 25 199 | 0 % |
-| **active-react** | 42,4 | 23 565 | +7 % |
-| **active-react** (`renderWithHead`, plantilla HTML) | 44,1 | 22 665 | +11 % |
-| @unhead/react 3.4.2 | 44,9 | 22 260 | +13 % |
-| react-head 3.4.2 | 60,7 | 16 474 | +53 % |
-| react-helmet-async 3.0.0 | 64,9 | 15 405 | +64 % |
-| react-helmet 6.1.0 | 66,5 | 15 031 | +68 % |
-
-### Navegador (Chromium headless)
-
-- **Head listo:** desde el inicio de la navegación hasta que el título, la descripción y la canónica son correctos (mediana de 15 cargas).
-- **Latencia:** entre el renderizado de una nueva página (cambio de ruta) y un `<head>` actualizado (300 navegaciones).
-- **Ráfaga:** 1000 cambios de ruta seguidos, hasta que el `<head>` final es correcto.
-
-| Biblioteca | Head listo | Latencia mediana | Latencia p95 | Ráfaga (nav/s) | `<head>` final |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| React 19 nativo (sin biblioteca) | 20,9 ms | 0,3 ms | 0,5 ms | 2267 | Correcto |
-| **active-react** | 23,8 ms | 0,3 ms | 0,6 ms | 2144 | Correcto |
-| react-helmet-async 3.0.0 | 22,7 ms | 0,3 ms | 0,5 ms | 2402 | Correcto |
-| @unhead/react 3.4.2 | 24,2 ms | 0,4 ms | 0,7 ms | 4753 | Correcto |
-| react-head 3.4.2 | 23,5 ms | 1,4 ms | 5,7 ms | 1682 | Correcto |
-| react-helmet 6.1.0 | 31,1 ms | 16,7 ms | 18,6 ms | 3362 | Correcto |
-
-> **Nota:** Los enfoques basados en el hoisting nativo de React 19 (nativo, active-react, react-helmet-async 3, react-head) dejan en su sitio el `<title>` estático de `index.html`. React inserta su propio título **antes** que él, así que `document.title` es correcto. Elimina el `<title>` estático de `index.html` si quieres un único elemento.
-
-## Resultados de WASM
-
-### Perfiles de Cargo
-
-El mismo crate, con `lto = true`, `codegen-units = 1`, `panic = "abort"` y `strip = true`. `fib(30)` recursivo medido en Node (V8).
-
-| Perfil | wasm puro | wasm-bindgen | wasm-bindgen gzip | `fib(30)` |
-| --- | ---: | ---: | ---: | ---: |
-| `opt-level = 3` | 144 B | 15,87 kB | 6,76 kB | 3,76 ms |
-| `opt-level = 3` + `wasm-opt -O3` | 112 B | 14,46 kB | 6,37 kB | 3,89 ms |
-| `opt-level = "s"` | 144 B | 14,71 kB | 6,51 kB | 4,17 ms |
-| `opt-level = "z"` | 137 B | 14,72 kB | 6,52 kB | 4,32 ms |
-| `opt-level = "z"` + `wasm-opt -Oz` | 109 B | 13,58 kB | 6,19 kB | 3,88 ms |
-
-### Tamaños
-
-| Elemento | min | gzip |
+| | active | El mejor de los demás |
 | --- | ---: | ---: |
-| **active-react** `wasm` + `useWasm` | 1,03 kB | 0,60 kB |
-| react-wasm 1.0.1 `useWasm` | 5,27 kB | 2,07 kB |
-| Glue JS de wasm-bindgen (3 funciones) | 1,89 kB | 0,93 kB |
-| Binario `extern "C"` puro (add + fib) | 144 B | 139 B |
-| Binario wasm-bindgen (add + fib + greet) | 15,87 kB | 6,76 kB |
+| Renderizado en el servidor de una página de producto | 5.58 µs | 5.19 µs (Leptos, `<head>` escrito a mano), 13.44 µs con leptos_meta |
+| WebAssembly + código de enlace para un contador (gzip) | **36.8 kB** | 45.8 kB (Sycamore) |
+| Interactivo, con 100 ms de latencia de red | **224.2 ms** | 226.7 ms (Sycamore) |
 
-### Tiempo hasta el primer resultado WASM
+- **El bundle más pequeño.** La isla del contador envía 36.8 kB con gzip en total: un 20 % menos que Sycamore, un 40 % menos que Leptos y 4.6 veces menos que Dioxus.
+- **Renderizado rápido en el servidor con SEO real.** Entre los frameworks que fusionan en el `<head>` las etiquetas SEO de los componentes (el `Document` de `active`, Leptos con leptos_meta), `active` es 2.4 veces más rápido. Solo Leptos escribiendo todo el `<head>` a mano en una única plantilla es ligeramente más rápido (un 7 %).
+- **Interactivo en cuanto se ejecuta el bundle.** Los cuatro frameworks con hidratación quedan a pocos milisegundos unos de otros; lo que domina es la descarga, así que un bundle más pequeño ayuda en redes lentas.
 
-Desde el inicio de la navegación hasta que se renderiza el resultado de una llamada a Rust (mediana). "RTT de 100 ms" emula una latencia de red realista (móvil, 4G) mediante el Chrome DevTools Protocol.
+> **Nota:** estas cifras provienen de una sola máquina (Intel Xeon a 2.8 GHz, 4 núcleos, Rust 1.97, Chromium 141). Compara los frameworks entre sí, no con tu propio hardware.
 
-| Escenario | localhost | RTT de 100 ms |
-| --- | ---: | ---: |
-| active-react `wasm("/x.wasm")` (puro) | 28,8 ms | 331,5 ms |
-| react-wasm 1.0.1 (puro) | 28,5 ms | 327,1 ms |
-| `useEffect` escrito a mano (puro) | 25,8 ms | 328,9 ms |
-| active-react + wasm-bindgen | 23,5 ms | 328,4 ms |
-| `useEffect` escrito a mano + wasm-bindgen | 24,6 ms | 332,9 ms |
-| SSR + hidratación, **con** preload automático (`url`) | 20,2 ms | 224,2 ms |
-| SSR + hidratación, sin preload | 24,5 ms | 330,0 ms |
+## Renderizado en el servidor
 
-### Costo de las llamadas de JS a WASM (Chromium)
+Cada implementación renderiza el mismo documento completo para la página de producto `i`, con un `i` distinto en cada iteración: `<html lang="en">`, un `<head>` con 11 etiquetas SEO (título con plantilla, descripción, canonical, Open Graph, Twitter) y un script JSON-LD, y un `<body>` con un `<h1>` y una lista de 30 elementos. Cada salida se comprueba etiqueta por etiqueta antes de medir. Cada implementación se ejecuta en su propio proceso, se calienta durante 1 s y después renderiza durante 3 s en lotes de unos 10 ms; la tabla muestra la mediana de tres ejecuciones.
 
-| Medida | JS puro | wasm puro | wasm-bindgen |
+| Implementación | µs / página | Páginas / s | Frente a escrito a mano |
 | --- | ---: | ---: | ---: |
-| `add(a, b)` por llamada | 0,55 ns | 4,05 ns | 4,81 ns |
-| `fib(30)` recursivo | 11,4 ms | 2,1 ms | 1,9 ms |
-| `greet(str) -> String` por llamada | 4,7 ns | — | 553,0 ns |
+| maud 0.27 | 1.37 | 729 288 | ×0.68 |
+| Escrito a mano (`push_str`/`write!`) | 2.01 | 497 191 | ×1.00 |
+| Leptos 0.8, `<head>` escrito a mano | 5.19 | 192 686 | ×2.58 |
+| **active** | **5.58** | **179 083** | **×2.78** |
+| Leptos 0.8 + leptos_meta | 13.44 | 74 406 | ×6.68 |
+| Yew 0.23 | 17.17 | 58 257 | ×8.53 |
+| Dioxus 0.7 | 24.22 | 41 281 | ×12.04 |
+| Sycamore 0.9 | 33.01 | 30 298 | ×16.41 |
 
-## Reproducir
+maud y la página escrita a mano son plantillas: solo escriben cadenas. `active` construye un árbol de componentes, recoge el `Seo` de cada componente y los fusiona en el head, que es el trabajo que necesita un sitio real. Escribe directamente en un único `String`, sin DOM virtual, y la mayoría de los elementos no necesitan ninguna asignación de memoria aparte de su texto.
 
-Requisitos previos:
+## Tamaño del WebAssembly
 
-- Node.js 22 o posterior;
-- Rust con el target `wasm32-unknown-unknown`;
-- `wasm-bindgen-cli` 0.2.129: `cargo install wasm-bindgen-cli --version 0.2.129`;
-- Chromium para Playwright: define `PLAYWRIGHT_BROWSERS_PATH`, o ejecuta `npx playwright install chromium`.
+El mismo contador en todos los frameworks: un botón que incrementa el número que tiene al lado, renderizado por el servidor y retomado por el navegador. Compilado para `wasm32-unknown-unknown` con el perfil optimizado para tamaño (`opt-level = "s"`, `lto`, `panic = "abort"`) y después con `wasm-bindgen --target web`, sin `wasm-opt`. El total incluye el código de enlace JavaScript generado por wasm-bindgen.
 
-Después, desde la raíz del repositorio:
+| Framework | Modo en el navegador | .wasm | .wasm gzip | Enlace gzip | Total gzip |
+| --- | --- | ---: | ---: | ---: | ---: |
+| **active** | hidratación de islas | 81.6 kB | 32.4 kB | 4.3 kB | **36.8 kB** |
+| Sycamore | hidratación | 105.8 kB | 41.1 kB | 4.7 kB | 45.8 kB |
+| Leptos | hidratación | 144.9 kB | 54.8 kB | 6.2 kB | 60.9 kB |
+| Yew | hidratación | 241.8 kB | 90.0 kB | 6.3 kB | 96.3 kB |
+| Dioxus | renderizado en el cliente | 426.9 kB | 155.4 kB | 15.0 kB | 170.4 kB |
+
+> **Consejo:** el contador del benchmark registra los tiempos con un número de coma flotante, lo que arrastra el formateo de flotantes de Rust a cada bundle. Sin él, el [ejemplo `hello`](https://github.com/maxlestage/Active/tree/master/examples/hello) ocupa unos 22 kB con gzip. Consulta [rendimiento](../performance/) para ver el tamaño de cada tipo de aplicación y cómo reducir aún más un bundle.
+
+## Tiempo hasta la interactividad
+
+Chromium sin interfaz (headless) carga cada página de contador 21 veces por perfil de red, con la caché HTTP desactivada, alternando entre frameworks. Cada aplicación escribe `performance.now()` en la página cuando arranca su WebAssembly y cuando el botón pasa a ser interactivo; el arnés lee esas marcas mediante el protocolo DevTools y, al final, hace clic de verdad en el botón (el número debe pasar de 3 a 4).
+
+| Framework | Localhost: mediana (mín–máx) | Latencia de 100 ms: mediana (mín–máx) | Arranque → interactivo |
+| --- | ---: | ---: | ---: |
+| Yew | 25.3 ms (21–38) | 227.8 ms (225–239) | 0.8 ms |
+| **active** | 25.5 ms (21–42) | **224.2 ms (221–232)** | 0.6 ms |
+| Leptos | 25.5 ms (22–38) | 227.2 ms (222–239) | 0.5 ms |
+| Sycamore | 25.7 ms (21–33) | 226.7 ms (222–392) | 0.5 ms |
+| Dioxus | 41.3 ms (32–58) | 339.3 ms (332–351) | 1.0 ms |
+
+Los rangos de los frameworks con hidratación se solapan: considéralos empatados. Dioxus renderiza en el cliente (su hidratación necesita su propio servidor full-stack) y su código de enlace importa archivos adicionales, lo que cuesta un viaje de ida y vuelta más por la red.
+
+## Ejecútalo tú mismo
 
 ```sh
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.129
 cd bench
-npm run setup   # builds the library and installs the benchmark dependencies
-npm run bench   # everything, about 5 minutes
+cargo run --release -p runner                    # everything, about 3 minutes after the first build
+cargo run --release -p runner -- ssr             # one part: ssr, wasm, browser or report
+BENCH_PRINT=1 cargo run --release -p ssr-active  # print the page an implementation renders
 ```
 
-Ejecuta solo una de las dos mitades con `node run.mjs seo` o `node run.mjs wasm`. El script reescribe `bench/RESULTS.md` y guarda los datos en bruto en `bench/results/`. La página escrita con cada biblioteca está en `bench/seo/libs/`, y las páginas WASM en `bench/wasm/pages/`.
-
-## Salvedades
-
-- **Las cifras de SSR varían en torno a ±5 % entre ejecuciones.** Las diferencias de unos pocos puntos porcentuales (active-react frente a @unhead/react, por ejemplo) están dentro del ruido; las grandes diferencias (frente a react-helmet) no lo están.
-- **`performance.now()` tiene una precisión reducida a 0,1 ms en Chromium** sin aislamiento de origen cruzado (cross-origin isolation), así que las duraciones muy cortas, como las latencias de head de 0,3 ms, son aproximadas.
-- **Las columnas de `fib(30)` difieren entre tablas** porque se midieron en motores y configuraciones distintos: Node para los perfiles de Cargo, Chromium para el costo de las llamadas.
-- **Una máquina, una página.** Las cifras absolutas dependen de tu hardware y de tus páginas; lo que importa son las comparaciones entre bibliotecas.
-- **La prueba de "ráfaga"** mide el rendimiento bruto de 1000 cambios de ruta consecutivos, algo que los usuarios reales nunca hacen. La latencia por navegación es la cifra más significativa para las apps reales.
+El runner encuentra Chromium en el `PATH` (o define `CHROME=/path/to/chrome`). Escribe `bench/RESULTS.md` y los datos en bruto en `bench/results/`. El método, la versión de cada framework y las decisiones tomadas para cada uno se describen en [`bench/README.md`](https://github.com/maxlestage/Active/blob/master/bench/README.md).

@@ -1,0 +1,262 @@
+---
+title: State and effects
+description: Keep changing values in use_state handles, bind them to text, attributes, classes and lists, run effects in the browser, and learn how state is freed.
+---
+
+Interactive parts of a page need values that change: a counter, the text of a search field, the items of a list. In `active` such a value lives in a **state**, created with `use_state`. The view reads it through small closures, and when the state changes, only the parts of the page that read it are updated.
+
+## use_state
+
+```rust
+use active::prelude::*;
+
+let count = use_state(0);
+count.set(5);
+count.update(|n| *n += 1);
+assert_eq!(count.get(), 6);
+```
+
+`use_state(initial)` stores the value and returns a `State<T>`, a handle to it. Any `'static` type works: numbers, `String`, `Vec`, your own structs and enums.
+
+| Method | Use it to |
+| --- | --- |
+| `.get()` | get a copy of the value (requires `T: Clone`) |
+| `.with(\|v\| …)` | read through a reference, without cloning (`items.with(Vec::len)`) |
+| `.set(value)` | replace the value |
+| `.update(\|v\| …)` | change the value in place (`list.push(…)`, `*n += 1`) |
+
+`set` and `update` notify everything that read the state, which updates the page.
+
+## Why handles are Copy
+
+A `State<T>` is only an index into a store, so it implements `Copy` whatever `T` is. You can move the same handle into as many closures as you need, without `Rc`, `clone()` or lifetimes:
+
+```rust
+use active::prelude::*;
+
+fn counter() -> Element {
+    let count = use_state(0);
+    div()
+        .child(button().on_click(move |_| count.update(|n| *n -= 1)).text("−"))
+        .child(span().text_dyn(move || count.get().to_string()))
+        .child(button().on_click(move |_| count.update(|n| *n += 1)).text("+"))
+}
+```
+
+Each `move` closure gets its own copy of the handle; all copies point to the same value.
+
+## Binding state to the view
+
+Methods ending in `_dyn` (and `class_if`, `bool_attr`) take a closure instead of a value. On the server the closure runs once to produce the HTML. In the browser it runs again every time a state it read changes, and only that text node, attribute or class is updated.
+
+| Method | Updates |
+| --- | --- |
+| `.text_dyn(f)` or `text_dyn(f)` | a text node |
+| `.attr_dyn(name, f)` | an attribute (`value` also updates the field's current value) |
+| `.bool_attr(name, f)` | a boolean attribute such as `disabled`, `hidden`, `open` (`checked` also updates the checkbox) |
+| `.class_if(class, f)` | one class, added while `f()` is `true` |
+| `.html_dyn(f)` | the element's inner HTML (trusted HTML only) |
+| `.children_dyn(f)` or `fragment_dyn(f)` | a group of nodes, rebuilt (see below) |
+
+```rust
+use active::prelude::*;
+
+let stock = use_state(3);
+let view = div()
+    .class("product")
+    .class_if("sold-out", move || stock.get() == 0)
+    .attr_dyn("data-stock", move || stock.get().to_string())
+    .child(button().bool_attr("disabled", move || stock.get() == 0).text("Buy"))
+    .child(span().text_dyn(move || format!("{} left", stock.get())));
+
+assert_eq!(
+    Node::from(view).render(),
+    r#"<div class="product" data-stock="3"><button>Buy</button><span><!--#-->3 left</span></div>"#
+);
+```
+
+The `<!--#-->` comment marks dynamic text so the browser can find it when it [hydrates](../islands/) the page.
+
+> **Tip:** To show or hide something, `bool_attr("hidden", …)` or `class_if(…)` is the cheapest option: the element stays in the page and only an attribute changes.
+
+## Derived values
+
+A value computed from states is just a closure. Since it captures `Copy` handles, the closure is `Copy` too and can be used in several places:
+
+```rust
+use active::prelude::*;
+
+let price = use_state(120u32);
+let quantity = use_state(2u32);
+let total = move || price.get() * quantity.get();
+
+let view = p()
+    .text_dyn(move || format!("Total: {} €", total()))
+    .class_if("expensive", move || total() > 200);
+assert!(Node::from(view).render().contains("Total: 240 €"));
+```
+
+Anything that reads `total()` is updated when either state changes.
+
+## Lists and conditions that change
+
+`.children_dyn(f)` appends a **dynamic region** to an element: `f` returns the nodes to show, and whenever a state it read changes, the region is rebuilt. Children added before or after the region stay where they are. `fragment_dyn(f)` creates the same region as a standalone node.
+
+```rust
+use active::prelude::*;
+
+let items = use_state(vec!["Milk".to_string(), "Bread".to_string()]);
+let view = div()
+    .child(ul().child(li().text("Always first")).children_dyn(move || {
+        items.with(|list| list.iter().map(|item| li().text(item.clone()).into()).collect())
+    }))
+    .child(button().on_click(move |_| items.update(|list| list.push("Eggs".into()))).text("Add eggs"));
+
+assert_eq!(
+    Node::from(view).render(),
+    "<div><ul><li>Always first</li><!--[--><li>Milk</li><li>Bread</li><!--]--></ul><button>Add eggs</button></div>"
+);
+```
+
+On the server the region is written between `<!--[-->` and `<!--]-->` markers. In the browser:
+
+- only the region is rebuilt, the rest of the page is untouched;
+- the states, effects and event listeners created while building the previous content are released;
+- states created **outside** the region (like `items` above) survive, which is how a list keeps its data while its items are rebuilt.
+
+A condition that changes is a region that returns either some nodes or none:
+
+```rust
+use active::prelude::*;
+
+fn details() -> Element {
+    let open = use_state(false);
+    div()
+        .child(button().on_click(move |_| open.update(|o| *o = !*o)).text("Details"))
+        .children_dyn(move || {
+            if open.get() {
+                vec![p().text("Delivered in 48 hours.").into()]
+            } else {
+                Vec::new()
+            }
+        })
+}
+```
+
+### Keep regions small
+
+A region is rebuilt as a whole: there is no keyed diffing. That is fast for the lists of a typical page (tens of items), and it keeps the library small. For large or frequently changing lists:
+
+- split the data into several states and several regions (one per group, per page of results…), so a change rebuilds only one of them;
+- keep text fields **outside** regions: a field inside a region is recreated on each rebuild and loses focus;
+- inside items, bind the values that change often with `text_dyn` or `class_if` instead of rebuilding the list.
+
+## Effects
+
+`effect(f)` runs `f` once, then again whenever a state it read changes. Use it for work outside the view: saving to `localStorage`, setting a timer, logging, calling a browser API.
+
+```rust
+use active::prelude::*;
+
+/// Saves the draft in the browser. Effects never run on the server, but the code must
+/// compile there too, hence the empty version.
+#[cfg(target_arch = "wasm32")]
+fn save(text: &str) {
+    if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+        let _ = storage.set_item("draft", text);
+    }
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn save(_text: &str) {}
+
+fn editor() -> Element {
+    let draft = use_state(String::new());
+    effect(move || draft.with(|text| save(text)));
+    textarea().on_input(move |e| draft.set(e.value()))
+}
+```
+
+The browser-only code uses [`web-sys`](https://docs.rs/web-sys), declared with the features it needs: `web-sys = { version = "0.3", features = ["Storage", "Window"] }` under the `wasm32` dependencies.
+
+How effects behave:
+
+- **Browser only.** On the server `effect` does nothing at all, so an effect can freely use browser APIs. Never compute something the HTML needs in an effect; compute it in the view.
+- **Automatic dependencies.** An effect depends on the states it read during its last run. If it reads `a` only when `flag` is true, it stops reacting to `a` once `flag` is false.
+- **No infinite loops.** An effect that writes a state it reads does not trigger itself again.
+- **Released with their region.** Effects created inside a dynamic region stop when the region is rebuilt.
+
+## Sharing state
+
+To share a value between components, create the state in their common parent and pass the handle down as an argument:
+
+```rust
+use active::prelude::*;
+
+fn search_box(query: State<String>) -> Element {
+    input().attr("type", "search").on_input(move |e| query.set(e.value()))
+}
+
+fn result_count(query: State<String>) -> Element {
+    p().text_dyn(move || format!("Searching for “{}”", query.get()))
+}
+
+fn search() -> Element {
+    let query = use_state(String::new());
+    div().child(search_box(query)).child(result_count(query))
+}
+```
+
+Separate [islands](../islands/) do not share states: each island is its own small app. If two parts of a page must talk to each other, put them in the same island.
+
+## On the server
+
+On the server, nothing changes once a page is rendered, and effects and event handlers are not even stored. States still take memory, so `active` releases them for you:
+
+- states live in a store that belongs to the current thread;
+- at the end of each top-level render (`Node::render`, `Node::render_into` or `Document::render`), the states that neither this render nor the previous one read or created are released.
+
+The states of the page being rendered stay available: you can render the same view several times, read its states after rendering, or print a `Node` with `{:?}`. The states of finished requests are released after the next renders on the same thread, so a server that renders millions of pages keeps only a handful of live states.
+
+One rule follows: **build and render the view without an `.await` in between.** In an async handler, load your data first, then build the view and render it in one synchronous step. A `State` belongs to the thread that created it, so it is not `Send`: in a multi-threaded server such as Axum, keeping one across an `.await` is a compile error, not a runtime surprise. See [Axum, Async data](../axum/#async-data).
+
+## Scopes
+
+Advanced: `active::scope(f)` runs `f` and returns its result together with a `Scope` that owns every state and effect created inside. `Scope::dispose()` releases them. Dynamic regions use this internally; you need it only if you mount and remove views by hand in the browser.
+
+```rust
+use active::{scope, use_state};
+
+let (count, owner) = scope(|| use_state(1));
+assert_eq!(count.get(), 1);
+owner.dispose(); // `count` can no longer be used
+```
+
+On the server, a render that happens inside an open `scope` releases no state: dispose the scope yourself.
+
+## Common mistakes
+
+### Reading a state inside its own update
+
+`count.update(|n| *n = count.get() + 1)` panics with "a state was read inside its own `update`; read it before updating". Use the closure's argument, or read first and then write:
+
+```rust
+use active::use_state;
+
+let count = use_state(1);
+let step = use_state(10);
+
+count.update(|n| *n += step.get()); // the argument, plus another state: fine
+let doubled = count.get() * 2;      // read first…
+count.set(doubled);                 // …then write
+assert_eq!(count.get(), 22);
+```
+
+Likewise, calling `set` or `update` on a state inside its own `with` panics ("a state was updated while being read or updated").
+
+### Using a released state
+
+A state created inside a dynamic region is released when the region is rebuilt; using it afterwards panics with "this state was disposed". Keep long-lived data in a state created above the region.
+
+### Computing HTML in an effect
+
+Effects do not run on the server, so anything they produce is missing from the HTML that search engines see. Compute it in the view instead.

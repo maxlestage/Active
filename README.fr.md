@@ -1,175 +1,114 @@
-# active-react
+# active
 
 [English](README.md) · **Français** · [Español](README.es.md)
 
-**Le SEO et Rust/WebAssembly pour React 19, en ~1,3 kB gzip.** Zéro dépendance, zéro effet. Fonctionne avec le SSR, la génération statique et les Server Components. Un jumeau en Rust, le crate [`active`](crates/active), génère les mêmes balises depuis Rust.
+**Une bibliothèque front-end simple et rapide pour Rust : composants, état, routage et balises SEO complètes, rendus sur le serveur et exécutés dans le navigateur en WebAssembly.**
 
-```tsx
-import { createSeo, wasm, useWasm } from "active-react";
+```rust
+use active::prelude::*;
 
-const Seo = createSeo({ siteName: "Acme", titleTemplate: "%s · Acme", baseUrl: "https://acme.com" });
-const rust = wasm(() => import("./pkg/my_crate.js"));
+fn counter(props: &str) -> Node {
+    let count = use_state(props.parse::<i32>().unwrap_or(0));
+    button()
+        .on_click(move |_| count.update(|n| *n += 1))
+        .text_dyn(move || format!("Clicked {} times", count.get()))
+        .into()
+}
 
-export function Page() {
-  const lib = useWasm(rust); // undefined while loading
-  return (
-    <>
-      <Seo title="Home" description="Acme's website." canonical="/" image="/og.png" />
-      <p>{lib ? lib.greet("you") : "Loading…"}</p>
-    </>
-  );
+fn page() -> String {
+    let body = div()
+        .child(Seo::new().title("Home").description("My site, in Rust."))
+        .child(h1().text("Hello"))
+        .child(island("counter", "0", counter)); // the only part sent to the browser
+    Document::new(body)
+        .lang("en")
+        .seo(Seo::new().site_name("Acme").title_template("%s · Acme"))
+        .client("/pkg/app.js", "/pkg/app_bg.wasm")
+        .render()
 }
 ```
 
-📚 **Documentation complète (anglais, français, espagnol) :** le site de présentation dans [`site/`](site). Déployez votre propre copie avec le bouton [Deploy to Heroku](#mettre-le-site-en-ligne-sur-heroku-depuis-un-smartphone), ou lisez directement les pages dans [`site/docs/`](site/docs).
+Le serveur envoie un HTML terminé, avec toutes les balises SEO. Dans le navigateur, la même fonction `counter`, compilée en WebAssembly, prend le relais sur le bouton déjà affiché. Aucun JavaScript à écrire, pas de DOM virtuel, pas de second rendu du contenu statique.
 
-## Pourquoi c'est rapide
+Les mêmes composants servent aussi à créer des **applications côté client** : `active::mount_to("#app", app())` rend toute l'application dans le navigateur, `active::location()` et `active::navigate()` assurent le routage sans rechargement, et le `Seo` de chaque page met à jour le titre et les balises meta ([`examples/spa`](examples/spa)). Vous pouvez aussi les écrire dans des fichiers pour obtenir un **site statique**.
 
-La conception découle des benchmarks. Les détails et la méthode se trouvent dans [`bench/RESULTS.md`](bench/RESULTS.md).
+📚 **Documentation en anglais, en français et en espagnol** : le site web dans [`site/`](site), lui-même construit avec `active`. Lancez-le avec `cargo run -p active-site` ou déployez votre propre copie sur Heroku depuis un téléphone (voir plus bas). Les pages se lisent aussi sur GitHub dans [`site/docs/`](site/docs).
 
-- **Du SEO sans gestionnaire de `<head>`.** Depuis React 19, les balises `<title>`, `<meta>` et `<link>` rendues n'importe où sont remontées dans `<head>` par React lui-même, côté serveur comme dans le navigateur. `<Seo>` se contente de rendre les bonnes balises : pas de contexte, pas de store, pas d'effet, pas de seconde passe. Le coût reste à quelques pourcents de celui de balises écrites à la main, et le SSR est 1,5× plus rapide qu'avec react-helmet.
-- **WASM : un seul fetch, partagé et préchargé.** `wasm()` déclare un module sans rien télécharger. `useWasm()` le charge une seule fois (`instantiateStreaming`), quel que soit le nombre de composants qui l'utilisent. Quand l'URL du `.wasm` est connue, le rendu serveur émet `<link rel="preload">` : le navigateur télécharge alors le binaire **en parallèle** du JavaScript. Avec 100 ms de latence réseau, le premier résultat Rust arrive **32 % plus tôt**.
+## Pourquoi
 
-| SEO (même page : 11 balises + JSON-LD) | JS client (gzip) | SSR (µs/page) | Latence de navigation (médiane) |
+- **Simple.** Les composants sont des fonctions Rust qui renvoient une vue : les idées des hooks React, sans le JavaScript. L'état passe par `use_state`, un handle `Copy` que vous déplacez dans des closures. Aucune macro à apprendre, aucun plugin de build.
+- **Le SEO d'abord.** Le serveur rend toujours la page entière. `Seo` couvre le titre, la description, robots, l'URL canonique, hreflang, Open Graph, Twitter et JSON-LD ; placez-en un dans une mise en page, une page et un composant : ils sont fusionnés sans aucune balise en double.
+- **Rapide.** Le rendu côté serveur écrit directement dans une `String`. Dans le navigateur, seuls les îlots sont hydratés, avec des liaisons à granularité fine : un changement d'état met à jour exactement le texte, l'attribut ou la classe qui en dépend. Voir les [benchmarks](#benchmarks).
+- **Léger.** La version serveur n'a aucune dépendance. Le bundle du navigateur utilise `wasm-bindgen` et `web-sys`, rien d'autre.
+
+## Benchmarks
+
+Mesuré face aux principaux frameworks Rust, sur les mêmes pages, le tout en Rust ([méthode et données brutes](bench/RESULTS.md)) :
+
+| | Rendu serveur d'une page produit | WebAssembly + glue pour un compteur (gzip) | Interactif avec 100 ms de latence |
 | --- | ---: | ---: | ---: |
-| React 19, sans bibliothèque (référence) | 0 | 39,7 | 0,3 ms |
-| **active-react** | **0,74 kB** | **42,4** | **0,3 ms** |
-| @unhead/react 3.4.2 | 6,07 kB | 44,9 | 0,4 ms |
-| react-head 3.4.2 | 1,35 kB | 60,7 | 1,4 ms |
-| react-helmet-async 3.0.0 | 6,29 kB | 64,9 | 0,3 ms |
-| react-helmet 6.1.0 | 6,76 kB | 66,5 | 16,7 ms |
+| **active** | **5,6 µs** | **36,8 ko** | **224 ms** |
+| Leptos 0.8 + leptos_meta | 13,4 µs | 60,9 ko | 227 ms |
+| Leptos 0.8, `<head>` écrit à la main | 5,2 µs | — | — |
+| Sycamore 0.9 | 33,0 µs | 45,8 ko | 227 ms |
+| Yew 0.23 | 17,2 µs | 96,3 ko | 228 ms |
+| Dioxus 0.7 | 24,2 µs | 170,4 ko | 339 ms |
+| maud 0.27 (template seul) | 1,4 µs | — | — |
 
-| WASM (crate wasm-bindgen) | JS (gzip) | Résultat Rust à l'écran, RTT de 100 ms |
-| --- | ---: | ---: |
-| **active-react**, SSR + preload automatique | **0,60 kB** | **224 ms** |
-| active-react, SSR sans preload | 0,60 kB | 330 ms |
-| active-react, rendu client | 0,60 kB | 328 ms |
-| react-wasm 1.0.1, rendu client (`.wasm` brut) | 2,07 kB | 327 ms |
-| `useEffect` écrit à la main, rendu client | 0 | 333 ms |
-
-Intel Xeon 2,8 GHz, Node 22, Chromium 141, React 19.3. Les chiffres du SSR varient d'environ ±5 % d'une exécution à l'autre.
+Le plus petit bundle de tous, et un rendu côté serveur 2,4 fois plus rapide que celui de l'autre framework qui fusionne les balises SEO venant des composants (Leptos avec leptos_meta). Intel Xeon 2,8 GHz, Rust 1.97, Chromium 141 ; lancez-les vous-même avec `cd bench && cargo run --release -p runner`.
 
 ## Installation
 
 ```sh
-npm i github:maxlestage/Active   # until the first npm release, then: npm i active-react
-cargo add active                 # optional: the Rust crate, once published
+cargo add active                      # server
+cargo add active --features client    # browser bundle, for wasm32-unknown-unknown
 ```
 
-Peer dependencies : `react >= 19`, `react-dom >= 19`.
-
-## SEO
-
-```tsx
-// seo.ts — your site's defaults, written once
-import { createSeo } from "active-react";
-
-export const Seo = createSeo({
-  siteName: "Acme",
-  titleTemplate: "%s · Acme",
-  baseUrl: "https://acme.com", // relative URLs (canonical, image, alternates) are resolved against it
-  image: "/og.png",
-  locale: "en_US",
-  twitter: "@acme",
-});
-```
-
-```tsx
-// any page
-<Seo
-  title="Oak chair"
-  description="Solid oak, delivered in 48 hours."
-  canonical="/products/oak-chair"
-  type="product"
-  alternates={{ en: "/products/oak-chair", fr: "/fr/produits/chaise-chene" }}
-  jsonLd={{ "@context": "https://schema.org", "@type": "Product", name: "Oak chair" }}
-/>
-```
-
-Ce composant rend `<title>`, la description, les liens canonical et hreflang, la balise robots, ainsi que les balises Open Graph et Twitter. Le JSON-LD est échappé contre l'injection de `</script>`. `<Seo>` n'utilise aucun hook : il fonctionne donc aussi dans les Server Components. Rendez un seul `<Seo>` par page.
-
-**Rendu serveur.** Si React rend `<html>` (React Router, TanStack Start, Waku, un serveur sur mesure), il n'y a rien à faire. Pour les templates HTML (Vite SSR, génération statique), utilisez `active-react/server` :
-
-```tsx
-import { renderWithHead } from "active-react/server";
-
-const { head, html } = renderWithHead(<App url={url} />);
-const page = template.replace("<!--app-head-->", head).replace("<!--app-html-->", html);
-```
-
-## WebAssembly (Rust)
+Deux applications complètes : [`examples/hello`](examples/hello), une page serveur avec un îlot (un seul crate pour les deux côtés), et [`examples/spa`](examples/spa), une liste de tâches côté client avec routage. Pour lancer la première :
 
 ```sh
-wasm-pack build --target web --out-dir ../src/pkg
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.129
+cargo build -p hello --lib --target wasm32-unknown-unknown --profile wasm-release
+wasm-bindgen --target web --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
+cargo run -p hello   # http://localhost:3000
 ```
 
-```tsx
-import { wasm, useWasm } from "active-react";
-import url from "./pkg/my_crate_bg.wasm?url"; // Vite; optional, enables the SSR preload
-
-export const myCrate = wasm(() => import("./pkg/my_crate.js"), { url });
-
-function Stats({ data }: { data: Float64Array }) {
-  const rust = useWasm(myCrate);
-  if (!rust) return <Spinner />;
-  return <p>Mean: {rust.mean(data)}</p>; // typed from the generated .d.ts
-}
-```
-
-- `useWasm(mod)` renvoie les exports, ou `undefined` pendant le chargement. Il renvoie toujours `undefined` pendant le SSR et l'hydratation, pour que les HTML serveur et client correspondent.
-- Une erreur de chargement est levée vers l'error boundary la plus proche, et `mod.load()` relance le chargement.
-- Pour Suspense, appelez `use(mod.load())` dans un composant client. Hors de React, utilisez `await mod.load()`.
-- Un module brut `extern "C"` fonctionne sans aucun code de liaison : `wasm<{ add(a: number, b: number): number }>("/math.wasm")`.
-
-Profil Cargo recommandé (validé par les benchmarks) : `opt-level = 3`, `lto = true`, `codegen-units = 1`, `panic = "abort"`, `strip = true`.
-
-## Le crate Rust `active`
-
-```rust
-use active::Seo;
-
-let site = Seo::new().site_name("Acme").title_template("%s · Acme").base_url("https://acme.com");
-let head = site.clone().title("Contact").description("Write to us.").canonical("/contact").to_html();
-```
-
-Il produit les mêmes balises que `<Seo>`, pour Axum, Actix, les générateurs statiques ou WebAssembly. Il n'a aucune dépendance. Voir [`crates/active`](crates/active).
-
-## Dépôt
+## Contenu du dépôt
 
 | Dossier | Contenu |
 | --- | --- |
-| `src/`, `test/` | La bibliothèque `active-react` et ses tests (vitest) |
-| `crates/active/` | Le crate Rust `active` (crates.io) |
-| `site/` | Site de présentation + documentation (en/fr/es) : Vite, React 19, active-react, hero et playground en Rust/WASM |
-| `bench/` | Benchmarks face à react-helmet, react-helmet-async, @unhead/react, react-head et react-wasm |
-| `examples/vite-ssg/` | Exemple minimal Vite + Rust + génération statique |
+| [`crates/active`](crates/active) | Le crate `active` : vues, état, SEO, documents, îlots, hydratation |
+| [`examples/hello`](examples/hello) | La plus petite application : une page et un îlot compteur, serveur sans autre dépendance que std |
+| [`examples/spa`](examples/spa) | Une application côté client : liste de tâches, routage, formulaires, `localStorage` |
+| [`site`](site) | Site de présentation et documentation (en/fr/es) : serveur Axum, animations WebAssembly, recherche et bac à sable interactif |
+| [`bench`](bench) | Benchmarks face à Leptos, Dioxus, Yew, Sycamore, maud et à du HTML écrit à la main |
 
-## Mettre le site en ligne sur Heroku depuis un smartphone
+## Déployer le site sur Heroku depuis un téléphone
 
 [![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/maxlestage/Active)
 
-1. Ouvrez ce README sur votre téléphone et touchez **Deploy to Heroku**. Connectez-vous, choisissez un nom d'app, puis touchez **Deploy app**.
-2. Pour redéployer à chaque modification : dans le tableau de bord Heroku, ouvrez **Deploy → GitHub**, connectez le dépôt, puis touchez **Enable Automatic Deploys** pour la branche `master`.
+1. Ouvrez cette page sur votre téléphone et touchez **Deploy to Heroku**. Connectez-vous, choisissez un nom d'application, puis touchez **Deploy app**. Heroku construit le [`Dockerfile`](Dockerfile) : le bundle WebAssembly, puis le serveur, entièrement à partir des sources Rust.
+2. Pour redéployer à chaque changement : dans le tableau de bord Heroku, ouvrez **Deploy → GitHub**, connectez votre fork, puis activez **Enable Automatic Deploys** depuis `master`.
 
-Heroku n'a pas d'offre gratuite. Un dyno Eco coûte environ 5 $ par mois. Le build n'utilise que Node : le module WASM du site est commité dans le dépôt. Guide pas à pas : `site/docs/fr/deploy-heroku.md`.
+Heroku n'a pas d'offre gratuite : un dyno Eco coûte environ 5 $ par mois. Guide pas à pas : [`site/docs/fr/deploy-heroku.md`](site/docs/fr/deploy-heroku.md).
 
-## Publier sur npm et crates.io depuis un smartphone
+## Publier sur crates.io depuis un téléphone
 
-1. Ajoutez les secrets de dépôt `NPM_TOKEN` et `CARGO_REGISTRY_TOKEN` (GitHub → Settings → Secrets and variables → Actions).
+1. Créez un jeton sur [crates.io/settings/tokens](https://crates.io/settings/tokens) et ajoutez-le comme secret du dépôt, sous le nom `CARGO_REGISTRY_TOKEN` (GitHub → Settings → Secrets and variables → Actions).
 2. Ouvrez **Releases → Draft a new release**, créez un tag comme `v0.1.0`, puis touchez **Publish release**.
 
-Le workflow `release.yml` lit la version dans le tag, lance les tests et publie le paquet `active-react` et le crate `active`. Guide : `site/docs/fr/publishing.md`.
+Le workflow [`release.yml`](.github/workflows/release.yml) définit la version du crate à partir du tag, lance les tests et publie `active`. Guide : [`site/docs/fr/publishing.md`](site/docs/fr/publishing.md).
 
 ## Développement
 
 ```sh
-npm install && npm test && npm run build      # library
-cd crates/active && cargo test                # Rust crate
-cd site && npm install && npm run dev         # site (npm run build && npm start for production)
-cd bench && npm run setup && npm run bench    # benchmarks (needs Rust, wasm-bindgen-cli, Chromium)
+cargo test --workspace                     # library, site and examples
+cargo run -p active --example page         # print a complete page
+cargo run -p active-site                   # the website on http://localhost:3000
 ```
 
-Chaque branche `claude/*` qui passe la CI est fusionnée automatiquement dans `master` (`.github/workflows/ci.yml`).
+Le bundle navigateur du site web se compile comme l'exemple ci-dessus (`-p active-site`, sortie dans `site/pkg`) ; voir le [`Dockerfile`](Dockerfile). Chaque branche `claude/*` qui passe la CI est automatiquement fusionnée dans `master` ([`ci.yml`](.github/workflows/ci.yml)).
 
 ## Licence
 

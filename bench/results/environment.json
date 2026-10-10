@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-10",
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "logical_cores": 4,
+  "memory_gib": 15.7,
+  "os": "linux 6.18.44-fc-v114",
+  "rustc": "rustc 1.97.0 (2d8144b78 2026-07-07)",
+  "wasm_bindgen": "wasm-bindgen 0.2.129",
+  "chromium": "Chrome/141.0.7390.37",
+  "quick": false
+}

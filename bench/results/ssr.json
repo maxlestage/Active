@@ -1,0 +1,312 @@
+{
+  "quick": false,
+  "runs": 3,
+  "warmup_ms": 1000,
+  "measure_ms": 3000,
+  "results": [
+    {
+      "id": "handwritten",
+      "name": "Hand-written",
+      "versions": "",
+      "how": "`push_str`/`write!` into one `String`, values escaped",
+      "us_per_page": 2.0113,
+      "bytes": 1843,
+      "runs": [
+        {
+          "us_per_page": 2.0346,
+          "p10": 1.9718,
+          "p90": 2.4231,
+          "batches": 295,
+          "batch_size": 4621,
+          "pages": 1363195,
+          "bytes": 1843
+        },
+        {
+          "us_per_page": 2.0113,
+          "p10": 1.9629,
+          "p90": 2.3662,
+          "batches": 325,
+          "batch_size": 4370,
+          "pages": 1420250,
+          "bytes": 1843
+        },
+        {
+          "us_per_page": 2.0002,
+          "p10": 1.9633,
+          "p90": 2.2652,
+          "batches": 316,
+          "batch_size": 4518,
+          "pages": 1427688,
+          "bytes": 1843
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "maud",
+      "name": "maud",
+      "versions": "maud 0.27.0",
+      "how": "`html!` compile-time template",
+      "us_per_page": 1.3712,
+      "bytes": 1831,
+      "runs": [
+        {
+          "us_per_page": 1.3712,
+          "p10": 1.3571,
+          "p90": 1.6257,
+          "batches": 330,
+          "batch_size": 6242,
+          "pages": 2059860,
+          "bytes": 1831
+        },
+        {
+          "us_per_page": 1.3666,
+          "p10": 1.3357,
+          "p90": 1.5722,
+          "batches": 299,
+          "batch_size": 7002,
+          "pages": 2093598,
+          "bytes": 1831
+        },
+        {
+          "us_per_page": 1.3741,
+          "p10": 1.3365,
+          "p90": 1.5972,
+          "batches": 321,
+          "batch_size": 6418,
+          "pages": 2060178,
+          "bytes": 1831
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "active",
+      "name": "active",
+      "versions": "active 0.1.0 (local)",
+      "how": "components + `Seo` merged into `<head>` by `Document`",
+      "us_per_page": 5.584,
+      "bytes": 1889,
+      "runs": [
+        {
+          "us_per_page": 5.6636,
+          "p10": 5.4343,
+          "p90": 9.0637,
+          "batches": 274,
+          "batch_size": 1722,
+          "pages": 471828,
+          "bytes": 1889
+        },
+        {
+          "us_per_page": 5.4265,
+          "p10": 5.3198,
+          "p90": 6.455,
+          "batches": 313,
+          "batch_size": 1663,
+          "pages": 520519,
+          "bytes": 1889
+        },
+        {
+          "us_per_page": 5.584,
+          "p10": 5.3735,
+          "p90": 6.7754,
+          "batches": 290,
+          "batch_size": 1752,
+          "pages": 508080,
+          "bytes": 1889
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "leptos",
+      "name": "Leptos + leptos_meta",
+      "versions": "leptos 0.8.22 + leptos_meta 0.8.7",
+      "how": "`<Title>`/`<Meta>`/`<Link>`/`<Script>` injected at `<MetaTags/>` (as leptos_axum does)",
+      "us_per_page": 13.4397,
+      "bytes": 1845,
+      "runs": [
+        {
+          "us_per_page": 13.5473,
+          "p10": 13.1096,
+          "p90": 19.7578,
+          "batches": 310,
+          "batch_size": 657,
+          "pages": 203670,
+          "bytes": 1845
+        },
+        {
+          "us_per_page": 13.3179,
+          "p10": 13.0966,
+          "p90": 14.6767,
+          "batches": 308,
+          "batch_size": 695,
+          "pages": 214060,
+          "bytes": 1845
+        },
+        {
+          "us_per_page": 13.4397,
+          "p10": 13.0895,
+          "p90": 22.6496,
+          "batches": 294,
+          "batch_size": 665,
+          "pages": 195510,
+          "bytes": 1845
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "leptos-plain",
+      "name": "Leptos (plain `<head>`)",
+      "versions": "leptos 0.8.22",
+      "how": "whole document in one `view!`, `to_html()`",
+      "us_per_page": 5.1898,
+      "bytes": 1834,
+      "runs": [
+        {
+          "us_per_page": 5.195,
+          "p10": 5.0557,
+          "p90": 5.5643,
+          "batches": 293,
+          "batch_size": 1889,
+          "pages": 553477,
+          "bytes": 1834
+        },
+        {
+          "us_per_page": 5.1115,
+          "p10": 4.9425,
+          "p90": 9.0509,
+          "batches": 286,
+          "batch_size": 1769,
+          "pages": 505934,
+          "bytes": 1834
+        },
+        {
+          "us_per_page": 5.1898,
+          "p10": 4.9626,
+          "p90": 8.5577,
+          "batches": 294,
+          "batch_size": 1747,
+          "pages": 513618,
+          "bytes": 1834
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "dioxus",
+      "name": "Dioxus",
+      "versions": "dioxus 0.7.10 + dioxus-ssr 0.7.10",
+      "how": "`rsx!` `head`+`body`, `VirtualDom` + reused `dioxus_ssr::Renderer`",
+      "us_per_page": 24.2243,
+      "bytes": 1843,
+      "runs": [
+        {
+          "us_per_page": 24.2243,
+          "p10": 23.6429,
+          "p90": 25.7231,
+          "batches": 301,
+          "batch_size": 401,
+          "pages": 120701,
+          "bytes": 1843
+        },
+        {
+          "us_per_page": 24.607,
+          "p10": 23.6549,
+          "p90": 30.8515,
+          "batches": 290,
+          "batch_size": 391,
+          "pages": 113390,
+          "bytes": 1843
+        },
+        {
+          "us_per_page": 24.0712,
+          "p10": 23.7961,
+          "p90": 25.5513,
+          "batches": 319,
+          "batch_size": 380,
+          "pages": 121220,
+          "bytes": 1843
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "yew",
+      "name": "Yew",
+      "versions": "yew 0.23.0",
+      "how": "`html!` document, `LocalServerRenderer` on a current-thread Tokio runtime",
+      "us_per_page": 17.1654,
+      "bytes": 1875,
+      "runs": [
+        {
+          "us_per_page": 17.1654,
+          "p10": 16.5292,
+          "p90": 21.1486,
+          "batches": 305,
+          "batch_size": 541,
+          "pages": 165005,
+          "bytes": 1875
+        },
+        {
+          "us_per_page": 17.5872,
+          "p10": 16.816,
+          "p90": 27.1266,
+          "batches": 315,
+          "batch_size": 492,
+          "pages": 154980,
+          "bytes": 1875
+        },
+        {
+          "us_per_page": 17.0337,
+          "p10": 16.5425,
+          "p90": 24.5297,
+          "batches": 323,
+          "batch_size": 501,
+          "pages": 161823,
+          "bytes": 1875
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "sycamore",
+      "name": "Sycamore",
+      "versions": "sycamore 0.9.4",
+      "how": "`view!` document, `render_to_string`",
+      "us_per_page": 33.006,
+      "bytes": 3036,
+      "runs": [
+        {
+          "us_per_page": 33.006,
+          "p10": 32.1023,
+          "p90": 47.8685,
+          "batches": 307,
+          "batch_size": 266,
+          "pages": 81662,
+          "bytes": 3036
+        },
+        {
+          "us_per_page": 32.4249,
+          "p10": 32.1879,
+          "p90": 33.2921,
+          "batches": 347,
+          "batch_size": 254,
+          "pages": 88138,
+          "bytes": 3036
+        },
+        {
+          "us_per_page": 34.2043,
+          "p10": 32.624,
+          "p90": 47.3897,
+          "batches": 279,
+          "batch_size": 290,
+          "pages": 80910,
+          "bytes": 3036
+        }
+      ],
+      "error": null
+    }
+  ]
+}

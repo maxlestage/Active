@@ -1,0 +1,10 @@
+[package]
+name = "ssr-dioxus"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+bench-common.workspace = true
+dioxus = { version = "0.7", default-features = false, features = ["macro", "html", "signals", "hooks"] }
+dioxus-ssr = "0.7"

@@ -1,112 +1,70 @@
 {
-  "profiles": [
+  "wasm_bindgen": "wasm-bindgen 0.2.129",
+  "results": [
     {
-      "name": "opt-level = 3",
-      "rawBytes": 144,
-      "bindgenBytes": 15871,
-      "bindgenGzip": 6758,
-      "fib30Ms": 3.7632059999887133
+      "id": "active",
+      "name": "active",
+      "versions": "active 0.1.0 (local)",
+      "mode": "island hydration (`active::hydrate`)",
+      "wasm_bytes": 81589,
+      "wasm_gzip": 32415,
+      "js_files": 1,
+      "js_bytes": 20936,
+      "js_gzip": 4337,
+      "total_gzip": 36752,
+      "html_bytes": 776
     },
     {
-      "name": "opt-level = 3 + wasm-opt -O3",
-      "rawBytes": 112,
-      "bindgenBytes": 14461,
-      "bindgenGzip": 6372,
-      "fib30Ms": 3.887934000013047
+      "id": "leptos",
+      "name": "Leptos",
+      "versions": "leptos 0.8.22",
+      "mode": "hydration (`hydrate_body`)",
+      "wasm_bytes": 144890,
+      "wasm_gzip": 54755,
+      "js_files": 1,
+      "js_bytes": 29346,
+      "js_gzip": 6163,
+      "total_gzip": 60918,
+      "html_bytes": 520
     },
     {
-      "name": "opt-level = \"s\"",
-      "rawBytes": 144,
-      "bindgenBytes": 14708,
-      "bindgenGzip": 6512,
-      "fib30Ms": 4.167172000001301
+      "id": "dioxus",
+      "name": "Dioxus",
+      "versions": "dioxus 0.7.10",
+      "mode": "client-side render (`dioxus::launch`)",
+      "wasm_bytes": 426873,
+      "wasm_gzip": 155436,
+      "js_files": 6,
+      "js_bytes": 81267,
+      "js_gzip": 15008,
+      "total_gzip": 170444,
+      "html_bytes": 488
     },
     {
-      "name": "opt-level = \"z\"",
-      "rawBytes": 137,
-      "bindgenBytes": 14723,
-      "bindgenGzip": 6521,
-      "fib30Ms": 4.317437000005157
+      "id": "yew",
+      "name": "Yew",
+      "versions": "yew 0.23.0",
+      "mode": "hydration (`Renderer::hydrate`)",
+      "wasm_bytes": 241785,
+      "wasm_gzip": 90002,
+      "js_files": 1,
+      "js_bytes": 31535,
+      "js_gzip": 6261,
+      "total_gzip": 96263,
+      "html_bytes": 531
     },
     {
-      "name": "opt-level = \"z\" + wasm-opt -Oz",
-      "rawBytes": 109,
-      "bindgenBytes": 13577,
-      "bindgenGzip": 6194,
-      "fib30Ms": 3.8807379999925615
+      "id": "sycamore",
+      "name": "Sycamore",
+      "versions": "sycamore 0.9.4",
+      "mode": "hydration (`sycamore::hydrate`)",
+      "wasm_bytes": 105815,
+      "wasm_gzip": 41077,
+      "js_files": 1,
+      "js_bytes": 19750,
+      "js_gzip": 4688,
+      "total_gzip": 45765,
+      "html_bytes": 572
     }
-  ],
-  "size": {
-    "active": {
-      "min": 1032,
-      "gzip": 596,
-      "brotli": 517
-    },
-    "react-wasm": {
-      "min": 5268,
-      "gzip": 2073,
-      "brotli": 1817
-    },
-    "glue": {
-      "min": 1893,
-      "gzip": 934,
-      "brotli": 855
-    },
-    "raw": {
-      "bytes": 144,
-      "gzip": 139
-    },
-    "bindgen": {
-      "bytes": 15871,
-      "gzip": 6758
-    }
-  },
-  "load": {
-    "ssr-preload": {
-      "head": "<link rel=\"preload\" href=\"/bindgen_bg.wasm\" as=\"fetch\" crossorigin=\"\" type=\"application/wasm\"/>",
-      "local": 20.199999999720603,
-      "rtt100": 224.20000000018626
-    },
-    "ssr-nopreload": {
-      "head": "",
-      "local": 24.5,
-      "rtt100": 330
-    },
-    "active-raw": {
-      "local": 28.800000000279397,
-      "rtt100": 331.5
-    },
-    "react-wasm": {
-      "local": 28.5,
-      "rtt100": 327.10000000009313
-    },
-    "effect-raw": {
-      "local": 25.800000000279397,
-      "rtt100": 328.89999999990687
-    },
-    "active-bindgen": {
-      "local": 23.5,
-      "rtt100": 328.39999999990687
-    },
-    "effect-bindgen": {
-      "local": 24.600000000093132,
-      "rtt100": 332.90000000037253
-    }
-  },
-  "calls": {
-    "addNs": {
-      "js": 0.55,
-      "raw": 4.05,
-      "bindgen": 4.810000000009313
-    },
-    "fib30Ms": {
-      "js": 11.399999999906868,
-      "raw": 2.1000000000931323,
-      "bindgen": 1.900000000372529
-    },
-    "greetNs": {
-      "js": 4.6666666663562255,
-      "bindgen": 552.9999999996895
-    }
-  }
+  ]
 }

@@ -1,222 +1,196 @@
 ---
 title: Inicio rápido
-description: Crea en unos cinco minutos una app React 19 con etiquetas SEO completas y una función Rust compilada a WebAssembly, con Vite y wasm-pack.
+description: Ejecuta en cinco minutos una página renderizada en el servidor con una isla de contador en WebAssembly: primero con el ejemplo incluido, luego en tu proyecto.
 ---
 
-En este tutorial vas a crear una app con Vite + React 19, darle etiquetas SEO correctas y después llamar a una función Rust compilada a WebAssembly. Lleva unos cinco minutos si ya tienes Rust instalado.
+Esta página pone una página real en tu pantalla: HTML renderizado por un servidor Rust, con etiquetas SEO completas, y un contador interactivo compilado a WebAssembly. Supone que ya tienes instaladas las herramientas de [Instalación](../installation/) (Rust, el target `wasm32-unknown-unknown` y `wasm-bindgen-cli`).
 
-## 1. Crea la app
+## Ejecutar el ejemplo
 
-```sh
-npm create vite@latest my-app -- --template react-ts
-cd my-app
-npm install
-npm i github:maxlestage/Active
-```
-
-La plantilla de React de Vite usa React 19, que es lo que active-react requiere. Puedes comprobarlo con `npm ls react`.
-
-## 2. Escribe los valores por defecto de tu sitio
-
-Crea `src/seo.ts`. Estos valores los comparten todas las páginas, así que los escribes una sola vez:
-
-```ts
-import { createSeo } from "active-react";
-
-export const Seo = createSeo({
-  siteName: "My App",
-  titleTemplate: "%s · My App",
-  baseUrl: "https://my-app.example", // relative URLs become absolute
-  image: "/og.png",
-  locale: "en_US",
-});
-```
-
-`createSeo` devuelve un componente `<Seo>` con estos valores por defecto incorporados. Más información en [valores por defecto del sitio](../site-defaults/).
-
-## 3. Añade SEO a una página
-
-Reemplaza `src/App.tsx`:
-
-```tsx
-import { Seo } from "./seo";
-
-export default function App() {
-  return (
-    <main>
-      <Seo title="Home" description="A React 19 app with SEO tags and Rust." canonical="/" />
-      <h1>Hello</h1>
-    </main>
-  );
-}
-```
-
-Inicia el servidor de desarrollo con `npm run dev` e inspecciona la página con las herramientas de desarrollo de tu navegador. Ahora el `<head>` también contiene:
-
-```html
-<title>Home · My App</title>
-<meta name="description" content="A React 19 app with SEO tags and Rust."/>
-<link rel="canonical" href="https://my-app.example/"/>
-<meta property="og:title" content="Home"/>
-<meta property="og:description" content="A React 19 app with SEO tags and Rust."/>
-<meta property="og:type" content="website"/>
-<meta property="og:url" content="https://my-app.example/"/>
-<meta property="og:image" content="https://my-app.example/og.png"/>
-<meta property="og:site_name" content="My App"/>
-<meta property="og:locale" content="en_US"/>
-<meta name="twitter:card" content="summary_large_image"/>
-```
-
-Renderizaste `<Seo>` dentro de `<main>` y, sin embargo, las etiquetas están en el `<head>`: React 19 las trasladó allí.
-
-> **Nota:** `index.html` todavía tiene un `<title>` estático. React inserta su propio título antes que él, así que la pestaña del navegador muestra el correcto. Puedes eliminar el título estático si prefieres un único elemento.
-
-## 4. Crea un crate de Rust
-
-Instala las herramientas una sola vez (consulta [Configuración de Rust](../rust-setup/) para más detalles):
+El repositorio contiene una aplicación mínima, [`examples/hello`](https://github.com/maxlestage/Active/tree/master/examples/hello). Clónalo, compila el bundle del navegador e inicia el servidor:
 
 ```sh
-# Rust itself: https://rustup.rs
-rustup target add wasm32-unknown-unknown
-cargo install wasm-pack
+git clone https://github.com/maxlestage/Active
+cd Active
+cargo build -p hello --lib --target wasm32-unknown-unknown --profile wasm-release
+wasm-bindgen --target web --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
+cargo run -p hello
 ```
 
-Después crea un crate de biblioteca junto a `src/`:
+Abre [http://localhost:3000](http://localhost:3000) y haz clic en los botones. El servidor del ejemplo solo usa la biblioteca estándar, así que compila rápido.
+
+## Crear tu propio proyecto
+
+La misma aplicación, en un crate nuevo, con un servidor [Axum](../axum/).
+
+### 1. Crear el crate
 
 ```sh
-cargo new --lib hello --vcs none
+cargo new my-site
+cd my-site
 ```
 
-Reemplaza `hello/Cargo.toml`:
+### 2. Declarar las dependencias
+
+Reemplaza `Cargo.toml` por:
 
 ```toml
 [package]
-name = "hello"
+name = "my-site"
 version = "0.1.0"
 edition = "2024"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-wasm-bindgen = "0.2"
+active = "0.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
+tower-http = { version = "0.7", features = ["fs"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+active = { version = "0.1", features = ["client"] }
+wasm-bindgen = "=0.2.129"
 
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
-panic = "abort"
 strip = true
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"
+panic = "abort"
 ```
 
-Y `hello/src/lib.rs`:
+> **Nota:** Mientras el crate no esté publicado en crates.io, reemplaza los dos valores `active = …` por `{ git = "https://github.com/maxlestage/Active" }` (añadiendo `features = ["client"]` al segundo).
+
+### 3. Escribir la página
+
+Crea `src/lib.rs`. Lo comparten el servidor y el navegador:
 
 ```rust
-use wasm_bindgen::prelude::*;
+use active::prelude::*;
 
-#[wasm_bindgen]
-pub fn greet(name: &str) -> String {
-    format!("Hello {name}, from Rust!")
+/// Una isla: renderizada en el servidor, interactiva en el navegador.
+pub fn counter(props: &str) -> Node {
+    let count = use_state(props.parse::<i32>().unwrap_or(0));
+    div()
+        .class("counter")
+        .child(button().on_click(move |_| count.update(|n| *n -= 1)).text("−"))
+        .child(span().text_dyn(move || count.get().to_string()))
+        .child(button().on_click(move |_| count.update(|n| *n += 1)).text("+"))
+        .into()
 }
 
-/// Number of primes below `n` (sieve of Eratosthenes).
-#[wasm_bindgen]
-pub fn count_primes(n: u32) -> u32 {
-    let n = n as usize;
-    if n < 2 {
-        return 0;
-    }
-    let mut sieve = vec![true; n];
-    sieve[0] = false;
-    sieve[1] = false;
-    let mut i = 2;
-    while i * i < n {
-        if sieve[i] {
-            let mut j = i * i;
-            while j < n {
-                sieve[j] = false;
-                j += i;
-            }
-        }
-        i += 1;
-    }
-    sieve.iter().filter(|&&p| p).count() as u32
+/// La página completa. Todo, excepto el contador, es HTML simple.
+pub fn page() -> String {
+    let body = main()
+        .child(Seo::new().title("Home").description("My first page with active."))
+        .child(h1().text("Hello from Rust"))
+        .child(p().text("This paragraph is plain HTML. The counter below is an island:"))
+        .child(island("counter", "0", counter));
+    Document::new(body)
+        .lang("en")
+        .seo(Seo::new().site_name("My site").title_template("%s · My site"))
+        .client("/pkg/my_site.js", "/pkg/my_site_bg.wasm")
+        .render()
+}
+
+/// Punto de entrada del navegador: se ejecuta una vez cargado el módulo WebAssembly.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen(start)]
+pub fn start() {
+    active::hydrate(&[("counter", counter)]);
 }
 ```
 
-## 5. Compílalo a WebAssembly
+### 4. Escribir el servidor
+
+Reemplaza `src/main.rs`:
+
+```rust
+use axum::{Router, response::Html, routing::get};
+use tower_http::services::ServeDir;
+
+#[tokio::main]
+async fn main() {
+    let app = Router::new()
+        .route("/", get(|| async { Html(my_site::page()) }))
+        .nest_service("/pkg", ServeDir::new("pkg"));
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    println!("http://localhost:3000");
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+### 5. Compilar el bundle del navegador
 
 ```sh
-wasm-pack build hello --target web --out-dir ../src/pkg
+cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
+wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
 ```
 
-La ruta de `--out-dir` es relativa al crate, así que el resultado acaba en `src/pkg/`:
+Esto escribe `pkg/my_site.js` (el cargador) y `pkg/my_site_bg.wasm` (tu código). Vuelve a ejecutar estos dos comandos cada vez que cambies código que se ejecuta en el navegador.
 
-- `hello.js`: el código de enlace (glue) JavaScript generado por wasm-bindgen;
-- `hello_bg.wasm`: el Rust compilado;
-- `hello.d.ts`: los tipos TypeScript de tus funciones.
-
-Guarda el comando como script en `package.json` y ejecútalo antes de cada build:
-
-```json
-{
-  "scripts": {
-    "wasm": "wasm-pack build hello --target web --out-dir ../src/pkg",
-    "build": "npm run wasm && tsc -b && vite build"
-  }
-}
-```
-
-## 6. Declara el módulo
-
-Crea `src/wasm.ts`:
-
-```ts
-import { wasm } from "active-react";
-import url from "./pkg/hello_bg.wasm?url";
-
-export const hello = wasm(() => import("./pkg/hello.js"), { url });
-```
-
-Todavía no se descarga nada: `wasm()` solo declara el módulo. El import con `?url` le pide a Vite la URL final del binario, lo que permite a active-react precargarlo durante el renderizado en servidor.
-
-## 7. Llama a Rust desde un componente
-
-Actualiza `src/App.tsx`:
-
-```tsx
-import { useWasm } from "active-react";
-import { Seo } from "./seo";
-import { hello } from "./wasm";
-
-export default function App() {
-  const rust = useWasm(hello); // undefined while loading
-
-  return (
-    <main>
-      <Seo title="Home" description="A React 19 app with SEO tags and Rust." canonical="/" />
-      <h1>Hello</h1>
-      <p>{rust ? rust.greet("you") : "Loading the Rust module…"}</p>
-      <p>{rust && `${rust.count_primes(1_000_000)} primes below one million`}</p>
-    </main>
-  );
-}
-```
-
-`rust` está completamente tipado a partir de `hello.d.ts`: prueba a escribir mal `count_primes` y TypeScript lo detectará.
-
-## 8. Ejecútalo
+### 6. Ejecutarlo
 
 ```sh
-npm run dev
+cargo run
 ```
 
-La página muestra primero "Loading the Rust module…" y luego el saludo y 78 498 números primos. Ejecuta `npm run build` y `npm run preview` para probar el build de producción.
+Abre [http://localhost:3000](http://localhost:3000). El contador funciona, y el código fuente de la página contiene todo su texto.
 
-## Siguientes pasos
+## Qué acaba de pasar
 
-Tu app es una single-page app: las etiquetas SEO las añade JavaScript en el navegador. Google ejecuta JavaScript, pero muchos rastreadores y bots de vista previa de enlaces no lo hacen. Para obtener el mejor SEO, prerrenderiza tus páginas a HTML:
+Abre el código fuente de la página en tu navegador (normalmente `Ctrl+U` o `⌘+⌥+U`). Acortado e indentado para leerlo mejor, se ve así:
 
-- [Renderizado en servidor](../server-rendering/) explica el SSR, la generación estática y `renderWithHead`.
-- El [ejemplo vite-ssg](https://github.com/maxlestage/Active/tree/master/examples/vite-ssg) del repositorio es el mismo tipo de app, más generación estática: cada página se entrega como HTML con su `<head>` completo y el binario `.wasm` precargado, y después se hidrata y llama a Rust.
-- [Cargar WebAssembly](../loading-wasm/) trata los errores, Suspense y la carga fuera de React.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Home · My site</title>
+  <meta name="description" content="My first page with active."/>
+  <meta property="og:title" content="Home"/>
+  <meta property="og:description" content="My first page with active."/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:site_name" content="My site"/>
+  <meta name="twitter:card" content="summary"/>
+  <style>active-island{display:contents}</style>
+  <link rel="modulepreload" href="/pkg/my_site.js"/>
+  <link rel="preload" href="/pkg/my_site_bg.wasm" as="fetch" type="application/wasm" crossorigin=""/>
+  <script type="module">import init from "/pkg/my_site.js";init({module_or_path:"/pkg/my_site_bg.wasm"});</script>
+</head>
+<body>
+  <main>
+    <h1>Hello from Rust</h1>
+    <p>This paragraph is plain HTML. The counter below is an island:</p>
+    <active-island data-island="counter" data-props="0">
+      <div class="counter"><button>−</button><span><!--#-->0</span><button>+</button></div>
+    </active-island>
+  </main>
+</body>
+</html>
+```
+
+Paso a paso:
+
+1. **El servidor lo renderiza todo.** `Document::render()` escribe el doctype, el `<head>` y el body en un único `String`. El `Seo` colocado en el body y el que se pasa a `Document::seo` se fusionan en un solo conjunto de etiquetas (consulta [SEO](../seo/#fusion)).
+2. **La isla queda marcada.** `island("counter", "0", counter)` renderizó el HTML del contador dentro de un elemento `<active-island>` que registra su nombre y sus props. El comentario `<!--#-->` marca el texto dinámico para que el navegador pueda encontrarlo.
+3. **El bundle se carga en paralelo.** Los dos enlaces `preload` empiezan a descargar el cargador y el archivo `.wasm` mientras se analiza la página. El script de módulo de una línea arranca el módulo WebAssembly.
+4. **La isla despierta.** `start()` llama a `active::hydrate`, que encuentra el elemento `<active-island data-island="counter">`, vuelve a ejecutar `counter("0")` en el navegador y conecta los listeners de clic y el texto dinámico al HTML que ya está ahí. No se vuelve a crear nada.
+
+El encabezado y el párrafo nunca ejecutan código en el navegador.
+
+## Próximos pasos
+
+- Construye vistas con [componentes](../components/) y luego añade [estado](../state/) y [eventos](../events/).
+- Describe cada página para los buscadores con [SEO](../seo/).
+- Descubre cómo se hidratan las [islas](../islands/), o entrega los mismos componentes como un [sitio estático](../static-site/).
+- Pon el sitio en línea con [Desplegar en Heroku](../deploy-heroku/).

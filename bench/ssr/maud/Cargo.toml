@@ -1,0 +1,9 @@
+[package]
+name = "ssr-maud"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+bench-common.workspace = true
+maud = "0.27"

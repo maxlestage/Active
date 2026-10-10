@@ -1,103 +1,97 @@
 ---
-title: Publishing releases
-description: Release the active-react npm package and the active Rust crate from a phone by publishing a GitHub Release. A workflow does the rest.
+title: Publishing the crate
+description: Release a new version of the active crate on crates.io from a phone with a GitHub Release, or from a computer with cargo publish, plus how CI checks every push.
 ---
 
-Publishing a new version takes one action: **publish a GitHub Release with a tag like `v0.2.0`**. A GitHub Actions workflow then tests the code and publishes the npm package and the Rust crate. Everything happens on the GitHub, npm and crates.io websites, so a phone is enough.
-
-This page is for maintainers of the repository (or of your fork).
+This page is for maintainers of the repository or of a fork. A release of the `active` crate takes one action: **publish a GitHub Release whose tag is the version**, such as `v0.2.0`. A GitHub Actions workflow tests the crate and publishes it on [crates.io](https://crates.io). Everything happens on the GitHub and crates.io websites, so a phone is enough.
 
 ## How the release workflow works
 
-The workflow lives in `.github/workflows/release.yml` and runs when a release is published:
+The workflow is `.github/workflows/release.yml`. It runs when a release is published and:
 
-1. **Read the version from the tag.** `v0.2.0` gives `0.2.0`. A tag that doesn't look like `v1.2.3` stops the workflow with an error.
-2. **npm package** (only if the `NPM_TOKEN` secret exists): install, run the tests, write the version into `package.json`, then `npm publish --access public`.
-3. **Rust crate** (only if the `CARGO_REGISTRY_TOKEN` secret exists): write the version into `crates/active/Cargo.toml`, run `cargo test`, then `cargo publish`.
+1. **Reads the version from the tag.** `v0.2.0` gives `0.2.0`. A tag that does not look like `v1.2.3` (optionally with a pre-release suffix such as `-beta.1`) stops the workflow with an error.
+2. **Checks the token.** Without the `CARGO_REGISTRY_TOKEN` secret, the job ends with the warning "CARGO_REGISTRY_TOKEN secret missing — cargo publish skipped" and publishes nothing.
+3. **Writes the version** from the tag into `crates/active/Cargo.toml`.
+4. **Runs the tests** with `cargo test -p active`. A failing test stops the release.
+5. **Publishes** with `cargo publish -p active --allow-dirty`.
 
-The version comes from the tag, so **you never edit version numbers by hand**. The files in the repository keep their old number; only the published packages carry the new one.
+Because the version comes from the tag, the published crate always matches the release, even if you forget to change `Cargo.toml`. Bumping it in the repository too (step 3 below) keeps the source and crates.io telling the same story.
 
-The npm and crate jobs are independent: if one registry has no secret, its job is skipped with a warning and the other still publishes. That lets you start with npm only, for example.
-
-## 1. Create an npm token
-
-1. Open [npmjs.com](https://www.npmjs.com) and log in (create an account if needed).
-2. Tap your **avatar** (top right), then **Access Tokens**.
-3. Tap **Generate New Token**, then **Granular Access Token**.
-4. Give it a name, such as `github-release`, and an expiration date.
-5. Under **Packages and scopes**, set the permission to **Read and write**. Choose **All packages** for the first release, since `active-react` doesn't exist on npm yet. After the first release you can create a new token limited to `active-react` only.
-6. If your account requires two-factor authentication to publish, enable the token option that lets it bypass 2FA; otherwise the workflow can't answer the 2FA prompt.
-7. Tap **Generate Token** and **copy it now**: npm shows it only once.
-
-> **Warning:** npm limits how long write tokens stay valid. Note the expiry date and replace the secret before it expires, or the next release will fail at the publish step.
-
-## 2. Create a crates.io token
+## 1. Create a crates.io token
 
 1. Open [crates.io](https://crates.io) and tap **Log in with GitHub**.
 2. Open your avatar menu, then **Account Settings**. Add and **verify your email address**: crates.io refuses to publish without one.
 3. Open **API Tokens** and tap **New Token**.
-4. Name it, for example `github-release`, and pick an expiration.
-5. Tick the scopes **publish-new** (to create the crate the first time) and **publish-update** (for later versions).
-6. Tap **Generate Token** and copy it.
+4. Name it, for example `github-release`, and choose an expiration date.
+5. Select the scopes **publish-new** (needed for the very first release, which creates the crate) and **publish-update** (for later versions).
+6. Tap **Generate Token** and copy it right away: crates.io shows it only once.
 
-## 3. Add the secrets to GitHub
+## 2. Add the secret to GitHub
 
-The GitHub mobile app doesn't show repository settings, so use the website in your browser.
+The GitHub mobile app does not show repository settings, so use the website in your phone's browser.
 
 1. Open the repository on [github.com](https://github.com), then **Settings**.
-2. In the menu, open **Secrets and variables**, then **Actions**.
-3. Tap **New repository secret**. Name: `NPM_TOKEN`. Secret: paste the npm token. Tap **Add secret**.
-4. Tap **New repository secret** again. Name: `CARGO_REGISTRY_TOKEN`. Secret: paste the crates.io token. Tap **Add secret**.
+2. Open **Secrets and variables**, then **Actions**.
+3. Tap **New repository secret**. Name: `CARGO_REGISTRY_TOKEN`. Secret: paste the token. Tap **Add secret**.
 
-Secret names must match exactly. Once saved, nobody can read a secret back, not even you: to change one, update it with a new value.
+The name must match exactly. Nobody can read a secret back once saved; to replace it, update it with a new value.
+
+## 3. Bump the version
+
+1. In the repository, open `crates/active/Cargo.toml` and tap the pencil icon (**Edit**).
+2. Change the `version = "…"` line in the `[package]` section, for example from `0.1.0` to `0.2.0`.
+3. Tap **Commit changes** and commit to `master`.
+
+Follow [semantic versioning](https://semver.org): before `1.0.0`, bump the minor number (`0.1.x` to `0.2.0`) for breaking changes or new features, and the patch number (`0.2.0` to `0.2.1`) for fixes only. Cargo treats `0.1.x` and `0.2.x` as incompatible.
 
 ## 4. Publish a release
 
-1. Open the repository's **Releases** page. On a phone, the quickest way is to go straight to `https://github.com/maxlestage/Active/releases/new` (replace the owner for a fork).
-2. If you are on the Releases list, tap **Draft a new release**.
-3. Tap **Choose a tag**, type `v0.1.0`, and select **Create new tag: v0.1.0 on publish**.
-4. Keep `master` as the target branch.
-5. Set the release title, for example `v0.1.0`. Tap **Generate release notes** if you want GitHub to list the merged changes.
-6. Tap **Publish release**.
+1. Open `https://github.com/<owner>/Active/releases/new` (or **Releases**, then **Draft a new release**).
+2. Tap **Choose a tag**, type `v0.2.0` (the version from step 3 with a `v` in front) and select **Create new tag on publish**.
+3. Keep `master` as the target.
+4. Set the title, for example `v0.2.0`. **Generate release notes** lists the merged changes for you.
+5. Tap **Publish release**.
 
-## 5. Watch it run
+## 5. Check the result
 
-Open the **Actions** tab of the repository: a **Release** run appears within seconds. Tap it to see the three jobs (`version`, `npm`, `crate`) and their logs. A green check means the job succeeded. A job whose secret is missing also ends green, with a warning such as "NPM_TOKEN secret missing — npm publish skipped" in the run summary.
+Open the **Actions** tab: a **Release** run appears within seconds. A green check means the crate is published (or that the token was missing: open the run to see the warning). Then:
 
-Then check the result:
-
-- [npmjs.com/package/active-react](https://www.npmjs.com/package/active-react) shows the new version.
-- [crates.io/crates/active](https://crates.io/crates/active) shows the new version, and [docs.rs/active](https://docs.rs/active) builds the API docs automatically a few minutes later.
+- [crates.io/crates/active](https://crates.io/crates/active) shows the new version;
+- [docs.rs/active](https://docs.rs/active) builds the API documentation a few minutes later, with the `client` feature enabled.
 
 ### If something fails
 
-- **Tests fail:** nothing is published by that job. Fix the code, merge, and publish a new release with the next patch version.
-- **npm says the version already exists:** registries never accept the same version twice, even after unpublishing. Publish the next version instead.
-- **401 or 403 errors:** the token is missing, expired or lacks write permission. Create a new one and update the secret.
-- **Only one registry got the new version:** fix the cause and release the next patch version, so both registries end up in sync.
+- **Tests fail:** nothing is published. Fix the code, then publish a new release with the next patch version.
+- **The version already exists:** crates.io never accepts the same version twice, even after a yank. Release the next version.
+- **401 or 403:** the token is missing, expired or lacks the right scope. Create a new one and update the secret.
+- **The name belongs to someone else** (first release only): another account owns `active` on crates.io. Rename the package in `crates/active/Cargo.toml` (for example `active-web`) and update the docs.
 
-## Versioning
+## Publishing from a computer
 
-Follow [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
-
-- **PATCH** (`0.1.0` to `0.1.1`): bug fixes only.
-- **MINOR** (`0.1.1` to `0.2.0`): new features. While the version starts with `0.`, also use a minor bump for breaking changes: npm and Cargo treat `0.1.x` and `0.2.x` as incompatible.
-- **MAJOR** (`1.0.0` to `2.0.0`): breaking changes, once you reach `1.0.0`.
-
-Use plain `vMAJOR.MINOR.PATCH` tags. Pre-release tags such as `v0.2.0-beta.1` pass the workflow's check, but the workflow has no special handling for them.
-
-Keep the npm package and the crate on the same version number: one release publishes both, which keeps them easy to match.
-
-## After the first release
-
-Once both packages are published, users install them with:
+The same release without GitHub Actions:
 
 ```sh
-npm i active-react
+cargo login                         # paste the crates.io token once
+cargo test -p active
+cargo publish -p active --dry-run   # builds the package exactly as it will be uploaded
+cargo publish -p active
 ```
 
-```sh
-cargo add active
-```
+Only the files listed in the crate's `include` (`src`, `README.md`, `LICENSE`) are uploaded. `cargo package -p active --list` shows them. Tag the commit afterwards (`git tag v0.2.0 && git push --tags`) so the repository records what was released.
 
-Remember to update the [installation](../installation/) instructions so they no longer point to GitHub.
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request:
+
+| Step | Command |
+| --- | --- |
+| Format | `cargo fmt --all --check` |
+| Lint, server | `cargo clippy --workspace --all-targets -- -D warnings` |
+| Lint, browser | `cargo clippy -p active --features client --target wasm32-unknown-unknown -- -D warnings`, then the same for the site and the examples (`--lib`) |
+| Test | `cargo test --workspace` |
+| Build the site | the same commands as the `Dockerfile` used by [Heroku](../deploy-heroku/) |
+| Package | `cargo package -p active --allow-dirty` |
+
+The last step catches packaging problems (a missing file, invalid metadata) before a release does.
+
+The workflow also has a `merge` job: when a branch whose name starts with `claude/` is pushed and every check above passes, it merges that branch into `master` and pushes the result. Other branches and pull requests are only checked, never merged automatically. With Heroku's automatic deploys enabled, a merge into `master` then puts the change online.

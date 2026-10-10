@@ -1,0 +1,18 @@
+[package]
+name = "spa"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# A client-side app: lib.rs is the app (compiled to WebAssembly), main.rs a small server
+# sending the same page for every path, plus the bundle.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+active = { path = "../../crates/active" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+active = { path = "../../crates/active", features = ["client"] }
+wasm-bindgen = "=0.2.129"
+web-sys = { version = "0.3", features = ["Storage", "Window"] }

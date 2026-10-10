@@ -1,0 +1,17 @@
+[package]
+name = "hello"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# One crate, two targets: the components in lib.rs run on the server (main.rs) and,
+# compiled to WebAssembly, hydrate the islands in the browser.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+active = { path = "../../crates/active" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+active = { path = "../../crates/active", features = ["client"] }
+wasm-bindgen = "=0.2.129"

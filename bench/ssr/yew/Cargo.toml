@@ -1,0 +1,10 @@
+[package]
+name = "ssr-yew"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+bench-common.workspace = true
+yew = { version = "0.23", features = ["ssr"] }
+tokio = { version = "1", features = ["rt"] }

@@ -4,57 +4,44 @@ on:
   push:
   pull_request:
 
-jobs:
-  library:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+env:
+  CARGO_TERM_COLOR: always
 
-  crate:
+jobs:
+  rust:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: crates/active
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-          components: clippy
-      - run: cargo test
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo build --release --target wasm32-unknown-unknown
-
-  site:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            site/package-lock.json
-      # Same commands as the Heroku build.
-      - run: npm ci
-      - run: npm --prefix site ci
-      - run: npm --prefix site run typecheck
-      - run: npm --prefix site run build
-      - run: npm --prefix site test
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Install wasm-bindgen-cli
+        run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Lint (server)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Lint (browser)
+        run: |
+          cargo clippy -p active --features client --target wasm32-unknown-unknown -- -D warnings
+          cargo clippy -p active-site -p hello -p spa --lib --target wasm32-unknown-unknown -- -D warnings
+      - name: Test
+        run: cargo test --workspace
+      # Same commands as the Dockerfile used by Heroku.
+      - name: Build the site
+        run: |
+          cargo build -p active-site --lib --target wasm32-unknown-unknown --profile wasm-release
+          wasm-bindgen --target web --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm
+          cargo build -p active-site --bin active-site --release
+      - name: Package the crate
+        run: cargo package -p active --allow-dirty
 
   # Every branch pushed by Claude (claude/...) is merged into master once everything is green.
   merge:
     if: github.event_name == 'push' && startsWith(github.ref_name, 'claude/')
-    needs: [library, crate, site]
+    needs: [rust]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -1,0 +1,19 @@
+[package]
+name = "counter-dioxus"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+# One crate, two targets: the library hydrates the counter in the browser (wasm32), the
+# binary (src/main.rs) prints the server HTML of the page.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+bench-common.workspace = true
+# `minimal` (macro, html, signals, hooks, launch): no logger, devtools or asset features.
+dioxus = { version = "0.7", default-features = false, features = ["minimal"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+dioxus = { version = "0.7", default-features = false, features = ["minimal", "web"] }
+wasm-bindgen.workspace = true

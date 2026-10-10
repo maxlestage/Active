@@ -1,0 +1,45 @@
+# Benchmarks: `active` against other Rust web frameworks. See README.md.
+#
+# A separate workspace (the root one excludes `bench/`) so the frameworks under test never
+# end up in the library's dependency graph. Build packages one at a time (`-p`): Cargo then
+# enables only that package's features, exactly like in a real project.
+[workspace]
+resolver = "2"
+members = [
+  "common",
+  "runner",
+  "ssr/active",
+  "ssr/leptos",
+  "ssr/dioxus",
+  "ssr/yew",
+  "ssr/sycamore",
+  "ssr/maud",
+  "ssr/handwritten",
+  "counter/active",
+  "counter/leptos",
+  "counter/dioxus",
+  "counter/yew",
+  "counter/sycamore",
+]
+
+[workspace.package]
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+bench-common = { path = "common" }
+active = { path = "../crates/active" }
+wasm-bindgen = "=0.2.129"
+
+# Same settings for every framework, server and browser.
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+# Browser bundles: `cargo build --profile wasm-release --target wasm32-unknown-unknown`.
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"
+panic = "abort"

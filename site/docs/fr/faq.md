@@ -1,111 +1,92 @@
 ---
 title: FAQ
-description: Réponses aux questions fréquentes sur active-react : React 18, Next.js, erreurs wasm-bindgen, types MIME, navigateurs pris en charge et licence.
+description: Questions fréquentes sur active : autres frameworks Rust, JavaScript, SEO des applications monopages, hydratation, données asynchrones, routage, styles, taille.
 ---
 
-## Est-ce que ça fonctionne avec React 18 ?
+Des réponses courtes aux questions les plus fréquentes, avec des liens vers les pages qui vont plus loin.
 
-Non. active-react repose sur une fonctionnalité de React 19 : les balises `<title>`, `<meta>` et `<link>` rendues n'importe où dans l'arbre sont remontées dans le `<head>` par React lui-même. C'est ce qui permet à `<Seo>` d'être un simple composant, sans provider ni effet. Avec React 18, les balises resteraient dans le body. Mettez à jour avec `npm i react@latest react-dom@latest`.
+## Qu'est-ce qu'active, en une phrase ?
 
-## Puis-je l'utiliser avec Next.js ?
+Une petite bibliothèque Rust pour construire le front-end de sites web : les composants sont des fonctions, l'état vit dans des handles `use_state`, chaque page reçoit des balises SEO complètes, et les parties interactives s'exécutent en WebAssembly, sur des pages rendues côté serveur, des sites statiques ou des applications côté client. Voir l'[Introduction](../introduction/).
 
-Avec l'**App Router**, Next.js dispose de sa propre API Metadata (`export const metadata` et `generateMetadata`), intégrée à son routage, à son streaming et à ses conventions de fichiers. Préférez-la pour le SEO, afin que les deux systèmes ne produisent pas de balises en double.
+## Pourquoi pas Leptos, Dioxus, Yew ou Sycamore ?
 
-La partie WebAssembly reste utilisable dans Next.js : déclarez le module avec `wasm()` et appelez `useWasm()` dans des composants client (fichiers commençant par `"use client"`). Obtenez l'URL du binaire avec `new URL("./pkg/my_crate_bg.wasm", import.meta.url).href`, car le suffixe `?url` est propre à Vite.
+Ce sont d'excellents projets, plus vastes, et le meilleur choix dans certains cas :
 
-## Est-ce que ça fonctionne avec d'autres frameworks ?
+- **Leptos** est un framework full-stack : réactivité à granularité fine, une macro `view!`, des fonctions serveur, un routeur et un mode îlots.
+- **Dioxus** cible le web, le bureau et le mobile à partir d'une seule base de code, avec sa macro `rsx!`.
+- **Yew** et **Sycamore** sont des frameworks de composants établis pour le navigateur, qui prennent en charge le rendu côté serveur.
 
-Oui. React Router v7 (mode framework), TanStack Start et Waku ne demandent aucune configuration. Ces frameworks rendent tout le document avec React 19 : les balises rendues par `<Seo>` arrivent donc automatiquement dans le `<head>` du HTML serveur. Voir [rendu serveur](../server-rendering/).
+`active` fait d'autres compromis :
 
-## Une page peut-elle avoir deux `<Seo>` ?
+- **Pas de macros.** Les vues sont de simples appels de fonctions : rust-analyzer, rustfmt et les erreurs du compilateur fonctionnent partout, et il n'y a aucune syntaxe à apprendre.
+- **Le rendu côté serveur d'abord.** Du HTML complet sur chaque page, des îlots uniquement là où il en faut ; une page sans îlot n'envoie aucun code.
+- **Le SEO intégré.** Titre, description, URL canonique, `hreflang`, Open Graph, Twitter et JSON-LD à partir d'un seul builder, avec une [fusion](../seo/#fusion) automatique entre mises en page et pages, sur le serveur comme dans les applications côté client.
+- **Léger.** Une API courte, que vous pouvez lire en un après-midi ([Référence de l'API](../api/)), et aucune dépendance côté serveur.
 
-Vous obtenez alors deux jeux de balises : deux titres, deux descriptions, deux liens canoniques. React remonte tout ce qu'on lui donne et ne fusionne pas les balises. Rendez un seul `<Seo>` par page, dans le composant de la page, et placez les valeurs partagées par toutes les pages dans [`createSeo`](../site-defaults/) plutôt que dans un second `<Seo>` au sein d'un layout.
+Choisissez un framework plus vaste si vous avez besoin de fonctions serveur, de cibles bureau ou mobile, ou d'un large écosystème de composants prêts à l'emploi. La page [Benchmarks](../benchmarks/) compare les tailles et les temps de rendu.
 
-## Pourquoi y a-t-il deux balises `<title>` ?
+## Dois-je écrire du JavaScript ?
 
-C'est le `<title>` statique de votre `index.html`. React insère le titre de la page **devant** lui : `document.title`, l'onglet du navigateur et les moteurs de recherche utilisent donc le bon. Vous pouvez supprimer le titre statique d'`index.html` pour ne garder qu'un seul élément.
+Non. Composants, serveur, compilation et tests sont en Rust. Le navigateur reçoit deux morceaux de JavaScript que vous n'écrivez ni ne modifiez jamais : le chargeur généré par `wasm-bindgen`, et une ligne `<script type="module">` écrite par [`Document::client`](../documents/#charger-le-bundle-du-navigateur) pour le démarrer. Les API du navigateur sont accessibles depuis Rust grâce à [`web-sys`](https://docs.rs/web-sys) (voir [Événements](../events/#web-sys)).
 
-En revanche, retirez bien les balises statiques `<meta name="description">` et `og:*` d'`index.html` : elles seraient dupliquées.
+## Une page fonctionne-t-elle avec JavaScript désactivé ?
 
-## Google lit-il le JSON-LD placé dans le body ?
+Son contenu, oui : les pages rendues côté serveur et les pages statiques sont du HTML complet, si bien que le texte, les liens et les images fonctionnent sans aucun script. Les îlots restent tels que le serveur les a rendus, mais ne réagissent pas, puisque le démarrage du WebAssembly passe par le chargeur. Les formulaires dotés de vrais attributs `action` et `method` continuent de fonctionner comme des formulaires HTML classiques (voir [Événements](../events/#soumettre-un-formulaire)). Une application côté client, en revanche, a besoin des scripts pour afficher quoi que ce soit.
 
-Oui. Google lit les scripts JSON-LD n'importe où dans le document, dans le `<head>` comme dans le `<body>`. React 19 ne remonte pas les scripts ordinaires : le `<script type="application/ld+json">` reste donc là où `<Seo>` est rendu. Vérifiez vos pages avec le [test des résultats enrichis](https://search.google.com/test/rich-results). Pour en savoir plus, consultez [données structurées](../structured-data/).
+## Une application monopage est-elle bonne pour le SEO ?
 
-## Puis-je utiliser active-react sans Rust ?
+Moins que des pages rendues côté serveur. Google sait exécuter des scripts et indexer du contenu construit dans le navigateur, mais plus tard et de façon moins fiable que du HTML simple, et la plupart des autres robots d'indexation et robots d'aperçu de liens (réseaux sociaux, messageries) ne lisent que le HTML qu'ils reçoivent. Une application côté client envoie une coquille : ils ne voient donc que le titre et la description de cette coquille.
 
-Bien sûr. La partie SEO n'a absolument pas besoin de Rust et, grâce au tree-shaking, une app qui ne fait que du SEO n'embarque que 0,74 kB gzip : le chargeur WebAssembly n'est jamais inclus si vous n'importez ni `wasm` ni `useWasm`.
+Pour les pages publiques, utilisez des [pages rendues côté serveur avec des îlots](../islands/) ou un [site statique](../static-site/). Si vous avez besoin à la fois d'une application côté client et du SEO, rendez la première page de chaque URL sur le serveur (voir [Applications côté client](../client-app/#rendu-de-la-premiere-page-cote-serveur)) : le HTML contient alors le bon titre et les bonnes balises, et l'application prend le relais dans le navigateur.
 
-## Versions de wasm-bindgen incompatibles
+## Qu'est-ce qu'une incohérence d'hydratation ?
 
-L'erreur complète commence par :
+Quand le navigateur hydrate un îlot, il s'attend à ce que le HTML du serveur corresponde à la vue qu'il construit lui-même. S'ils diffèrent, il affiche `active: re-rendering island (… mismatch)` dans la console et reconstruit l'îlot de zéro. La cause habituelle est une vue qui dépend de quelque chose dont un seul côté dispose (l'heure, un nombre aléatoire, des données d'une base de données) : transmettez à l'îlot tout ce dont il a besoin dans ses props. Détails et solutions : [Îlots, Incohérences d'hydratation](../islands/#incoherences-d-hydratation).
 
-```text
-it looks like the Rust project used to create this Wasm file was linked against
-version of wasm-bindgen that uses a different bindgen format than this binary
-```
+## Comment charger des données de manière asynchrone ?
 
-L'outil en ligne de commande `wasm-bindgen` doit être exactement dans la même version que le crate `wasm-bindgen` de votre `Cargo.lock`. Installez le CLI correspondant :
+- **Sur le serveur :** attendez d'abord vos appels à la base de données ou à l'API, puis construisez et rendez la vue en un seul appel synchrone, sans aucun `.await` entre les deux (le compilateur refuse un `State` conservé au-delà d'un `.await` dans un serveur multithread). Voir [Axum, Données asynchrones](../axum/#donnees-asynchrones).
+- **Dans le navigateur :** lancez une future avec `wasm_bindgen_futures::spawn_local` depuis un gestionnaire ou un effet, et écrivez le résultat dans un état ; la vue se met à jour. Voir [Événements, Travail asynchrone dans les gestionnaires](../events/#travail-asynchrone-dans-les-gestionnaires).
 
-```sh
-cargo install -f wasm-bindgen-cli --version 0.2.129
-```
+Les composants eux-mêmes sont des fonctions synchrones.
 
-ou figez le crate sur la version de votre CLI dans `Cargo.toml` avec `wasm-bindgen = "=0.2.129"`. wasm-pack évite complètement le problème en téléchargeant pour vous le bon CLI. Voir [Configurer Rust](../rust-setup/).
+## Y a-t-il un routeur ?
 
-## Mon serveur n'envoie pas application/wasm
+Sur le serveur, utilisez le routeur de votre framework web (les routes Axum dans le guide [Axum](../axum/)), avec une fonction de page par route. Dans une application côté client, `active::location()` donne le chemin courant sous forme d'état et gère les liens et le bouton Précédent, `active::query()` et `active::query_param("q")` donnent la chaîne de requête, et `active::navigate()` change de page depuis le code. Voir [Applications côté client, Routage](../client-app/#routage).
 
-Votre module se charge quand même : quand le `Content-Type` n'est pas `application/wasm`, active-react télécharge le fichier en entier, puis le compile, au lieu de le compiler pendant le téléchargement. C'est seulement un peu plus lent. Pour corriger l'en-tête :
+## Comment styliser les composants ?
 
-```text
-# nginx (inside http, server or location)
-types { application/wasm wasm; }
+Avec du CSS classique. Ajoutez des feuilles de style avec `Document::stylesheet("/static/app.css")`, définissez des classes avec `.class(...)`, activez-les ou désactivez-les avec `.class_if(...)`, et utilisez `.style(...)` pour des styles en ligne ponctuels ou des variables CSS (`.style(format!("--progress:{p}%"))`). Tout outil CSS qui produit un fichier `.css` fonctionne en parallèle. Les blocs `<style>` en ligne peuvent aller dans `Document::head(...)`.
 
-# Apache (.htaccess or server config)
-AddType application/wasm .wasm
-```
+## Quelle est la taille du WebAssembly ?
 
-Les serveurs de développement et de preview de Vite, ainsi que `express.static` d'Express, envoient déjà le bon type. Avec un serveur Node écrit à la main, définissez `content-type: application/wasm` pour les fichiers `.wasm`.
+Environ 22 ko avec gzip (55 ko bruts) pour une page avec un îlot compteur, et 42 ko avec gzip pour l'application de liste de tâches complète de `examples/spa`, compilés avec le profil optimisé pour la taille et servis compressés. Le contenu statique n'ajoute rien, et chaque îlot supplémentaire n'ajoute que son propre code. Chiffres, réglages et conseils : [Performances](../performance/#tailles).
 
-## Puis-je exécuter Rust sur le serveur pendant le SSR ?
+## Combien coûte l'hébergement sur Heroku ?
 
-`useWasm()` renvoie volontairement `undefined` sur le serveur et pendant l'hydratation, pour que le HTML serveur et le premier rendu client correspondent toujours. Le résultat Rust apparaît juste après l'hydratation.
+Heroku n'a pas d'offre gratuite. Au moment de la rédaction, l'option la moins chère, les dynos Eco, coûte environ 5 $ par mois (ils se mettent en veille après 30 minutes sans trafic), et un dyno Basic environ 7 $ par mois. Voir [Déployer sur Heroku, Coûts](../deploy-heroku/#couts). Un [site statique](../static-site/) peut être hébergé gratuitement sur GitHub Pages, Netlify ou Cloudflare Pages.
 
-Si vous avez besoin d'un résultat Rust dans le HTML serveur, calculez-le sur le serveur avant le rendu et passez-le en prop. Avec la sortie `--target web` de wasm-bindgen, Node peut charger le binaire de façon synchrone :
+## Comment s'appelle le crate ?
 
-```ts
-// server only
-import { readFileSync } from "node:fs";
-import { count_primes, initSync } from "./pkg/hello.js";
+`active`, sur [crates.io](https://crates.io/crates/active), avec la documentation sur [docs.rs/active](https://docs.rs/active). Tant que la première version n'y est pas publiée, dépendez du dépôt : `active = { git = "https://github.com/maxlestage/Active" }`. La page [Publier le crate](../publishing/) explique comment se font les publications.
 
-initSync({ module: readFileSync(new URL("./pkg/hello_bg.wasm", import.meta.url)) });
-const primes = count_primes(1_000_000); // pass it to your page as a prop
-```
+## Quelle version de Rust faut-il ?
 
-Sur un serveur Rust, appelez directement votre code Rust, et utilisez le [crate `active`](../rust-crate/) pour les balises SEO.
+Rust 1.85 ou plus récent : le crate utilise l'édition 2024, déclarée avec `rust-version = "1.85"`. Mettez à jour avec `rustup update`.
 
-## Quels navigateurs sont pris en charge ?
+## Puis-je l'utiliser avec Actix Web, Rocket ou un autre serveur ?
 
-Tous les navigateurs actuels : Chrome, Edge, Firefox et Safari, sur ordinateur comme sur mobile. WebAssembly lui-même est pris en charge partout depuis 2017. La compilation en streaming (`WebAssembly.instantiateStreaming`), utilisée pour les modules `.wasm` bruts servis en `application/wasm`, nécessite Safari 15 ou plus récent. Les navigateurs qui ne prennent pas en charge les liens `preload` les ignorent simplement et chargent le module normalement.
+Oui. `Document::render()` renvoie une `String` : envoyez-la avec le type de contenu `text/html; charset=utf-8` depuis n'importe quel framework. Le guide [Axum](../axum/) montre une intégration, et `examples/hello` n'utilise que la bibliothèque standard. Un `Seo` peut aussi s'utiliser seul dans n'importe quel template.
 
-## Quelle est sa taille, concrètement ?
+## Comment voir les messages de panique dans le navigateur ?
 
-Environ 1,3 kB gzip si vous utilisez tout : 0,74 kB pour la partie SEO et 0,60 kB pour le chargeur WebAssembly, mesurés avec esbuild, sans React. Grâce au tree-shaking, vous ne payez que ce que vous importez. Les [benchmarks](../benchmarks/) la comparent aux alternatives.
+Avec le profil `wasm-release`, une panique arrête le module et la console n'affiche qu'une erreur générique. Pendant le développement, installez un hook de panique qui affiche le message : ajoutez `console_error_panic_hook = "0.1"` aux dépendances `wasm32` et appelez `console_error_panic_hook::set_once()` au début de votre fonction `#[wasm_bindgen(start)]`. Une compilation de débogage donne aussi de meilleurs messages (voir [Compiler le client](../client-build/#compilations-plus-rapides-pendant-le-developpement)).
 
-## Quelle est la licence ?
+## Est-ce prêt pour la production ?
 
-MIT, pour le paquet npm comme pour le crate Rust. Vous pouvez l'utiliser dans des projets commerciaux et propriétaires ; conservez la mention de copyright.
+`active` est jeune (version 0.1). L'API est petite et testée, et ce site web tourne avec, mais elle peut changer avant la 1.0. Épinglez la version dans `Cargo.toml` et lisez les notes de version lors des mises à jour. Les tickets et les contributions sont les bienvenus sur [GitHub](https://github.com/maxlestage/Active).
 
-## Comment contribuer ?
+## Sous quelle licence est-il distribué ?
 
-Les issues et les pull requests sont les bienvenues sur [GitHub](https://github.com/maxlestage/Active). Pour travailler sur le code :
-
-```sh
-git clone https://github.com/maxlestage/Active.git
-cd Active
-npm install
-npm test            # vitest: SSR, client (jsdom) and wasm tests
-npm run typecheck
-npm run build       # dist/ (ESM + .d.ts)
-```
-
-Le crate Rust se trouve dans `crates/active` (`cargo test`), ce site web dans `site/`, et les benchmarks dans `bench/` (`npm run setup && npm run bench`). Lancez les tests avant d'ouvrir une pull request, et joignez une exécution des benchmarks si votre modification peut affecter les performances.
+MIT. Vous pouvez l'utiliser dans des projets commerciaux comme open source ; conservez la mention de copyright.

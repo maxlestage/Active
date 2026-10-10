@@ -1,120 +1,170 @@
 ---
 title: Instalación
-description: Instala active-react desde GitHub hoy o desde npm cuando se publique. Incluye los tipos de TypeScript y las apps solo SEO nunca envían el código WASM.
+description: Instala Rust, añade el crate active, prepara un solo crate para el servidor y el navegador, e instala el target WebAssembly y la CLI de wasm-bindgen.
 ---
 
-active-react es un único paquete con dos puntos de entrada. Instalarlo requiere un solo comando; la toolchain de Rust solo hace falta si usas la parte de WebAssembly.
+Esta página prepara todo lo que necesitas: la toolchain de Rust, el crate `active`, una estructura de proyecto que compila tanto para el servidor como para el navegador, y las dos herramientas que generan el bundle de WebAssembly.
 
 ## Requisitos
 
-| Herramienta | Versión | Necesaria para |
+| Herramienta | Versión | Para qué |
 | --- | --- | --- |
-| `react` y `react-dom` | 19 o posterior | Todo (peer dependencies) |
-| Node.js | 20 o posterior | Renderizado en servidor y generación estática |
-| Rust | Estable, con el target `wasm32-unknown-unknown` | Solo la parte de WebAssembly |
-| TypeScript | Opcional | Los tipos vienen incluidos |
+| Rust | 1.85 o posterior | `active` usa la edición 2024 |
+| Target `wasm32-unknown-unknown` | cualquiera | compila el bundle del navegador |
+| `wasm-bindgen-cli` | la misma versión que el crate `wasm-bindgen` de `Cargo.lock` | genera el cargador y el `.wasm` final |
 
-¿Por qué React 19? Desde la versión 19, React traslada por sí mismo `<title>`, `<meta>` y `<link>` al `<head>`. active-react se basa en esa funcionalidad, por lo que React 18 no está soportado.
+Si solo renderizas HTML en un servidor o generas un sitio estático sin islas, basta con Rust.
 
-Comprueba tus versiones:
+## Instalar Rust
 
-```sh
-npm ls react react-dom
-```
-
-Si todavía usas React 18, actualiza primero:
+Instala [rustup](https://rustup.rs), que gestiona las versiones de Rust, y comprueba la versión:
 
 ```sh
-npm i react@latest react-dom@latest
-npm i -D @types/react@latest @types/react-dom@latest
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustc --version
 ```
 
-## Instalar
+En Windows, descarga en su lugar `rustup-init.exe` desde [rustup.rs](https://rustup.rs). Más adelante, actualiza con `rustup update`.
 
-### Desde GitHub (hoy)
-
-El paquete todavía no está en npm. Instálalo directamente desde el repositorio:
+## Añadir el crate
 
 ```sh
-npm i github:maxlestage/Active
+cargo add active
 ```
 
-npm clona el repositorio y ejecuta su script `prepare`, que compila la biblioteca en `dist/`. El paquete se sigue llamando `active-react`, así que tus imports son los mismos que con la futura versión de npm. Tu `package.json` recibe esta línea:
+> **Nota:** Hasta que la primera publicación esté en crates.io, usa como dependencia el repositorio Git: `active = { git = "https://github.com/maxlestage/Active" }` en `Cargo.toml`. Cargo encuentra el paquete `active` dentro del repositorio.
 
-```json
-{
-  "dependencies": {
-    "active-react": "github:maxlestage/Active"
-  }
+### Features de Cargo
+
+| Feature | Por defecto | Qué añade |
+| --- | --- | --- |
+| `client` | desactivada | Runtime del navegador: `active::hydrate`, `active::mount`, listeners de eventos, efectos. Incorpora `wasm-bindgen` y `web-sys`. |
+
+Sin `client`, `active` no tiene ninguna dependencia. Los manejadores de eventos y los efectos se aceptan (así los mismos componentes compilan en todas partes), pero nunca se ejecutan.
+
+## Un crate, dos destinos
+
+La estructura recomendada es un único crate cuya biblioteca contiene los componentes. La compilación nativa es tu servidor; la compilación a WebAssembly de esa misma biblioteca es el bundle del navegador. Así están organizados [`examples/hello`](https://github.com/maxlestage/Active/tree/master/examples/hello) y este sitio web.
+
+```text
+my-site/
+├── Cargo.toml
+└── src/
+    ├── lib.rs    componentes, islas y el punto de entrada del navegador
+    └── main.rs   el servidor (solo nativo)
+```
+
+```toml
+[package]
+name = "my-site"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+# cdylib: el .wasm para el navegador. rlib: la biblioteca que usa src/main.rs.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+active = "0.1"
+
+# Dependencias solo del servidor: no compilan para wasm32.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
+
+# Solo para el navegador: el runtime del cliente y el generador de bindings.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+active = { version = "0.1", features = ["client"] }
+wasm-bindgen = "=0.2.129"
+```
+
+Cargo combina las dos líneas de `active`: en `wasm32` el crate recibe la feature `client`, y en el servidor no. Por eso tu código puede llamar a `active::hydrate` detrás de `#[cfg(target_arch = "wasm32")]`:
+
+```rust
+// src/lib.rs
+use active::prelude::*;
+
+pub fn counter(props: &str) -> Node {
+    let count = use_state(props.parse::<i32>().unwrap_or(0));
+    button()
+        .on_click(move |_| count.update(|n| *n += 1))
+        .text_dyn(move || count.get().to_string())
+        .into()
+}
+
+/// Se ejecuta en el navegador cuando arranca el módulo WebAssembly.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen(start)]
+pub fn start() {
+    active::hydrate(&[("counter", counter)]);
 }
 ```
 
-> **Consejo:** Añade `#` y el hash de un commit (o una etiqueta de Git) para fijar una versión exacta: `npm i github:maxlestage/Active#<commit-hash>`.
+> **Advertencia:** Mantén los crates de servidor como `tokio` y `axum` en la tabla `cfg(not(target_arch = "wasm32"))`. Cargo compila todas las dependencias del paquete para el target que estás compilando, incluso las que solo usa `main.rs`, y los crates de red no compilan para `wasm32-unknown-unknown`.
 
-### Desde npm (cuando se publique)
+## Instalar las herramientas de WebAssembly
 
-```sh
-npm i active-react
-```
-
-Lo mismo con otros gestores de paquetes:
+Añade el target de compilación y la herramienta de línea de comandos `wasm-bindgen`:
 
 ```sh
-pnpm add active-react
-yarn add active-react
-bun add active-react
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.129 --locked
 ```
 
-> **Nota:** pnpm, Yarn y Bun también aceptan `github:maxlestage/Active`. Algunos de ellos bloquean por defecto los scripts de instalación de las dependencias; si `node_modules/active-react/dist` no existe después de la instalación, autoriza el script de build del paquete o usa npm.
+La versión de la CLI debe ser exactamente la del crate `wasm-bindgen` que usa tu proyecto; si no, `wasm-bindgen` se detiene con un error de versión de esquema. Fijar el crate con `=0.2.129` (como arriba) mantiene ambas versiones sincronizadas. Para ver qué versión tiene tu archivo de bloqueo:
 
-## Puntos de entrada
-
-| Importar desde | Exporta | Úsalo en |
-| --- | --- | --- |
-| `active-react` | `Seo`, `createSeo`, `SeoProps`, `wasm`, `useWasm`, `Wasm` | Tus componentes, renderizados en el servidor o en el navegador |
-| `active-react/server` | `renderWithHead` | Solo código de servidor |
-
-```tsx
-import { Seo, createSeo, wasm, useWasm, type SeoProps, type Wasm } from "active-react";
-import { renderWithHead } from "active-react/server";
+```sh
+cargo tree -i wasm-bindgen --target wasm32-unknown-unknown
 ```
 
-> **Advertencia:** Nunca importes `active-react/server` desde código del navegador. Arrastra `react-dom/server`, que no quieres en tu bundle del cliente.
+## Añadir los perfiles de compilación
 
-## TypeScript
+Los perfiles van en el `Cargo.toml` raíz de tu proyecto (la raíz del workspace, si tienes uno). Estos son los ajustes que usa este repositorio: una compilación rápida para el servidor y una compilación pequeña para el navegador.
 
-Los tipos vienen con el paquete: no hay ningún `@types/active-react` que instalar. Pasa el cursor sobre cualquier prop en tu editor para leer su documentación.
+```toml
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
 
-El paquete usa el campo `exports` de `package.json`, así que TypeScript necesita una resolución de módulos moderna para encontrar `active-react/server`:
+# Bundle del navegador: cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"
+panic = "abort"
+```
 
-```json
-{
-  "compilerOptions": {
-    "moduleResolution": "bundler"
-  }
+[Rendimiento](../performance/) explica cada ajuste y muestra los tamaños que producen.
+
+## Comprobar la instalación
+
+Renderiza una vista en una prueba. Si pasa, el crate está bien instalado:
+
+```rust
+#[test]
+fn renders() {
+    use active::prelude::*;
+    let html = Node::from(p().class("hello").text("Hello")).render();
+    assert_eq!(html, r#"<p class="hello">Hello</p>"#);
 }
 ```
 
-`"bundler"` es el valor por defecto en las plantillas de Vite. `"node16"` y `"nodenext"` también funcionan. El antiguo ajuste `"node"` no puede resolver el punto de entrada `/server`.
+Después compila una vez el bundle del navegador para comprobar las herramientas de WebAssembly:
 
-El paquete es solo ESM (`"type": "module"`): usa `import`, no `require`.
+```sh
+cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
+wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm
+```
 
-> **Nota:** Importar un archivo `.wasm` con el sufijo `?url` de Vite requiere los tipos de cliente de Vite. Las plantillas de Vite ya los incluyen (`vite/client`).
+Cargo reemplaza `-` por `_` en los nombres de archivo, así que el paquete `my-site` produce `my_site.wasm`. El [Inicio rápido](../quick-start/) continúa desde aquí, y [Compilar el cliente](../client-build/) explica la compilación en detalle.
 
-## Tree-shaking
+## Configurar el editor
 
-El paquete declara `"sideEffects": false`, así que tu bundler conserva solo lo que importas:
+Sirve cualquier editor con [rust-analyzer](https://rust-analyzer.github.io). Por defecto analiza la compilación nativa, así que el código detrás de `#[cfg(target_arch = "wasm32")]` aparece en gris. Para trabajar en código que solo se ejecuta en el navegador, apunta rust-analyzer al target de WebAssembly, por ejemplo en el `settings.json` de VS Code:
 
-| Importas | Se añade a tu bundle del cliente |
-| --- | ---: |
-| `Seo` y/o `createSeo` | 0,74 kB gzip |
-| `wasm` y `useWasm` | 0,60 kB gzip |
-| Todo | unos 1,3 kB gzip |
+```text
+"rust-analyzer.cargo.target": "wasm32-unknown-unknown"
+```
 
-Una app que solo usa SEO nunca envía el cargador de WebAssembly, y una app que solo usa Rust nunca envía el código SEO. Estos tamaños provienen de los [benchmarks](../benchmarks/): minificados con esbuild, sin contar React ni React DOM, ya que tu app ya los incluye.
-
-## Próximos pasos
-
-- Sigue el [inicio rápido](../quick-start/) para crear una pequeña app con SEO y Rust.
-- Lee sobre [el componente `<Seo>`](../seo-component/).
-- Configura la [toolchain de Rust](../rust-setup/) si piensas usar WebAssembly.
+Vuelve a cambiarlo cuando trabajes en el servidor.

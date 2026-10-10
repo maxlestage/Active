@@ -1,112 +1,191 @@
 ---
 title: Déployer sur Heroku
-description: Mettez ce site de documentation, ou votre propre app construite de la même façon, en ligne sur Heroku depuis un téléphone, avec mises à jour automatiques.
+description: Mettez un site active en ligne sur Heroku avec un simple téléphone : fork sur GitHub, déploiement en un bouton, puis redéploiement à chaque push sur master.
 ---
 
-Ce guide met en ligne le site d'active-react (cette documentation et sa page de présentation) sur Heroku, avec seulement un téléphone et un navigateur web. Les mêmes étapes fonctionnent pour votre propre app si elle est construite de la même façon (voir [ce que fournit le dépôt](#ce-que-fournit-le-depot)).
+Ce guide met en ligne un site construit avec `active` sur [Heroku](https://www.heroku.com), avec seulement un téléphone et un navigateur web. Il prend ce dépôt (le site web d'`active`) comme exemple ; les dernières sections montrent comment déployer votre propre application de la même façon.
 
-Il existe deux options. L'**option A** crée l'app en quelques gestes. L'**option B** la connecte à GitHub pour que chaque modification fusionnée dans `master` soit mise en ligne automatiquement. Vous pouvez faire A, puis B.
+Heroku construit le `Dockerfile` du dépôt (serveur Rust et bundle WebAssembly), exécute le serveur et vous donne une adresse se terminant par `herokuapp.com`. Une fois l'application connectée à GitHub, chaque push sur `master` est mis en ligne automatiquement.
 
 ## Avant de commencer
 
-Il vous faut :
+Il vous faut deux comptes :
 
-- **Un compte GitHub.** L'option A fonctionne directement avec le dépôt public. L'option B nécessite un dépôt que vous administrez : forkez d'abord `maxlestage/Active` (ouvrez le dépôt, touchez **Fork**), ou utilisez le vôtre.
-- **Un compte Heroku** ([signup.heroku.com](https://signup.heroku.com)) avec un **moyen de paiement** ajouté dans Account settings, Billing. Heroku n'a plus d'offre gratuite. L'option la moins chère, les **dynos Eco, coûte environ 5 $ par mois** pour un ensemble d'heures partagé entre toutes vos apps Eco. Les apps Eco se mettent en veille après 30 minutes sans visite : la première visite après une pause prend donc quelques secondes. Consultez la page des tarifs de Heroku pour les prix actuels.
+- **GitHub.** Un fork du dépôt vous permet de modifier le site et de déployer vos changements. L'application GitHub comme [github.com](https://github.com) dans un navigateur mobile conviennent.
+- **Heroku**, sur [signup.heroku.com](https://signup.heroku.com), avec un **moyen de paiement** ajouté dans Account settings, Billing. Heroku n'a pas d'offre gratuite : voir [Coûts](#couts) plus bas.
 
-> **Astuce :** Le tableau de bord de Heroku fonctionne dans un navigateur mobile. Si un menu semble à l'étroit, passez votre navigateur en mode « Version pour ordinateur ».
+> **Astuce :** Le tableau de bord de Heroku fonctionne dans un navigateur mobile. Si une page semble à l'étroit, passez le navigateur en mode « Version pour ordinateur » (« Desktop site »).
 
-## Option A : déploiement en un geste
+## 1. Forker le dépôt
 
-1. Ouvrez ce lien sur votre téléphone : [Deploy to Heroku](https://heroku.com/deploy?template=https://github.com/maxlestage/Active). Pour votre fork, remplacez `maxlestage/Active` par votre dépôt dans l'adresse : `https://heroku.com/deploy?template=https://github.com/<you>/Active`.
+1. Ouvrez [github.com/maxlestage/Active](https://github.com/maxlestage/Active).
+2. Touchez **Fork**, gardez le nom par défaut `Active`, et confirmez avec **Create fork**.
+
+Vous disposez maintenant de `https://github.com/<you>/Active`, que vous pouvez modifier depuis l'application ou le site GitHub. Pour déployer le dépôt d'origine sans modification, vous pouvez sauter cette étape.
+
+## 2. Déployer avec le bouton
+
+Le bouton lit `app.json` et crée une application Heroku qui construit le dépôt avec Docker.
+
+1. Ouvrez le lien de déploiement. Pour le dépôt d'origine, il s'agit de [heroku.com/deploy?template=https://github.com/maxlestage/Active](https://heroku.com/deploy?template=https://github.com/maxlestage/Active). Pour votre fork, utilisez `https://heroku.com/deploy?template=https://github.com/<you>/Active`.
 2. Connectez-vous à Heroku si on vous le demande.
-3. **App name** : choisissez un nom en minuscules, comme `my-active-docs`. Il fera partie de votre adresse, qui se termine par `.herokuapp.com`.
-4. **Region** : choisissez United States ou Europe, selon la région la plus proche de vos visiteurs.
-5. **SITE_URL** (facultatif) : laissez ce champ vide. Le site utilise alors l'adresse saisie par les visiteurs. Remplissez-le plus tard si vous ajoutez un domaine personnalisé.
-6. Touchez **Deploy app**. Heroku télécharge le code, installe les dépendances et construit le site. Le journal défile ; cela prend quelques minutes.
-7. Quand « Your app was successfully deployed » apparaît, touchez **View** pour ouvrir votre site, ou **Manage App** pour ouvrir son tableau de bord.
+3. **App name :** choisissez un nom en minuscules comme `my-active-site`. Votre adresse devient `my-active-site-<random>.herokuapp.com` ou une adresse similaire, affichée à la fin.
+4. **Region :** United States ou Europe, selon ce qui est le plus proche de vos visiteurs.
+5. **SITE_URL :** laissez-la vide pour l'instant (voir [Configuration](#configuration)).
+6. Touchez **Deploy app**.
 
-C'est fait. L'app ne se mettra toutefois pas à jour d'elle-même quand le code changera : c'est le rôle de l'option B.
+Heroku construit alors l'image Docker : il installe la cible WebAssembly et `wasm-bindgen-cli`, puis compile le bundle du navigateur et le serveur en mode release. Le premier build prend plusieurs minutes, car tout est compilé à partir de zéro. Quand « Your app was successfully deployed » apparaît, touchez **View**.
 
-## Option B : déploiements automatiques depuis GitHub
+## 3. Redéployer automatiquement depuis GitHub
 
-1. Ouvrez [dashboard.heroku.com](https://dashboard.heroku.com) dans votre navigateur mobile et touchez votre app. Pas encore d'app ? Touchez **New**, puis **Create new app**, et choisissez un nom et une région.
+Le bouton ne déploie qu'une fois. Pour publier chaque changement que vous poussez :
+
+1. Ouvrez [dashboard.heroku.com](https://dashboard.heroku.com) et touchez l'application que vous venez de créer.
 2. Ouvrez l'onglet **Deploy**.
-3. Sous **Deployment method**, touchez **GitHub**, puis **Connect to GitHub**, et autorisez Heroku dans la fenêtre qui s'ouvre.
-4. Dans **Search for a repository to connect to**, tapez `Active` (ou le nom de votre dépôt), touchez **Search**, puis **Connect** à côté du bon résultat.
-5. Sous **Automatic deploys**, choisissez la branche **`master`**.
-6. Cochez éventuellement **Wait for CI to pass before deploy**. Heroku attend alors que les vérifications GitHub Actions du dépôt réussissent : un build cassé n'est jamais mis en ligne.
-7. Touchez **Enable Automatic Deploys**.
-8. Pour le tout premier déploiement, faites défiler jusqu'à **Manual deploy** et touchez **Deploy Branch**.
+3. Sous **Deployment method**, touchez **GitHub**, puis **Connect to GitHub**, et autorisez Heroku.
+4. Recherchez `Active` (votre fork), puis touchez **Connect**.
+5. Sous **Automatic deploys**, choisissez la branche **`master`** et touchez **Enable Automatic Deploys**.
 
-Désormais, **chaque fusion dans `master` redéploie le site.** Vous pouvez suivre chaque build dans l'onglet **Activity**.
+Désormais, chaque commit qui arrive sur `master` (un fichier modifié sur GitHub, une pull request fusionnée) lance un nouveau build. Suivez les builds dans l'onglet **Activity**. La section **Manual deploy** déploie une branche à la demande.
 
-## Ce que fournit le dépôt
+> **Attention :** Créez l'application avec le bouton, puis connectez-la. Une application créée avec **New → Create new app** dans le tableau de bord utilise la stack de buildpacks par défaut de Heroku, qui ignore `heroku.yml` et ne peut pas construire ce dépôt. Passer une application existante à la stack container nécessite la CLI Heroku (`heroku stack:set container --app <name>`), dont on ne dispose pas sur un téléphone.
 
-Heroku doit savoir comment construire et démarrer l'app. Le dépôt contient tout le nécessaire : il n'y a rien à configurer.
+### Modifier le site depuis un téléphone
+
+Avec les déploiements automatiques activés, toute la boucle fonctionne depuis l'application ou le site GitHub : ouvrez un fichier de votre fork (par exemple une page de `site/docs/en/`), touchez l'icône en forme de crayon, modifiez, puis faites un commit sur `master`. Heroku reconstruit l'application et le changement est en ligne quelques minutes plus tard.
+
+## Comment le dépôt est déployé
+
+Quatre fichiers indiquent à Heroku quoi faire. Vous n'avez pas besoin de les modifier pour déployer ce site.
 
 | Fichier | Rôle |
 | --- | --- |
-| `app.json` | Décrit l'app pour le bouton Deploy : nom, buildpack Node.js, variable `SITE_URL` facultative, un dyno web |
-| `Procfile` | `web: npm start`, la commande que Heroku exécute pour démarrer le site |
-| `package.json`, `heroku-postbuild` | Heroku exécute ce script après l'installation des dépendances. Il construit la bibliothèque, puis le site (`site/`) |
-| `package.json`, `engines` | `"node": ">=20"` : la version de Node.js que Heroku installe |
-| `.slugignore` | Exclut du bundle déployé les benchmarks, les exemples, les tests et les sources Rust |
-| `site/server.js` | Le serveur de production, sans aucune dépendance |
+| `app.json` | Lu par le bouton Deploy : description de l'application, `"stack": "container"`, la variable facultative `SITE_URL`, un dyno `web` |
+| `heroku.yml` | Indique à la stack container de construire le processus `web` à partir du `Dockerfile` |
+| `Dockerfile` | Deux étapes : une image Rust compile le bundle et le serveur, une petite image Debian les exécute |
+| `.dockerignore` | Exclut du build `target/`, `pkg/`, `bench/` et les données Git |
 
-`site/server.js` sert les pages pré-rendues et :
+`heroku.yml` tient en trois lignes :
 
-- redirige les visiteurs de `/` vers leur langue (`/en/`, `/fr/` ou `/es/`) d'après les réglages de leur navigateur ;
-- renseigne l'adresse du site dans les URL canoniques et Open Graph : `SITE_URL` si elle est définie, sinon l'adresse de la requête ;
-- compresse les réponses avec Brotli ou gzip ;
-- met en cache pendant un an les fichiers dont le nom contient une empreinte (hash) et revalide les pages HTML ;
-- écoute sur le port que Heroku fournit dans la variable d'environnement `PORT`.
+```yaml
+build:
+  docker:
+    web: Dockerfile
+```
 
-> **Remarque :** Le build Node.js de Heroku ne dispose pas de compilateur Rust. Le module WebAssembly du site est compilé à l'avance et commité dans `site/src/wasm`. Si votre propre app utilise Rust, commitez de la même façon les fichiers `pkg` générés, ou construisez-les en CI.
+Le `Dockerfile` exécute les mêmes commandes que la CI et que la page [Compiler le client](../client-build/) :
+
+```dockerfile
+FROM rust:1-slim-bookworm AS build
+RUN rustup target add wasm32-unknown-unknown \
+ && cargo install wasm-bindgen-cli --version 0.2.129 --locked
+WORKDIR /src
+COPY Cargo.toml Cargo.lock ./
+COPY crates crates
+COPY examples examples
+COPY site site
+RUN cargo build -p active-site --lib --target wasm32-unknown-unknown --profile wasm-release \
+ && wasm-bindgen --target web --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm \
+ && cargo build -p active-site --bin active-site --release
+
+FROM debian:bookworm-slim
+WORKDIR /app
+COPY --from=build /src/target/release/active-site /app/active-site
+COPY --from=build /src/site/static /app/site/static
+COPY --from=build /src/site/docs /app/site/docs
+COPY --from=build /src/site/pkg /app/site/pkg
+ENV SITE_DIR=/app/site
+CMD ["/app/active-site"]
+```
+
+L'image finale ne contient que le binaire du serveur et les fichiers qu'il sert : elle démarre donc en une fraction de seconde.
+
+## Configuration
+
+Heroku transmet les réglages au serveur sous forme de variables d'environnement, appelées **config vars**. Définissez-les dans l'onglet **Settings** de l'application, sous **Config Vars**, **Reveal Config Vars**. En modifier une redémarre l'application.
+
+| Variable | Définie par | Signification |
+| --- | --- | --- |
+| `PORT` | Heroku | Le port sur lequel le serveur doit écouter. Le serveur le lit et se rabat sur `3000` en local. Ne la définissez jamais vous-même. |
+| `SITE_URL` | vous, facultative | Adresse publique utilisée dans les URL canoniques, les URL Open Graph, `sitemap.xml` et `robots.txt`, par exemple `https://www.example.com`. Si elle est vide, le serveur utilise l'adresse de chaque requête. |
+
+Définissez `SITE_URL` dès que vous utilisez un domaine personnalisé, afin que les moteurs de recherche voient toujours la même adresse.
+
+## Journaux
+
+- **Journaux du serveur :** dans l'application, touchez **More** (en haut à droite), puis **View logs**. Vous y voyez chaque requête et tout ce qu'affiche le serveur.
+- **Journaux de build :** dans l'onglet **Activity**, touchez **View build log** à côté d'un build.
+
+Avec la CLI Heroku sur un ordinateur, `heroku logs --tail --app <name>` diffuse les mêmes journaux en continu.
 
 ## Domaine personnalisé
 
-1. Dans votre app, ouvrez **Settings**, faites défiler jusqu'à **Domains** et touchez **Add domain**.
-2. Saisissez votre domaine, par exemple `www.example.com`, et confirmez. Heroku affiche une **cible DNS** (DNS target) qui se termine par `herokudns.com`.
-3. Chez votre registraire de domaine (la plupart ont un site adapté au mobile), ajoutez un enregistrement **CNAME** : nom `www`, valeur la cible DNS. Pour un domaine racine (`example.com`), utilisez un enregistrement ALIAS, ANAME ou « CNAME flattening » si votre fournisseur en propose un.
-4. Dans **Settings**, **Config Vars**, définissez `SITE_URL` sur `https://www.example.com` pour que les URL canoniques utilisent toujours votre domaine.
+1. Dans **Settings**, sous **Domains**, touchez **Add domain** et saisissez votre domaine, par exemple `www.example.com`. Heroku affiche une **DNS target**.
+2. Chez votre registraire de domaine, ajoutez un enregistrement **CNAME** : nom `www`, valeur la DNS target. Pour un domaine racine (`example.com`), utilisez un enregistrement ALIAS, ANAME ou CNAME aplati si votre fournisseur le propose.
+3. Donnez à la config var `SITE_URL` la valeur `https://www.example.com`.
 
-Les modifications DNS peuvent prendre de quelques minutes à quelques heures. Pour le HTTPS sur votre propre domaine, utilisez **Configure SSL** dans la même section ; les certificats automatiques de Heroku ne sont pas proposés pour tous les types de dynos, vérifiez donc ce que comprend le vôtre.
+Les changements DNS prennent de quelques minutes à quelques heures. Pour le HTTPS sur votre domaine, utilisez les options SSL de la même section **Domains** ; les certificats automatiques dépendent du type de dyno, vérifiez donc ce que le vôtre inclut.
 
-## Logs
+## Coûts
 
-Dans votre app, touchez **More** (en haut à droite), puis **View logs**. Vous voyez en temps réel la sortie du serveur et chaque requête. Les logs de build se trouvent dans l'onglet **Activity** : touchez **View build log** à côté d'un build.
+Heroku n'a pas d'offre gratuite. Au moment de la rédaction :
+
+- Les dynos **Eco** coûtent environ 5 $ par mois pour un forfait de 1 000 heures de dyno partagé entre toutes vos applications Eco. Une application Eco se met en veille après 30 minutes sans trafic, et la visite suivante attend quelques secondes pendant son réveil.
+- Les dynos **Basic** coûtent environ 7 $ par mois et par dyno, et ne se mettent jamais en veille.
+
+Changez le type de dyno dans l'onglet **Resources**. Consultez [heroku.com/pricing](https://www.heroku.com/pricing) pour les prix actuels. Un serveur construit avec `active` consomme très peu de mémoire : le plus petit dyno suffit pour un site de documentation ou un blog.
+
+> **Astuce :** Si votre site n'a aucune logique côté serveur, un [site statique](../static-site/) peut plutôt être hébergé gratuitement sur GitHub Pages ou un service similaire.
+
+## Déployer votre propre application
+
+Pour une application organisée comme dans le [Démarrage rapide](../quick-start/) (paquet `my-site`, `pkg/` servi par le serveur), copiez `heroku.yml` et `app.json` dans votre dépôt, adaptez le nom et la description dans `app.json`, et utilisez ce `Dockerfile` :
+
+```dockerfile
+FROM rust:1-slim-bookworm AS build
+RUN rustup target add wasm32-unknown-unknown \
+ && cargo install wasm-bindgen-cli --version 0.2.129 --locked
+WORKDIR /src
+COPY . .
+RUN cargo build --lib --target wasm32-unknown-unknown --profile wasm-release \
+ && wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_site.wasm \
+ && cargo build --release
+
+FROM debian:bookworm-slim
+WORKDIR /app
+COPY --from=build /src/target/release/my-site /app/my-site
+COPY --from=build /src/pkg /app/pkg
+CMD ["/app/my-site"]
+```
+
+Ajoutez un `.dockerignore` contenant `target` et `pkg`, et faites écouter le serveur sur `PORT`, sur toutes les interfaces :
+
+```rust
+#[tokio::main]
+async fn main() {
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".into());
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await.unwrap();
+    let app = axum::Router::new(); // your routes
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+Gardez la version de `wasm-bindgen-cli` du `Dockerfile` égale à la version de `wasm-bindgen` dans `Cargo.lock`. Déployez ensuite avec `https://heroku.com/deploy?template=https://github.com/<you>/<repo>` et connectez GitHub comme ci-dessus.
 
 ## Dépannage
 
 ### Le build échoue
 
-Ouvrez **Activity**, puis le log du build en échec, et regardez les dernières lignes en rouge.
+Ouvrez **Activity**, puis le journal du build en échec, et lisez les dernières lignes.
 
-- `npm ci` signale que `package.json` et `package-lock.json` ne sont pas synchronisés : lancez `npm install` et commitez le fichier de verrouillage mis à jour.
-- Une erreur TypeScript ou Vite : la même erreur se produit en local avec `npm run build` à la racine du dépôt et `npm --prefix site run build`.
-- `cargo` ou `wasm-pack` introuvable : Heroku n'a pas Rust ; commitez les fichiers WebAssembly générés (voir la remarque ci-dessus).
+- **« No default language could be detected »** ou une erreur de buildpack : l'application n'est pas sur la stack container. Créez une nouvelle application avec le bouton Deploy.
+- **Une erreur de schéma ou de version de `wasm-bindgen` :** la version de la CLI dans le `Dockerfile` diffère de celle du crate `wasm-bindgen` dans `Cargo.lock`. Rendez-les égales.
+- **Une erreur de compilation Rust :** la même erreur apparaît en local avec les commandes de [Compiler le client](../client-build/). Corrigez-la, faites un commit, et le build suivant la prendra en compte.
 
-### Application error (H10 App crashed)
+### Erreur « Application error »
 
-La page affiche « Application error » et les logs contiennent `code=H10`. Le serveur a planté au démarrage. Cherchez l'erreur juste au-dessus dans les logs. Les causes habituelles :
+La page affiche « Application error ». Ouvrez les journaux :
 
-- le serveur n'écoute pas sur `process.env.PORT` (Heroku signale alors `R10 Boot timeout` au bout de 60 secondes) ;
-- le script `start` ou le `Procfile` pointe vers un fichier absent ;
-- une dépendance nécessaire à l'exécution se trouve dans `devDependencies`, que Heroku supprime après le build.
-
-`H14 No web processes running` signifie qu'aucun dyno ne tourne : ouvrez **Resources** et activez le dyno `web`.
-
-### Mauvaise version de Node.js
-
-Heroku choisit la version de Node.js d'après `engines.node` dans le `package.json` racine. Pour figer une version majeure, indiquez par exemple :
-
-```json
-{
-  "engines": {
-    "node": "22.x"
-  }
-}
-```
-
-Commitez, et Heroku l'utilisera au prochain déploiement. Le log de build affiche la version retenue vers le début.
+- `code=H10` (application plantée) : le serveur s'est arrêté au démarrage. Les lignes juste au-dessus en donnent la raison.
+- `R10` (délai de démarrage dépassé) : le serveur n'a pas écouté sur `PORT` dans les 60 secondes. Liez-le à `0.0.0.0` et à la variable `PORT`.
+- `code=H14` (aucun processus web en cours d'exécution) : ouvrez **Resources** et activez le dyno `web`.
