@@ -40,6 +40,7 @@ The same components also make **client-side apps**: `active::mount_to("#app", ap
 - **SEO first.** The server always renders the full page. `Seo` covers title, description, robots, canonical, hreflang, Open Graph, Twitter and JSON-LD; put one in a layout, a page and a component, they are merged with no duplicate tag.
 - **Fast.** Server rendering writes straight into a `String`. In the browser, only islands are hydrated, with fine-grained bindings: a state change updates the exact text, attribute or class that depends on it. See the [benchmarks](#benchmarks).
 - **Light.** The server build has no dependency. The browser bundle uses `wasm-bindgen` and `web-sys`, nothing else.
+- **Installable.** `active::pwa` writes the web app manifest and an offline service worker, and `Document::manifest` / `Document::service_worker` add their tags: your site goes on the home screen and keeps working without a network, with no JavaScript to write. The project's website is a PWA ([guide](site/docs/en/pwa.md)).
 
 ## Benchmarks
 
@@ -81,7 +82,7 @@ cargo run -p hello   # http://localhost:3000
 | [`crates/active`](crates/active) | The `active` crate: views, state, SEO, documents, islands, hydration |
 | [`examples/hello`](examples/hello) | The smallest app: a page and a counter island, std-only server |
 | [`examples/spa`](examples/spa) | A client-side app: to-do list, routing, forms, `localStorage` |
-| [`site`](site) | Presentation website and documentation (en/fr/es): Axum server, WebAssembly animations, search and playground |
+| [`site`](site) | Presentation website and documentation (en/fr/es): Axum server, WebAssembly animations, search and playground, installable and offline (PWA) |
 | [`bench`](bench) | Benchmarks against Leptos, Dioxus, Yew, Sycamore, maud and hand-written HTML |
 
 ## Publish the site on GitHub Pages (free)

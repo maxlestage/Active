@@ -70,6 +70,8 @@ Las etiquetas charset y viewport se escriben siempre, así que todas las página
 | `.stylesheet(href)` | un `<link rel="stylesheet">`; llámalo una vez por archivo |
 | `.head(html)` | HTML de confianza añadido al `<head>`: iconos, fuentes, analítica, `theme-color` |
 | `.client(js, wasm)` | carga el bundle de WebAssembly (ver más abajo) |
+| `.manifest(href, &manifest)` | hace la página instalable: enlace al manifiesto, `theme-color`, título e icono de la pantalla de inicio (ver [PWA](../pwa/)) |
+| `.service_worker(url)` | registra el service worker sin conexión servido en `url` (ver [PWA](../pwa/)) |
 | `.html_attr(name, value)` | un atributo en `<html>` |
 | `.body_attr(name, value)` | un atributo en `<body>` |
 | `.render()` | la página completa como `String` |

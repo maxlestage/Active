@@ -269,6 +269,10 @@ Every push to `master` rebuilds and publishes the site. This works from the GitH
 
 Build `dist/` in CI (as above) and deploy the folder with the host's action or command-line tool, or drag and drop `dist/` in the host's dashboard for a one-off deploy. These hosts serve `404.html` for unknown URLs and set the `application/wasm` content type automatically.
 
+## Installable and offline
+
+A static site can also be installed on the home screen and keep working offline: write `manifest.webmanifest` and `sw.js` next to the pages with `active::pwa`, and add `.manifest(...)` and `.service_worker(...)` to each `Document`. See [Installable apps (PWA)](../pwa/#static-sites-and-base-paths).
+
 ## Updating the content
 
 The site changes only when you rebuild it. Content usually lives in the repository (Rust data as above, or Markdown files read by the generator with a crate such as [`pulldown-cmark`](https://docs.rs/pulldown-cmark) and inserted with `.html(...)`), so a commit triggers a rebuild through CI. When pages must change per request or per visitor, use a server instead: see [Axum](../axum/).

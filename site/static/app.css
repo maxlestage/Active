@@ -2272,6 +2272,39 @@ dialog.search::backdrop {
   animation-delay: calc(0.2s + var(--i) * 60ms);
 }
 
+/* ---------- Offline (shown by the service worker) ---------- */
+
+.offline {
+  padding-top: calc(var(--header) + 40px);
+}
+
+.offline .code404 {
+  font-size: clamp(72px, 19vw, 240px);
+}
+
+.offline-more {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 28px;
+  width: min(100%, 760px);
+  margin-top: 20px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+}
+
+.offline-more > div {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 12px;
+}
+
+.notfound .offline-title {
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 600;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1180px) {

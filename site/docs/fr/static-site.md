@@ -269,6 +269,10 @@ Chaque push sur `master` recompile et publie le site. Cela fonctionne aussi depu
 
 Compilez `dist/` en CI (comme ci-dessus) et déployez le dossier avec l'action ou l'outil en ligne de commande de l'hébergeur, ou glissez-déposez `dist/` dans le tableau de bord de l'hébergeur pour un déploiement ponctuel. Ces hébergeurs servent `404.html` pour les URL inconnues et définissent automatiquement le type de contenu `application/wasm`.
 
+## Installable et hors ligne
+
+Un site statique peut aussi s'installer sur l'écran d'accueil et continuer de fonctionner hors ligne : écrivez `manifest.webmanifest` et `sw.js` à côté des pages avec `active::pwa`, et ajoutez `.manifest(...)` et `.service_worker(...)` à chaque `Document`. Voir [Applications installables (PWA)](../pwa/#sites-statiques-et-chemin-de-base).
+
 ## Mettre à jour le contenu
 
 Le site ne change que lorsque vous le recompilez. Le contenu se trouve généralement dans le dépôt (des données Rust comme ci-dessus, ou des fichiers Markdown lus par le générateur avec un crate comme [`pulldown-cmark`](https://docs.rs/pulldown-cmark) et insérés avec `.html(...)`) : un commit déclenche donc une recompilation via la CI. Quand les pages doivent changer à chaque requête ou pour chaque visiteur, utilisez plutôt un serveur : voir [Axum](../axum/).

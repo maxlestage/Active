@@ -1,4 +1,5 @@
-//! The web server (Axum): pages in three languages, docs search, static files.
+//! The web server (Axum): pages in three languages, docs search, static files, and the
+//! web app manifest and service worker that make the site an installable app.
 
 pub mod assets;
 pub mod docs;
@@ -6,6 +7,7 @@ pub mod export;
 pub mod highlight;
 pub mod markdown;
 pub mod pages;
+pub mod pwa;
 pub mod snippets;
 
 use std::path::{Path, PathBuf};
@@ -47,6 +49,8 @@ pub struct Site {
     pub assets: Assets,
     /// Public origin if configured (`SITE_URL`), else taken from each request.
     pub site_url: Option<String>,
+    /// Version of the service worker: a hash of everything it saves ([`pwa::version`]).
+    pub pwa_version: String,
 }
 
 impl Site {
@@ -62,9 +66,10 @@ impl Site {
         let mut assets = Assets::default();
         assets.load(&dir.join("static"), "/static");
         assets.load(&dir.join("pkg"), "/pkg");
-        Site {
+        let mut site = Site {
             docs: Docs::load(&dir.join("docs")),
             assets,
+            pwa_version: String::new(),
             site_url: site_url
                 .map(|u| u.trim_end_matches('/').to_string())
                 .filter(|u| !u.is_empty())
@@ -76,7 +81,9 @@ impl Site {
                         format!("{u}{base}")
                     }
                 }),
-        }
+        };
+        site.pwa_version = pwa::version(&site);
+        site
     }
 
     /// Every page of the site, in every language.
@@ -214,16 +221,30 @@ async fn page(State(site): Shared, uri: Uri, headers: HeaderMap) -> Response {
         )
             .into_response();
     }
+    html(&site, &route, &headers)
+}
+
+/// `/offline/`: the page the service worker shows for a page not saved on the device.
+async fn offline(State(site): Shared, headers: HeaderMap) -> Response {
+    let route = Route {
+        lang: Lang::En,
+        page: Page::Offline,
+    };
+    html(&site, &route, &headers)
+}
+
+/// The HTML page of `route` (404 for `Page::NotFound`).
+fn html(site: &Site, route: &Route, headers: &HeaderMap) -> Response {
     // The opening curtain plays on the first home page of a browser session.
     let seen = headers
         .get(header::COOKIE)
         .and_then(|c| c.to_str().ok())
         .is_some_and(|c| c.contains("active-intro=1"));
     let intro = route.page == Page::Home && !seen;
-    let origin = site.origin(&headers);
+    let origin = site.origin(headers);
     let html = pages::render(&pages::Ctx {
-        site: &site,
-        route: &route,
+        site,
+        route,
         origin: &origin,
         intro,
     });
@@ -245,7 +266,36 @@ async fn page(State(site): Shared, uri: Uri, headers: HeaderMap) -> Response {
             HeaderValue::from_static("active-intro=1; Path=/; SameSite=Lax"),
         );
     }
-    security(h, is_https(&headers));
+    security(h, is_https(headers));
+    response
+}
+
+/// `/manifest.webmanifest`: name, icons and colors of the installed app.
+async fn manifest(headers: HeaderMap) -> Response {
+    let mut response = (
+        [
+            (header::CONTENT_TYPE, "application/manifest+json"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        pwa::manifest().to_json(),
+    )
+        .into_response();
+    security(response.headers_mut(), is_https(&headers));
+    response
+}
+
+/// `/sw.js`: the offline service worker. Never cached by HTTP, so that browsers see a new
+/// version as soon as it is deployed.
+async fn service_worker(State(site): Shared, headers: HeaderMap) -> Response {
+    let mut response = (
+        [
+            (header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        pwa::worker(&site).to_js(),
+    )
+        .into_response();
+    security(response.headers_mut(), is_https(&headers));
     response
 }
 
@@ -344,6 +394,9 @@ pub fn app(site: Arc<Site>) -> Router {
         .route("/search/{file}", get(search_index))
         .route("/sitemap.xml", get(sitemap))
         .route("/robots.txt", get(robots))
+        .route("/manifest.webmanifest", get(manifest))
+        .route("/sw.js", get(service_worker))
+        .route("/offline/", get(offline))
         .route("/static/{*path}", get(files))
         .route("/pkg/{*path}", get(files))
         .route("/favicon.svg", get(root_file))

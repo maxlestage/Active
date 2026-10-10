@@ -1,6 +1,6 @@
 ---
 title: API reference
-description: Every public item of the active crate with its signature: views, elements, state, effects, events, Seo, Document, islands, browser functions and feature flags.
+description: Every public item of the active crate with its signature: views, elements, state, effects, events, Seo, Document, PWA, islands, browser functions and feature flags.
 ---
 
 This page lists every public item of the `active` crate, grouped by topic, with its exact signature and a one-line description. The guides explain how to use them; the generated documentation on [docs.rs/active](https://docs.rs/active) has the same items with examples.
@@ -21,6 +21,7 @@ The crate uses the 2024 edition and needs Rust 1.85 or newer. It contains no `un
 | --- | --- |
 | `active::*` | every item below |
 | `active::html` | one function per HTML and SVG tag |
+| `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) and [`register_script`](#register-script): installable, offline sites |
 | `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `island`, `keyed`, `text`, `text_dyn`, `use_state`; with `client`, also `location`, `navigate` and `query_param` |
 
 Not in the prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Use them as `active::hydrate`, etc.
@@ -251,10 +252,78 @@ A complete HTML page. Implements `Clone` and `Default`. Builder methods take `se
 | `pub fn stylesheet(self, href: impl Into<Str>) -> Self` | `<link rel="stylesheet">`, in call order. |
 | `pub fn head(self, html: impl Into<Str>) -> Self` | Trusted HTML appended to `<head>`. |
 | `pub fn client(self, js: impl Into<Str>, wasm: impl Into<Str>) -> Self` | Preloads and starts the `wasm-bindgen --target web --no-typescript` bundle. |
+| `pub fn manifest(self, href: &str, manifest: &pwa::Manifest) -> Self` | `<link rel="manifest">` to `href`, `theme-color`, the home screen title and the Apple touch icon (the largest PNG icon of purpose `any`). |
+| `pub fn service_worker(self, url: &str) -> Self` | An inline script that registers the service worker served at `url` once the page has loaded. |
 | `pub fn html_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribute on `<html>`. |
 | `pub fn body_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribute on `<body>`. |
 | `pub fn final_seo(&self) -> Seo` | The merged SEO of the page, including islands and the current content of dynamic regions (evaluated separately from `render`). |
 | `pub fn render(&self) -> String` | The whole page. Renders the body first and collects its `Seo` values on the way, so each dynamic region is evaluated once. Can be called any number of times. |
+
+## PWA
+
+The `active::pwa` module. Guide: [Installable apps (PWA)](../pwa/).
+
+### Manifest
+
+```rust
+pub struct Manifest { /* … */ }
+```
+
+The web app manifest. Implements `Clone`, `Debug`, `PartialEq` and `Eq`. Builder methods take `self` and are `#[must_use]`.
+
+| Method | Description |
+| --- | --- |
+| `pub fn new(name: impl Into<String>) -> Self` | A manifest named `name`, `start_url` `./`, `display` `standalone`, theme `#000000`, background `#ffffff`. |
+| `pub fn short_name(self, name: impl Into<String>) -> Self` | The name under the icon. |
+| `pub fn description(self, description: impl Into<String>) -> Self` | What the app does. |
+| `pub fn id(self, id: impl Into<String>) -> Self` | The identity of the app (defaults to `start_url`). |
+| `pub fn start_url(self, url: impl Into<String>) -> Self` | The page opened by the icon. |
+| `pub fn scope(self, scope: impl Into<String>) -> Self` | The URLs that belong to the app (defaults to the manifest's folder). |
+| `pub fn display(self, display: impl Into<String>) -> Self` | `standalone`, `fullscreen`, `minimal-ui` or `browser`. |
+| `pub fn orientation(self, orientation: impl Into<String>) -> Self` | `portrait`, `landscape`, `any`… |
+| `pub fn theme_color(self, color: impl Into<String>) -> Self` | Status bar and window title color. |
+| `pub fn background_color(self, color: impl Into<String>) -> Self` | Splash screen color. |
+| `pub fn lang(self, lang: impl Into<String>) -> Self` | Language of the texts. |
+| `pub fn categories<I, S>(self, categories: I) -> Self` (`I: IntoIterator<Item = S>`, `S: Into<String>`) | Store categories; replaces previous ones. |
+| `pub fn icon(self, src: impl Into<String>, sizes: impl Into<String>, mime: impl Into<String>) -> Self` | An icon of purpose `any`. |
+| `pub fn maskable_icon(self, src: impl Into<String>, sizes: impl Into<String>, mime: impl Into<String>) -> Self` | An icon of purpose `maskable` (content inside the central 80%). |
+| `pub fn name(&self) -> &str` | The name. |
+| `pub fn theme(&self) -> &str` | The theme color. |
+| `pub fn icons(&self) -> &[Icon]` | The icons. |
+| `pub fn to_json(&self) -> String` | The manifest as JSON (strings escaped, `<` as `\u003c`). |
+
+### Icon
+
+```rust
+pub struct Icon { pub src: String, pub sizes: String, pub mime: String, pub purpose: String }
+```
+
+An icon of the manifest: URL, `"192x192"` or `"any"`, MIME type, and `"any"`, `"maskable"` or `"monochrome"`.
+
+### ServiceWorker
+
+```rust
+pub struct ServiceWorker { /* … */ }
+```
+
+The offline service worker. Implements `Clone`, `Debug`, `PartialEq` and `Eq`. Builder methods take `self` and are `#[must_use]`.
+
+| Method | Description |
+| --- | --- |
+| `pub fn new(name: impl Into<String>, version: impl Into<String>) -> Self` | A worker whose cache is `{name}-{version}`; a new version replaces the caches of older ones. |
+| `pub fn precache<I, S>(self, urls: I) -> Self` (`I: IntoIterator<Item = S>`, `S: Into<String>`) | URLs saved at installation; adds to previous ones. |
+| `pub fn offline_page(self, url: impl Into<String>) -> Self` | The page shown offline for a page never saved; also precached. |
+| `pub fn network_only(self, prefix: impl Into<String>) -> Self` | Paths starting with `prefix` always go to the network. |
+| `pub fn cache_name(&self) -> String` | `{name}-{version}`. |
+| `pub fn to_js(&self) -> String` | The script: pages from the network first (saved copy, then offline page, when offline), other same-origin `GET` files from the cache, refreshed in the background. |
+
+### register_script
+
+```rust
+pub fn register_script(url: &str) -> String
+```
+
+The inline script written by `Document::service_worker`: registers the worker at `url` on `load`. Hash it to allow it in a Content-Security-Policy.
 
 ## Islands
 

@@ -30,7 +30,7 @@ fn content_type(path: &str) -> &'static str {
 }
 
 /// FNV-1a, enough to tell versions apart.
-fn hash(bytes: &[u8]) -> String {
+pub fn hash(bytes: &[u8]) -> String {
     let h = bytes.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| {
         (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3)
     });

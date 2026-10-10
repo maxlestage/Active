@@ -1,6 +1,6 @@
 ---
 title: Référence de l'API
-description: Chaque élément public du crate active et sa signature : vues, éléments, état, effets, événements, Seo, Document, îlots, fonctions navigateur, fonctionnalités.
+description: Chaque élément public du crate active et sa signature : vues, éléments, état, effets, événements, Seo, Document, PWA, îlots, fonctions navigateur, fonctionnalités.
 ---
 
 Cette page liste chaque élément public du crate `active`, regroupé par thème, avec sa signature exacte et une description d'une ligne. Les guides expliquent comment s'en servir ; la documentation générée sur [docs.rs/active](https://docs.rs/active) contient les mêmes éléments, avec des exemples.
@@ -21,6 +21,7 @@ Le crate utilise l'édition 2024 et nécessite Rust 1.85 ou plus récent. Il ne 
 | --- | --- |
 | `active::*` | tous les éléments ci-dessous |
 | `active::html` | une fonction par balise HTML et SVG |
+| `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) et [`register_script`](#register-script) : sites installables et hors ligne |
 | `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `island`, `keyed`, `text`, `text_dyn`, `use_state` ; avec `client`, aussi `location`, `navigate` et `query_param` |
 
 Absents du prélude : `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Utilisez-les sous la forme `active::hydrate`, etc.
@@ -251,10 +252,78 @@ Une page HTML complète. Implémente `Clone` et `Default`. Les méthodes du buil
 | `pub fn stylesheet(self, href: impl Into<Str>) -> Self` | `<link rel="stylesheet">`, dans l'ordre des appels. |
 | `pub fn head(self, html: impl Into<Str>) -> Self` | HTML de confiance ajouté à la fin du `<head>`. |
 | `pub fn client(self, js: impl Into<Str>, wasm: impl Into<Str>) -> Self` | Précharge et démarre le bundle `wasm-bindgen --target web --no-typescript`. |
+| `pub fn manifest(self, href: &str, manifest: &pwa::Manifest) -> Self` | `<link rel="manifest">` vers `href`, `theme-color`, le titre de l'écran d'accueil et l'icône Apple (la plus grande icône PNG de type `any`). |
+| `pub fn service_worker(self, url: &str) -> Self` | Un script en ligne qui enregistre le service worker servi sur `url` une fois la page chargée. |
 | `pub fn html_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribut sur `<html>`. |
 | `pub fn body_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribut sur `<body>`. |
 | `pub fn final_seo(&self) -> Seo` | Le SEO fusionné de la page, îlots et contenu courant des régions dynamiques compris (évalués séparément de `render`). |
 | `pub fn render(&self) -> String` | La page entière. Rend d'abord le corps en récupérant ses valeurs `Seo` au passage, si bien que chaque région dynamique n'est évaluée qu'une fois. Peut être appelée autant de fois que nécessaire. |
+
+## PWA
+
+Le module `active::pwa`. Guide : [Applications installables (PWA)](../pwa/).
+
+### Manifest
+
+```rust
+pub struct Manifest { /* … */ }
+```
+
+Le manifeste d'application web. Implémente `Clone`, `Debug`, `PartialEq` et `Eq`. Les méthodes du builder prennent `self` et sont `#[must_use]`.
+
+| Méthode | Description |
+| --- | --- |
+| `pub fn new(name: impl Into<String>) -> Self` | Un manifeste nommé `name`, `start_url` `./`, `display` `standalone`, thème `#000000`, fond `#ffffff`. |
+| `pub fn short_name(self, name: impl Into<String>) -> Self` | Le nom sous l'icône. |
+| `pub fn description(self, description: impl Into<String>) -> Self` | Ce que fait l'application. |
+| `pub fn id(self, id: impl Into<String>) -> Self` | L'identité de l'application (`start_url` par défaut). |
+| `pub fn start_url(self, url: impl Into<String>) -> Self` | La page qu'ouvre l'icône. |
+| `pub fn scope(self, scope: impl Into<String>) -> Self` | Les URL qui font partie de l'application (par défaut le dossier du manifeste). |
+| `pub fn display(self, display: impl Into<String>) -> Self` | `standalone`, `fullscreen`, `minimal-ui` ou `browser`. |
+| `pub fn orientation(self, orientation: impl Into<String>) -> Self` | `portrait`, `landscape`, `any`… |
+| `pub fn theme_color(self, color: impl Into<String>) -> Self` | Couleur de la barre d'état et du titre de la fenêtre. |
+| `pub fn background_color(self, color: impl Into<String>) -> Self` | Couleur de l'écran de démarrage. |
+| `pub fn lang(self, lang: impl Into<String>) -> Self` | Langue des textes. |
+| `pub fn categories<I, S>(self, categories: I) -> Self` (`I: IntoIterator<Item = S>`, `S: Into<String>`) | Catégories des stores ; remplace les précédentes. |
+| `pub fn icon(self, src: impl Into<String>, sizes: impl Into<String>, mime: impl Into<String>) -> Self` | Une icône de type `any`. |
+| `pub fn maskable_icon(self, src: impl Into<String>, sizes: impl Into<String>, mime: impl Into<String>) -> Self` | Une icône de type `maskable` (contenu dans les 80 % du centre). |
+| `pub fn name(&self) -> &str` | Le nom. |
+| `pub fn theme(&self) -> &str` | La couleur du thème. |
+| `pub fn icons(&self) -> &[Icon]` | Les icônes. |
+| `pub fn to_json(&self) -> String` | Le manifeste en JSON (chaînes échappées, `<` en `\u003c`). |
+
+### Icon
+
+```rust
+pub struct Icon { pub src: String, pub sizes: String, pub mime: String, pub purpose: String }
+```
+
+Une icône du manifeste : URL, `"192x192"` ou `"any"`, type MIME, et `"any"`, `"maskable"` ou `"monochrome"`.
+
+### ServiceWorker
+
+```rust
+pub struct ServiceWorker { /* … */ }
+```
+
+Le service worker hors ligne. Implémente `Clone`, `Debug`, `PartialEq` et `Eq`. Les méthodes du builder prennent `self` et sont `#[must_use]`.
+
+| Méthode | Description |
+| --- | --- |
+| `pub fn new(name: impl Into<String>, version: impl Into<String>) -> Self` | Un worker dont le cache est `{name}-{version}` ; une nouvelle version remplace les caches des anciennes. |
+| `pub fn precache<I, S>(self, urls: I) -> Self` (`I: IntoIterator<Item = S>`, `S: Into<String>`) | Les URL enregistrées à l'installation ; s'ajoutent aux précédentes. |
+| `pub fn offline_page(self, url: impl Into<String>) -> Self` | La page affichée hors ligne pour une page jamais enregistrée ; aussi mise en cache d'avance. |
+| `pub fn network_only(self, prefix: impl Into<String>) -> Self` | Les chemins qui commencent par `prefix` passent toujours par le réseau. |
+| `pub fn cache_name(&self) -> String` | `{name}-{version}`. |
+| `pub fn to_js(&self) -> String` | Le script : les pages d'abord depuis le réseau (hors ligne, la copie enregistrée puis la page hors ligne), les autres fichiers `GET` du site depuis le cache, rafraîchis en arrière-plan. |
+
+### register_script
+
+```rust
+pub fn register_script(url: &str) -> String
+```
+
+Le script en ligne écrit par `Document::service_worker` : enregistre le worker de `url` à l'événement `load`. Calculez son hash pour l'autoriser dans une Content-Security-Policy.
 
 ## Îlots
 

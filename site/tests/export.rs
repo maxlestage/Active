@@ -53,5 +53,54 @@ async fn exports_every_page_behind_the_base_path() {
     assert!(dir.join("static/app.css").exists());
     assert!(dir.join("favicon.svg").exists());
     assert!(dir.join(".nojekyll").exists());
+
+    // Still an installable app that works offline, every URL behind the base path.
+    let exists = |url: &str| {
+        let path = url
+            .strip_prefix("/Active/")
+            .unwrap_or_else(|| panic!("{url} without the base path"));
+        let path = path.split('?').next().unwrap();
+        let file = if path.is_empty() || path.ends_with('/') {
+            format!("{path}index.html")
+        } else {
+            path.to_string()
+        };
+        assert!(dir.join(&file).is_file(), "{url}: no {file}");
+    };
+    let manifest: serde_json::Value =
+        serde_json::from_str(&read(&dir, "manifest.webmanifest")).expect("valid JSON");
+    assert_eq!(manifest["start_url"], "/Active/en/");
+    assert_eq!(manifest["scope"], "/Active/");
+    assert_eq!(manifest["id"], "/Active/");
+    exists(manifest["start_url"].as_str().unwrap());
+    for icon in manifest["icons"].as_array().unwrap() {
+        exists(icon["src"].as_str().unwrap());
+    }
+    let worker = read(&dir, "sw.js");
+    assert!(worker.contains(r#"const OFFLINE = "/Active/offline/";"#));
+    let list = worker
+        .lines()
+        .find_map(|l| l.strip_prefix("const PRECACHE = "))
+        .expect("the precache list");
+    let precache: Vec<String> = serde_json::from_str(list.trim_end_matches(';')).expect("JSON");
+    for url in [
+        "/Active/en/",
+        "/Active/fr/",
+        "/Active/es/",
+        "/Active/offline/",
+    ] {
+        assert!(precache.iter().any(|u| u == url), "{url}");
+    }
+    assert!(
+        precache
+            .iter()
+            .any(|u| u.starts_with("/Active/static/app.css?v="))
+    );
+    for url in &precache {
+        exists(url);
+    }
+    assert!(page.contains(r#"<link rel="manifest" href="/Active/manifest.webmanifest"/>"#));
+    assert!(page.contains(r#"navigator.serviceWorker.register("/Active/sw.js")"#));
+    assert!(read(&dir, "offline/index.html").contains("Vous êtes hors ligne."));
     let _ = std::fs::remove_dir_all(&dir);
 }
