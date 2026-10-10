@@ -1,0 +1,22 @@
+{
+  "name": "active-react-bench",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@unhead/react": "3.4.2",
+    "active-react": "file:..",
+    "binaryen": "132.0.0",
+    "esbuild": "0.28.2",
+    "playwright-core": "1.56.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-head": "3.4.2",
+    "react-helmet": "6.1.0",
+    "react-helmet-async": "3.0.0",
+    "react-wasm": "1.0.1"
+  },
+  "scripts": {
+    "setup": "cd .. && npm ci && cd bench && npm i --legacy-peer-deps",
+    "bench": "node run.mjs"
+  }
+}

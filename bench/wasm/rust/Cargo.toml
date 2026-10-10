@@ -1,0 +1,11 @@
+[workspace]
+members = ["raw", "bindgen"]
+resolver = "2"
+
+# Small and fast: see RESULTS.md for the opt-level comparison.
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

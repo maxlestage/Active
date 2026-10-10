@@ -1,0 +1,213 @@
+{
+  "size": {
+    "native": {
+      "min": 0,
+      "gzip": 0,
+      "brotli": 0
+    },
+    "active": {
+      "min": 1533,
+      "gzip": 737,
+      "brotli": 624
+    },
+    "helmet-async": {
+      "min": 17301,
+      "gzip": 6289,
+      "brotli": 5585
+    },
+    "unhead": {
+      "min": 15171,
+      "gzip": 6066,
+      "brotli": 5551
+    },
+    "react-head": {
+      "min": 3202,
+      "gzip": 1351,
+      "brotli": 1213
+    },
+    "helmet": {
+      "min": 18458,
+      "gzip": 6758,
+      "brotli": 5991
+    }
+  },
+  "ssr": {
+    "native": {
+      "us": 39.683899999999994,
+      "opsPerSec": 25199.136173611972,
+      "check": {
+        "title": true,
+        "description": true,
+        "canonical": true,
+        "jsonLd": true
+      },
+      "bytes": 2666,
+      "head": "<!DOCTYPE html><html><head><meta charSet=\"utf-8\"/><title>Produit 7 · Acme</title><meta name=\"description\" content=\"Description du produit 7, livré en 24h partout en France.\"/><link rel=\"canonical\" href=\"https://acme.com/p/7\"/><meta property=\"og:title\" content=\"Produit 7\"/><meta property=\"og:description\" content=\"Description du produit 7, livré en 24h partout en France.\"/><meta property=\"og:type\" content=\"website\"/><meta property=\"og:url\" content=\"https://acme.com/p/7\"/><meta property=\"og:image\" content=\"https://acme.com/img/7.png\"/><meta property=\"og:site_name\" content=\"Acme\"/><meta name=\"twitter:card\" content=\"summary_large_image\"/><meta name=\"twitter:site\" content=\"@acme\"/>"
+    },
+    "active": {
+      "us": 42.43610000000899,
+      "opsPerSec": 23564.842198029226,
+      "check": {
+        "title": true,
+        "description": true,
+        "canonical": true,
+        "jsonLd": true
+      },
+      "bytes": 2666,
+      "head": "<!DOCTYPE html><html><head><meta charSet=\"utf-8\"/><title>Produit 7 · Acme</title><meta name=\"description\" content=\"Description du produit 7, livré en 24h partout en France.\"/><link rel=\"canonical\" href=\"https://acme.com/p/7\"/><meta property=\"og:title\" content=\"Produit 7\"/><meta property=\"og:description\" content=\"Description du produit 7, livré en 24h partout en France.\"/><meta property=\"og:type\" content=\"website\"/><meta property=\"og:url\" content=\"https://acme.com/p/7\"/><meta property=\"og:image\" content=\"https://acme.com/img/7.png\"/><meta property=\"og:site_name\" content=\"Acme\"/><meta name=\"twitter:card\" content=\"summary_large_image\"/><meta name=\"twitter:site\" content=\"@acme\"/>"
+    },
+    "helmet-async": {
+      "us": 64.91415000000416,
+      "opsPerSec": 15404.961784140067,
+      "check": {
+        "title": true,
+        "description": true,
+        "canonical": true,
+        "jsonLd": true
+      },
+      "bytes": 2666,
+      "head": "<!DOCTYPE html><html><head><meta charSet=\"utf-8\"/><title>Produit 7 · Acme</title><meta name=\"description\" content=\"Description du produit 7, livré en 24h partout en France.\"/><meta property=\"og:title\" content=\"Produit 7\"/><meta property=\"og:description\" content=\"Description du produit 7, livré en 24h partout en France.\"/><meta property=\"og:type\" content=\"website\"/><meta property=\"og:url\" content=\"https://acme.com/p/7\"/><meta property=\"og:image\" content=\"https://acme.com/img/7.png\"/><meta property=\"og:site_name\" content=\"Acme\"/><meta name=\"twitter:card\" content=\"summary_large_image\"/><meta name=\"twitter:site\" content=\"@acme\"/><link rel=\"canonical\" href=\"https://acme.com/p/7\"/>"
+    },
+    "unhead": {
+      "us": 44.92295000000013,
+      "opsPerSec": 22260.336865677724,
+      "check": {
+        "title": true,
+        "description": true,
+        "canonical": true,
+        "jsonLd": true
+      },
+      "bytes": 2758,
+      "head": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Produit 7 · Acme</title>\n<meta name=\"description\" content=\"Description du produit 7, livré en 24h partout en France.\">\n<meta property=\"og:title\" content=\"Produit 7\">\n<meta property=\"og:description\" content=\"Description du produit 7, livré en 24h partout en France.\">\n<meta property=\"og:type\" content=\"website\">\n<meta property=\"og:url\" content=\"https://acme.com/p/7\">\n<meta property=\"og:image\" content=\"https://acme.com/img/7.png\">\n<meta property=\"og:site_name\" content=\"Acme\">\n<meta name=\"twitter:card\" content=\"summary_large_image\">\n<meta name=\"twitter:site\" content=\"@acme\">\n<link rel=\"canonical\" href=\"https://acme.com/p/7\">\n<script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"Product\",\"name\":\"Produit 7\",\"offers\":{\"@type\":\"Offer\",\"price\":7,\"priceCurrency\":\"EUR\"}}</script>"
+    },
+    "react-head": {
+      "us": 60.70315000000619,
+      "opsPerSec": 16473.609689116594,
+      "check": {
+        "title": true,
+        "description": true,
+        "canonical": true,
+        "jsonLd": true
+      },
+      "bytes": 2786,
+      "head": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title data-rh=\"\">Produit 7 · Acme</title><meta data-rh=\"\" name=\"description\" content=\"Description du produit 7, livré en 24h partout en France.\"/><link data-rh=\"\" rel=\"canonical\" href=\"https://acme.com/p/7\"/><meta data-rh=\"\" property=\"og:title\" content=\"Produit 7\"/><meta data-rh=\"\" property=\"og:description\" content=\"Description du produit 7, livré en 24h partout en France.\"/><meta data-rh=\"\" property=\"og:type\" content=\"website\"/><meta data-rh=\"\" property=\"og:url\" content=\"https://acme.com/p/7\"/><meta data-rh=\"\" property=\"og:image\" content=\"https://acme.com/img/7.png\"/><meta data-rh=\"\" property=\"og:site_name\" content=\"Acme\"/><meta data-rh=\"\" name=\"twitter:card\" content=\"summary_large_image\"/><meta data-rh=\"\" name=\"twitter:site\" content=\"@acme\"/>"
+    },
+    "helmet": {
+      "us": 66.5298000000007,
+      "opsPerSec": 15030.858352196901,
+      "check": {
+        "title": true,
+        "description": true,
+        "canonical": true,
+        "jsonLd": true
+      },
+      "bytes": 2965,
+      "head": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title data-react-helmet=\"true\">Produit 7 · Acme</title><meta data-react-helmet=\"true\" name=\"description\" content=\"Description du produit 7, livré en 24h partout en France.\"/><meta data-react-helmet=\"true\" property=\"og:title\" content=\"Produit 7\"/><meta data-react-helmet=\"true\" property=\"og:description\" content=\"Description du produit 7, livré en 24h partout en France.\"/><meta data-react-helmet=\"true\" property=\"og:type\" content=\"website\"/><meta data-react-helmet=\"true\" property=\"og:url\" content=\"https://acme.com/p/7\"/><meta data-react-helmet=\"true\" property=\"og:image\" content=\"https://acme.com/img/7.png\"/><meta data-react-helmet=\"true\" property=\"og:site_name\" content=\"Acme\"/><meta data-react-helmet=\"true\" name=\"twitter:card\" content=\"summary_large_image\"/><meta data-react-helmet=\"true\" name=\"twitter:site\" content=\"@acme\"/><link data-react-helmet=\"true\" rel=\"canonical\" href=\"https://acme.com/p/7\"/><script data-react-helmet=\"true\" type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"Product\",\"name\":\"Produit 7\",\"offers\":{\"@type\":\"Offer\",\"price\":7,\"priceCurrency\":\"EUR\"}}</script>"
+    },
+    "active-template": {
+      "us": 44.12035000000287,
+      "opsPerSec": 22665.27804063057,
+      "check": {
+        "title": true,
+        "description": true,
+        "canonical": true,
+        "jsonLd": true
+      },
+      "bytes": 2665,
+      "head": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Produit 7 · Acme</title><meta name=\"description\" content=\"Description du produit 7, livré en 24h partout en France.\"/><link rel=\"canonical\" href=\"https://acme.com/p/7\"/><meta property=\"og:title\" content=\"Produit 7\"/><meta property=\"og:description\" content=\"Description du produit 7, livré en 24h partout en France.\"/><meta property=\"og:type\" content=\"website\"/><meta property=\"og:url\" content=\"https://acme.com/p/7\"/><meta property=\"og:image\" content=\"https://acme.com/img/7.png\"/><meta property=\"og:site_name\" content=\"Acme\"/><meta name=\"twitter:card\" content=\"summary_large_image\"/><meta name=\"twitter:site\" content=\"@acme\"/>"
+    }
+  },
+  "client": {
+    "native": {
+      "readyMs": 20.899999999906868,
+      "navPerSec": 2267.059623667624,
+      "latencyMedianMs": 0.3000000002793968,
+      "latencyP95Ms": 0.5,
+      "audit": {
+        "title": 2,
+        "description": 1,
+        "canonical": 1,
+        "ogTitle": 1,
+        "jsonLd": 1,
+        "correct": true
+      },
+      "errors": []
+    },
+    "active": {
+      "readyMs": 23.799999999813735,
+      "navPerSec": 2143.622722400857,
+      "latencyMedianMs": 0.3000000002793968,
+      "latencyP95Ms": 0.6000000000931323,
+      "audit": {
+        "title": 2,
+        "description": 1,
+        "canonical": 1,
+        "ogTitle": 1,
+        "jsonLd": 1,
+        "correct": true
+      },
+      "errors": []
+    },
+    "helmet-async": {
+      "readyMs": 22.699999999720603,
+      "navPerSec": 2402.1138601980483,
+      "latencyMedianMs": 0.3000000002793968,
+      "latencyP95Ms": 0.5,
+      "audit": {
+        "title": 2,
+        "description": 1,
+        "canonical": 1,
+        "ogTitle": 1,
+        "jsonLd": 1,
+        "correct": true
+      },
+      "errors": []
+    },
+    "unhead": {
+      "readyMs": 24.199999999720603,
+      "navPerSec": 4752.85171102872,
+      "latencyMedianMs": 0.39999999990686774,
+      "latencyP95Ms": 0.7000000001862645,
+      "audit": {
+        "title": 1,
+        "description": 1,
+        "canonical": 1,
+        "ogTitle": 1,
+        "jsonLd": 1,
+        "correct": true
+      },
+      "errors": []
+    },
+    "react-head": {
+      "readyMs": 23.5,
+      "navPerSec": 1682.085786375105,
+      "latencyMedianMs": 1.400000000372529,
+      "latencyP95Ms": 5.699999999720603,
+      "audit": {
+        "title": 2,
+        "description": 1,
+        "canonical": 1,
+        "ogTitle": 1,
+        "jsonLd": 1,
+        "correct": true
+      },
+      "errors": []
+    },
+    "helmet": {
+      "readyMs": 31.100000000093132,
+      "navPerSec": 3362.474781434927,
+      "latencyMedianMs": 16.699999999720603,
+      "latencyP95Ms": 18.59999999962747,
+      "audit": {
+        "title": 1,
+        "description": 1,
+        "canonical": 1,
+        "ogTitle": 1,
+        "jsonLd": 1,
+        "correct": true
+      },
+      "errors": []
+    }
+  },
+  "browser": "141.0.7390.37"
+}
