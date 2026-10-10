@@ -199,15 +199,15 @@ impl Scene {
         let s = 1.35 * self.dpr;
         self.ctx.clear_rect(0.0, 0.0, w, h);
         self.ctx.set_fill_style_str("rgba(237, 233, 227, 0.82)");
-        for (i, p) in dust.pos.chunks_exact(2).enumerate() {
+        let (points, _) = dust.pos.as_chunks::<2>();
+        for (i, [x, y]) in points.iter().enumerate() {
             if i % 11 != 0 {
-                self.ctx.fill_rect(p[0] as f64, p[1] as f64, s, s);
+                self.ctx.fill_rect(*x as f64, *y as f64, s, s);
             }
         }
         self.ctx.set_fill_style_str("#ff5a1f");
-        for p in dust.pos.chunks_exact(2).step_by(11) {
-            self.ctx
-                .fill_rect(p[0] as f64, p[1] as f64, s * 1.3, s * 1.3);
+        for [x, y] in points.iter().step_by(11) {
+            self.ctx.fill_rect(*x as f64, *y as f64, s * 1.3, s * 1.3);
         }
     }
 }
