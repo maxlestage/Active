@@ -111,7 +111,7 @@ fn app() -> Node {
 
 La primera llamada a `location()`, `query()` o `query_param()` inicia el enrutador:
 
-- **Los enlaces funcionan sin más.** Los clics en elementos `<a href>` que apuntan al mismo sitio cambian la ruta sin recargar la página. Los enlaces con un `target` (distinto de `_self`) o con un atributo `download`, los clics con una tecla modificadora (Ctrl, ⌘, Shift, Alt) o con el botón central, los enlaces a otros sitios y los enlaces a un ancla de la página actual (`#section`) se dejan en manos del navegador.
+- **Los enlaces funcionan sin más.** Los clics en elementos `<a href>` que apuntan al mismo sitio cambian la ruta sin recargar la página. Los enlaces con un `target` (distinto de `_self`), con un atributo `download` o con `rel="external"` (una página que renderiza el propio servidor, un archivo), los clics con una tecla modificadora (Ctrl, ⌘, Shift, Alt) o con el botón central, los enlaces a otros sitios y los enlaces a un ancla de la página actual (`#section`) se dejan en manos del navegador.
 - **Atrás y Adelante funcionan.** Los botones del historial del navegador actualizan la ruta y la cadena de consulta.
 - **Solo se reconstruye la región.** Cuando cambia la ruta, se reconstruye la región que la lee; la barra de navegación y todo lo demás se quedan en su sitio.
 

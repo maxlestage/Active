@@ -158,6 +158,7 @@ A handle to a reactive value. Implements `Copy`, `Clone` and `Debug` for every `
 | `pub fn with<R>(self, f: impl FnOnce(&T) -> R) -> R` | Reads the value by reference. Subscribes like `get`. |
 | `pub fn set(self, value: T)` | Replaces the value and re-runs what read it. |
 | `pub fn update(self, f: impl FnOnce(&mut T))` | Changes the value in place and re-runs what read it. |
+| `pub fn is_alive(self) -> bool` | `false` once the state was released (its region re-rendered). Check it before writing from async code. |
 
 ### effect
 
@@ -166,6 +167,22 @@ pub fn effect(f: impl Fn() + 'static)
 ```
 
 Runs `f` now, then again whenever a state it read during its last run changes. Browser only: without `client`, does nothing. An effect that writes a state it reads does not re-trigger itself.
+
+### on_cleanup
+
+```rust
+pub fn on_cleanup(f: impl FnOnce() + 'static)
+```
+
+Runs `f` when the component being built is released: its dynamic region re-renders, the router shows another page, or its `Scope` is disposed. Cleanups run last-registered first, before the scope's states are released. On the server, or outside any scope, `f` never runs.
+
+### untrack
+
+```rust
+pub fn untrack<R>(f: impl FnOnce() -> R) -> R
+```
+
+Runs `f` without subscribing the running effect or dynamic region to the states `f` reads.
 
 ### scope and Scope
 

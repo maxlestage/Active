@@ -158,6 +158,7 @@ Un handle a un valor reactivo. Implementa `Copy`, `Clone` y `Debug` para cualqui
 | `pub fn with<R>(self, f: impl FnOnce(&T) -> R) -> R` | Lee el valor por referencia. Crea una suscripción igual que `get`. |
 | `pub fn set(self, value: T)` | Reemplaza el valor y vuelve a ejecutar lo que lo leyó. |
 | `pub fn update(self, f: impl FnOnce(&mut T))` | Modifica el valor en el sitio y vuelve a ejecutar lo que lo leyó. |
+| `pub fn is_alive(self) -> bool` | `false` una vez liberado el estado (su región se reconstruyó). Compruébalo antes de escribir desde código asíncrono. |
 
 ### effect
 
@@ -166,6 +167,22 @@ pub fn effect(f: impl Fn() + 'static)
 ```
 
 Ejecuta `f` ahora, y de nuevo cada vez que cambia un estado que leyó durante su última ejecución. Solo en el navegador: sin `client`, no hace nada. Un efecto que escribe un estado que él mismo lee no se vuelve a disparar.
+
+### on_cleanup
+
+```rust
+pub fn on_cleanup(f: impl FnOnce() + 'static)
+```
+
+Ejecuta `f` cuando se libera el componente en construcción: su región dinámica se reconstruye, el router muestra otra página o su `Scope` se libera. Las limpiezas se ejecutan de la última registrada a la primera, antes de liberar los estados del ámbito. En el servidor, o fuera de cualquier ámbito, `f` nunca se ejecuta.
+
+### untrack
+
+```rust
+pub fn untrack<R>(f: impl FnOnce() -> R) -> R
+```
+
+Ejecuta `f` sin suscribir el efecto o la región dinámica en curso a los estados que `f` lee.
 
 ### scope y Scope
 
