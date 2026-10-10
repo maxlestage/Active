@@ -112,7 +112,7 @@ let ld = serde_json::json!({
 let seo = SITE.clone().title(&product.name).json_ld(ld.to_string());
 ```
 
-The JSON is inserted as is, except that every `<` becomes `<`: the same JSON, but it can never close the `<script>` tag.
+The JSON is inserted as is, except that every `<` becomes `\u003c`: the same JSON, but it can never close the `<script>` tag.
 
 ## Rendering
 
