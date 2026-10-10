@@ -22,6 +22,7 @@ use crate::view::{Node, Str, collect_seo, render_collecting_seo, static_seo};
 #[derive(Clone, Default)]
 pub struct Document {
     lang: Option<Str>,
+    viewport: Option<Str>,
     seo: Seo,
     stylesheets: Vec<Str>,
     head: Vec<Str>,
@@ -44,6 +45,15 @@ impl Document {
     #[must_use]
     pub fn lang(mut self, lang: impl Into<Str>) -> Self {
         self.lang = Some(lang.into());
+        self
+    }
+
+    /// The `content` of `<meta name="viewport">`, instead of the default
+    /// `width=device-width, initial-scale=1` (e.g. add `viewport-fit=cover` to draw under the
+    /// notch of a phone).
+    #[must_use]
+    pub fn viewport(mut self, content: impl Into<Str>) -> Self {
+        self.viewport = Some(content.into());
         self
     }
 
@@ -155,7 +165,15 @@ impl Document {
         for (name, value) in &self.html_attrs {
             attr(out, name, value);
         }
-        out.push_str(r#"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>"#);
+        out.push_str(r#"><head><meta charset="utf-8"/><meta name="viewport""#);
+        attr(
+            out,
+            "content",
+            self.viewport
+                .as_deref()
+                .unwrap_or("width=device-width, initial-scale=1"),
+        );
+        out.push_str("/>");
         write_merged(layers, out);
         out.push_str("<style>active-island{display:contents}</style>");
         for href in &self.stylesheets {
@@ -281,6 +299,23 @@ mod tests {
         assert!(html.contains(r#"<link rel="modulepreload" href="/pkg/app.js"/>"#));
         assert!(html.contains(r#"<link rel="preload" href="/pkg/app_bg.wasm" as="fetch" type="application/wasm" crossorigin=""/>"#));
         assert!(html.contains(r#"<script type="module">import init from "/pkg/app.js";init({module_or_path:"/pkg/app_bg.wasm"});</script>"#));
+    }
+
+    #[test]
+    fn the_viewport_can_be_replaced() {
+        let default = Document::new(p().text("x")).render();
+        assert!(
+            default.contains(
+                r#"<meta name="viewport" content="width=device-width, initial-scale=1"/>"#
+            )
+        );
+        let cover = Document::new(p().text("x"))
+            .viewport("width=device-width, initial-scale=1, viewport-fit=cover")
+            .render();
+        assert_eq!(cover.matches(r#"name="viewport""#).count(), 1);
+        assert!(
+            cover.contains(r#"content="width=device-width, initial-scale=1, viewport-fit=cover""#)
+        );
     }
 
     #[test]
