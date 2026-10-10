@@ -184,10 +184,10 @@ It is a types-only package: it adds nothing to your bundle.
 
 Structured data often contains user content: product names, reviews, article titles. If a value contained `</script>`, a naive serializer would close the script tag early and let the rest run as HTML.
 
-active-react escapes every `<` as `<` inside the JSON. It is still exactly the same JSON for parsers, but it can never close the `<script>` tag:
+active-react escapes every `<` as `\u003c` inside the JSON. It is still exactly the same JSON for parsers, but it can never close the `<script>` tag:
 
 ```html
-<script type="application/ld+json">{"@type":"Thing","name":"</script><script>alert(1)</script>"}</script>
+<script type="application/ld+json">{"@type":"Thing","name":"\u003c/script>\u003cscript>alert(1)\u003c/script>"}</script>
 ```
 
 Always pass objects, never pre-built JSON strings, so the escaping applies.
