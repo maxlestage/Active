@@ -40,6 +40,7 @@ Les mêmes composants servent aussi à créer des **applications côté client**
 - **Le SEO d'abord.** Le serveur rend toujours la page entière. `Seo` couvre le titre, la description, robots, l'URL canonique, hreflang, Open Graph, Twitter et JSON-LD ; placez-en un dans une mise en page, une page et un composant : ils sont fusionnés sans aucune balise en double.
 - **Rapide.** Le rendu côté serveur écrit directement dans une `String`. Dans le navigateur, seuls les îlots sont hydratés, avec des liaisons à granularité fine : un changement d'état met à jour exactement le texte, l'attribut ou la classe qui en dépend. Voir les [benchmarks](#benchmarks).
 - **Léger.** La version serveur n'a aucune dépendance. Le bundle du navigateur utilise `wasm-bindgen` et `web-sys`, rien d'autre.
+- **Installable.** `active::pwa` écrit le manifeste d'application web et un service worker hors ligne, et `Document::manifest` / `Document::service_worker` ajoutent leurs balises : votre site s'installe sur l'écran d'accueil et fonctionne sans réseau, sans une ligne de JavaScript. Le site web du projet est une PWA ([guide](site/docs/fr/pwa.md)).
 
 ## Benchmarks
 
@@ -81,7 +82,7 @@ cargo run -p hello   # http://localhost:3000
 | [`crates/active`](crates/active) | Le crate `active` : vues, état, SEO, documents, îlots, hydratation |
 | [`examples/hello`](examples/hello) | La plus petite application : une page et un îlot compteur, serveur sans autre dépendance que std |
 | [`examples/spa`](examples/spa) | Une application côté client : liste de tâches, routage, formulaires, `localStorage` |
-| [`site`](site) | Site de présentation et documentation (en/fr/es) : serveur Axum, animations WebAssembly, recherche et bac à sable interactif |
+| [`site`](site) | Site de présentation et documentation (en/fr/es) : serveur Axum, animations WebAssembly, recherche et bac à sable interactif, installable et hors ligne (PWA) |
 | [`bench`](bench) | Benchmarks face à Leptos, Dioxus, Yew, Sycamore, maud et à du HTML écrit à la main |
 
 ## Publier le site sur GitHub Pages (gratuit)

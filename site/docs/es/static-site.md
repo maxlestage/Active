@@ -269,6 +269,10 @@ Cada push a `master` vuelve a compilar y publicar el sitio. También funciona de
 
 Genera `dist/` en CI (como arriba) y despliega la carpeta con la action o la herramienta de línea de comandos del hosting, o arrastra y suelta `dist/` en el panel del hosting para un despliegue puntual. Estos hostings sirven `404.html` para las URL desconocidas y definen automáticamente el tipo de contenido `application/wasm`.
 
+## Instalable y sin conexión
+
+Un sitio estático también se puede instalar en la pantalla de inicio y seguir funcionando sin conexión: escribe `manifest.webmanifest` y `sw.js` junto a las páginas con `active::pwa`, y añade `.manifest(...)` y `.service_worker(...)` a cada `Document`. Ver [Apps instalables (PWA)](../pwa/#sitios-estaticos-y-ruta-base).
+
 ## Actualizar el contenido
 
 El sitio solo cambia cuando lo vuelves a generar. El contenido suele vivir en el repositorio (datos en Rust como arriba, o archivos Markdown que el generador lee con un crate como [`pulldown-cmark`](https://docs.rs/pulldown-cmark) e inserta con `.html(...)`), así que un commit desencadena una nueva compilación a través de CI. Cuando las páginas deben cambiar en cada petición o para cada visitante, usa un servidor: consulta [Axum](../axum/).

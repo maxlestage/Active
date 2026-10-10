@@ -10,6 +10,8 @@ pub struct Dict {
     pub home: Home,
     pub docs: Docs,
     pub not_found: NotFound,
+    /// The page shown offline (title, text, link to the home page).
+    pub offline: NotFound,
     pub footer: Footer,
 }
 
@@ -262,7 +264,7 @@ static EN: Dict = Dict {
     },
     docs: Docs {
         title: "Documentation",
-        description: "Everything about active: components, state, routing, SEO tags, WebAssembly islands and apps, servers, deployment and the full API.",
+        description: "Everything about active: components, state, routing, SEO tags, WebAssembly islands and apps, servers, PWA, deployment and the full API.",
         intro: "Learn active step by step, from your first component to an SEO-ready site with WebAssembly islands in production.",
         search: "Search the docs",
         search_hint: "Type to search…",
@@ -290,7 +292,7 @@ static EN: Dict = Dict {
             },
             Item {
                 title: "Servers & static sites",
-                text: "Serve pages with Axum or generate a static site.",
+                text: "Serve pages with Axum, generate a static site, make it an app that installs and works offline.",
             },
             Item {
                 title: "Deploy & publish",
@@ -306,6 +308,11 @@ static EN: Dict = Dict {
         title: "Lost in the dust",
         text: "This page does not exist, or it drifted away.",
         back: "Back to home",
+    },
+    offline: NotFound {
+        title: "You are *offline.*",
+        text: "This page is not saved on this device yet. The home pages and the pages you have already visited still work.",
+        back: "Home page",
     },
     footer: Footer {
         tagline: "Front ends in Rust: simple, fast, with real SEO.",
@@ -458,7 +465,7 @@ static FR: Dict = Dict {
     },
     docs: Docs {
         title: "Documentation",
-        description: "Tout sur active : composants, état, routage, balises SEO, îlots et applications WebAssembly, serveurs, déploiement et API complète.",
+        description: "Tout sur active : composants, état, routage, balises SEO, îlots et applications WebAssembly, serveurs, PWA, déploiement et API complète.",
         intro: "Apprenez active pas à pas, de votre premier composant à un site prêt pour le SEO avec des îlots WebAssembly en production.",
         search: "Rechercher dans la doc",
         search_hint: "Tapez pour chercher…",
@@ -486,7 +493,7 @@ static FR: Dict = Dict {
             },
             Item {
                 title: "Serveurs et sites statiques",
-                text: "Servir les pages avec Axum ou générer un site statique.",
+                text: "Servir les pages avec Axum, générer un site statique, en faire une application installable qui marche hors ligne.",
             },
             Item {
                 title: "Déployer et publier",
@@ -502,6 +509,11 @@ static FR: Dict = Dict {
         title: "Perdu dans la poussière",
         text: "Cette page n'existe pas, ou elle s'est envolée.",
         back: "Retour à l'accueil",
+    },
+    offline: NotFound {
+        title: "Vous êtes *hors ligne.*",
+        text: "Cette page n'est pas encore enregistrée sur cet appareil. Les pages d'accueil et celles que vous avez déjà visitées fonctionnent toujours.",
+        back: "Page d'accueil",
     },
     footer: Footer {
         tagline: "Le front-end en Rust : simple, rapide, avec un vrai SEO.",
@@ -654,7 +666,7 @@ static ES: Dict = Dict {
     },
     docs: Docs {
         title: "Documentación",
-        description: "Todo sobre active: componentes, estado, enrutamiento, etiquetas SEO, islas y apps WebAssembly, servidores, despliegue y la API completa.",
+        description: "Todo sobre active: componentes, estado, enrutamiento, etiquetas SEO, islas y apps WebAssembly, servidores, PWA, despliegue y la API completa.",
         intro: "Aprende active paso a paso, desde tu primer componente hasta un sitio listo para el SEO con islas WebAssembly en producción.",
         search: "Buscar en la documentación",
         search_hint: "Escribe para buscar…",
@@ -682,7 +694,7 @@ static ES: Dict = Dict {
             },
             Item {
                 title: "Servidores y sitios estáticos",
-                text: "Servir páginas con Axum o generar un sitio estático.",
+                text: "Servir páginas con Axum, generar un sitio estático y convertirlo en una app instalable que funciona sin conexión.",
             },
             Item {
                 title: "Desplegar y publicar",
@@ -698,6 +710,11 @@ static ES: Dict = Dict {
         title: "Perdido en el polvo",
         text: "Esta página no existe, o se la llevó el viento.",
         back: "Volver al inicio",
+    },
+    offline: NotFound {
+        title: "Estás *sin conexión.*",
+        text: "Esta página aún no está guardada en este dispositivo. Las páginas de inicio y las que ya visitaste siguen funcionando.",
+        back: "Página de inicio",
     },
     footer: Footer {
         tagline: "Front-end en Rust: simple, rápido y con SEO real.",

@@ -70,6 +70,8 @@ The charset and viewport tags are always written, so every page is UTF-8 and mob
 | `.stylesheet(href)` | a `<link rel="stylesheet">`; call it once per file |
 | `.head(html)` | trusted HTML appended to the `<head>`: icons, fonts, analytics, `theme-color` |
 | `.client(js, wasm)` | loads the WebAssembly bundle (see below) |
+| `.manifest(href, &manifest)` | makes the page installable: manifest link, `theme-color`, home screen title and icon (see [PWA](../pwa/)) |
+| `.service_worker(url)` | registers the offline service worker served at `url` (see [PWA](../pwa/)) |
 | `.html_attr(name, value)` | an attribute on `<html>` |
 | `.body_attr(name, value)` | an attribute on `<body>` |
 | `.render()` | the whole page as a `String` |

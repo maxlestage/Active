@@ -4,6 +4,9 @@
 //! What a static host cannot do is replaced: the root page links the languages instead of
 //! reading `Accept-Language`, the opening curtain is left out (it plays once per visit
 //! thanks to a cookie), and `404.html` is the English "not found" page.
+//!
+//! The site stays an installable app: `manifest.webmanifest`, `sw.js` and the offline page
+//! are written too, every URL in them behind the base path.
 
 use std::io;
 use std::path::Path;
@@ -54,8 +57,19 @@ pub async fn export(out: &Path, base: &str, site_url: Option<String>) -> io::Res
         let index = format!("/search/{}.txt", lang.code());
         write(&index, &get(&site, &index, StatusCode::OK).await?)?;
     }
-    for file in ["/sitemap.xml", "/robots.txt"] {
-        write(file, &get(&site, file, StatusCode::OK).await?)?;
+    for file in [
+        "/sitemap.xml",
+        "/robots.txt",
+        "/manifest.webmanifest",
+        "/sw.js",
+        "/offline/",
+    ] {
+        let path = if file.ends_with('/') {
+            format!("{file}index.html")
+        } else {
+            file.to_string()
+        };
+        write(&path, &get(&site, file, StatusCode::OK).await?)?;
     }
     for (url, asset) in site.assets.iter() {
         write(url, &asset.bytes)?;

@@ -40,6 +40,7 @@ Los mismos componentes también sirven para **aplicaciones del lado del cliente*
 - **SEO primero.** El servidor siempre renderiza la página completa. `Seo` cubre título, descripción, robots, canonical, hreflang, Open Graph, Twitter y JSON-LD; pon uno en un layout, otro en una página y otro en un componente, y se fusionan sin ninguna etiqueta duplicada.
 - **Rápido.** El renderizado en el servidor escribe directamente en un `String`. En el navegador solo se hidratan las islas, con vínculos de grano fino: un cambio de estado actualiza exactamente el texto, el atributo o la clase que depende de él. Consulta los [benchmarks](#benchmarks).
 - **Ligero.** La compilación para el servidor no tiene dependencias. El bundle del navegador usa `wasm-bindgen` y `web-sys`, nada más.
+- **Instalable.** `active::pwa` escribe el manifiesto de la app web y un service worker sin conexión, y `Document::manifest` / `Document::service_worker` añaden sus etiquetas: tu sitio se instala en la pantalla de inicio y funciona sin red, sin escribir JavaScript. El sitio web del proyecto es una PWA ([guía](site/docs/es/pwa.md)).
 
 ## Benchmarks
 
@@ -81,7 +82,7 @@ cargo run -p hello   # http://localhost:3000
 | [`crates/active`](crates/active) | El crate `active`: vistas, estado, SEO, documentos, islas, hidratación |
 | [`examples/hello`](examples/hello) | La aplicación más pequeña: una página y una isla de contador, con un servidor que solo usa std |
 | [`examples/spa`](examples/spa) | Una aplicación del lado del cliente: lista de tareas, enrutamiento, formularios, `localStorage` |
-| [`site`](site) | Sitio web de presentación y documentación (en/fr/es): servidor Axum, animaciones en WebAssembly, búsqueda y área de pruebas interactiva |
+| [`site`](site) | Sitio web de presentación y documentación (en/fr/es): servidor Axum, animaciones en WebAssembly, búsqueda y área de pruebas interactiva, instalable y sin conexión (PWA) |
 | [`bench`](bench) | Benchmarks frente a Leptos, Dioxus, Yew, Sycamore, maud y HTML escrito a mano |
 
 ## Publicar el sitio en GitHub Pages (gratis)

@@ -4,6 +4,7 @@ use active::prelude::*;
 
 use super::Site;
 use super::docs::{CATEGORIES, Docs};
+use super::pwa;
 use crate::i18n::t;
 use crate::routes::{Lang, Page, Route, base, link};
 
@@ -315,6 +316,13 @@ fn footer(route: &Route) -> Element {
         )
 }
 
+/// Makes a page installable: the manifest link with the theme color and the home screen
+/// icon, and the registration of the offline service worker (see [`pwa`]).
+fn installable(doc: Document) -> Document {
+    doc.manifest(&link("/manifest.webmanifest"), &pwa::manifest())
+        .service_worker(&link("/sw.js"))
+}
+
 /// A complete HTML page around `content`.
 pub fn document(ctx: &Ctx<'_>, kind: &str, content: Node) -> String {
     let route = ctx.route;
@@ -342,20 +350,22 @@ pub fn document(ctx: &Ctx<'_>, kind: &str, content: Node) -> String {
         .base_url(ctx.origin)
         .image("/og.png")
         .locale(t(route.lang).locale);
-    let mut doc = Document::new(body)
-        .lang(route.lang.code())
-        .seo(site)
-        .stylesheet(assets.url("/static/app.css"))
-        .head(format!(
-            concat!(
-                r##"<meta name="theme-color" content="#0b0b0c"/><meta name="color-scheme" content="dark"/>"##,
-                r#"<link rel="icon" href="{base}/favicon.svg" type="image/svg+xml"/><link rel="apple-touch-icon" href="{base}/apple-touch-icon.png"/>"#,
-                // Same URL as in app.css (no version query), so the preload is reused.
-                r#"<link rel="preload" href="{base}/static/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin=""/>"#,
-            ),
-            base = base()
-        ))
-        .client(assets.url("/pkg/active_site.js"), assets.url("/pkg/active_site_bg.wasm"));
+    let mut doc = installable(
+        Document::new(body)
+            .lang(route.lang.code())
+            .seo(site)
+            .stylesheet(assets.url("/static/app.css"))
+            .head(format!(
+                concat!(
+                    r#"<meta name="color-scheme" content="dark"/>"#,
+                    r#"<link rel="icon" href="{base}/favicon.svg" type="image/svg+xml"/>"#,
+                    // Same URL as in app.css (no version query), so the preload is reused.
+                    r#"<link rel="preload" href="{base}/static/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin=""/>"#,
+                ),
+                base = base()
+            )),
+    )
+    .client(assets.url("/pkg/active_site.js"), assets.url("/pkg/active_site_bg.wasm"));
     if ctx.intro {
         doc = doc.html_attr("class", "intro");
     }
@@ -912,7 +922,52 @@ fn not_found(lang: Lang) -> Node {
         .into()
 }
 
-/// Renders the page of `ctx.route`.
+/// The page the service worker shows when the network is down and the page asked for is
+/// not saved on the device. It speaks the three languages, since the worker has only one
+/// such page, and links the home pages, which are always saved.
+fn offline() -> Node {
+    let en = &t(Lang::En).offline;
+    let home = |lang: Lang, class: &str| {
+        a().class(class.to_string())
+            .href(link(&format!("/{}/", lang.code())))
+            .attr("hreflang", lang.code())
+            .attr("lang", lang.code())
+            .attr("data-magnetic", "")
+            .text(t(lang).offline.back)
+            .child(arrow())
+    };
+    section()
+        .class("notfound offline")
+        .child(
+            Seo::new()
+                .title(en.title.replace('*', ""))
+                .description(en.text)
+                .noindex(true),
+        )
+        .child(
+            span()
+                .class("code404")
+                .attr("aria-hidden", "true")
+                .text("offline"),
+        )
+        .child(heading(h1, en.title, "title"))
+        .child(p().text(en.text))
+        .child(home(Lang::En, "btn"))
+        .child(
+            div()
+                .class("offline-more")
+                .children([Lang::Fr, Lang::Es].map(|lang| {
+                    let d = &t(lang).offline;
+                    div()
+                        .attr("lang", lang.code())
+                        .child(p().class("offline-title").text(d.title.replace('*', "")))
+                        .child(p().text(d.text))
+                        .child(home(lang, "btn ghost small"))
+                })),
+        )
+        .into()
+}
+
 /// The root page of a static export, where no server reads `Accept-Language`: it sends
 /// the visitor to the English home page at once and links the three languages.
 pub fn language_picker(origin: &str) -> String {
@@ -933,22 +988,21 @@ pub fn language_picker(origin: &str) -> String {
                     .text(t(l).lang_name),
             )
         })));
-    Document::new(body)
-        .lang("en")
-        .seo(seo)
-        .head(format!(
-            r#"<meta http-equiv="refresh" content="0; url={}/en/"/>"#,
-            base()
-        ))
-        .render()
+    installable(Document::new(body).lang("en").seo(seo).head(format!(
+        r#"<meta http-equiv="refresh" content="0; url={}/en/"/>"#,
+        base()
+    )))
+    .render()
 }
 
+/// Renders the page of `ctx.route`.
 pub fn render(ctx: &Ctx<'_>) -> String {
     let (kind, content) = match &ctx.route.page {
         Page::Home => ("home", home(ctx)),
         Page::Docs => ("docs", docs_index(ctx)),
         Page::Doc(slug) => ("doc", doc_page(ctx, slug)),
         Page::NotFound => ("404", not_found(ctx.route.lang)),
+        Page::Offline => ("offline", offline()),
     };
     document(ctx, kind, content)
 }

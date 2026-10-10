@@ -176,3 +176,200 @@ async fn the_search_index_is_searched_like_in_the_browser() {
         StatusCode::NOT_FOUND
     );
 }
+
+/// Width and height of a PNG, from its IHDR chunk.
+fn png_size(bytes: &[u8]) -> (u32, u32) {
+    assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "a PNG file");
+    let be = |i: usize| u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap());
+    (be(16), be(20))
+}
+
+#[tokio::test]
+async fn the_manifest_describes_the_installed_app() {
+    let response = get("/manifest.webmanifest", &[]).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        header_of(&response, header::CONTENT_TYPE),
+        "application/manifest+json"
+    );
+    let manifest: serde_json::Value =
+        serde_json::from_str(&text(response).await).expect("valid JSON");
+    assert_eq!(manifest["name"], "active");
+    // A page that answers 200 (`/` redirects), saved by the service worker.
+    assert_eq!(manifest["start_url"], "/en/");
+    assert_eq!(manifest["scope"], "/");
+    assert_eq!(manifest["display"], "standalone");
+    assert_eq!(manifest["theme_color"], "#0b0b0c");
+    let icons = manifest["icons"].as_array().expect("icons");
+    for (size, purpose) in [
+        ("192x192", "any"),
+        ("512x512", "any"),
+        ("512x512", "maskable"),
+    ] {
+        assert!(
+            icons
+                .iter()
+                .any(|i| i["sizes"] == size && i["purpose"] == purpose && i["type"] == "image/png"),
+            "{size} {purpose}"
+        );
+    }
+    for icon in icons {
+        let src = icon["src"].as_str().unwrap();
+        let response = get(src, &[]).await;
+        assert_eq!(response.status(), StatusCode::OK, "{src}");
+        assert_eq!(
+            header_of(&response, header::CONTENT_TYPE),
+            icon["type"].as_str().unwrap()
+        );
+        if let Some((w, h)) = icon["sizes"].as_str().unwrap().split_once('x') {
+            let bytes = to_bytes(response.into_body(), 1_000_000).await.unwrap();
+            assert_eq!(
+                png_size(&bytes),
+                (w.parse().unwrap(), h.parse().unwrap()),
+                "{src}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn the_service_worker_saves_the_home_pages_and_what_they_load() {
+    let response = get("/sw.js", &[]).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        header_of(&response, header::CONTENT_TYPE),
+        "text/javascript; charset=utf-8"
+    );
+    assert_eq!(header_of(&response, header::CACHE_CONTROL), "no-cache");
+    let js = text(response).await;
+    let site = Site::load(&site_dir());
+    assert!(js.contains(&format!(
+        r#"const CACHE = "active-site-{}";"#,
+        site.pwa_version
+    )));
+    assert!(js.contains(r#"const OFFLINE = "/offline/";"#));
+    let list = js
+        .lines()
+        .find_map(|l| l.strip_prefix("const PRECACHE = "))
+        .expect("the precache list");
+    let urls: Vec<String> = serde_json::from_str(list.trim_end_matches(';')).expect("JSON");
+    for url in [
+        "/en/",
+        "/fr/",
+        "/es/",
+        "/offline/",
+        "/static/icon-192.png",
+        "/static/icon-512.png",
+        "/static/icon-maskable-512.png",
+        "/favicon.svg",
+    ] {
+        assert!(urls.iter().any(|u| u == url), "{url} in {urls:?}");
+    }
+    assert!(
+        urls.iter()
+            .any(|u| u.starts_with("/static/fonts/") && u.ends_with(".woff2"))
+    );
+    // The exact URLs the pages load (the cache matches query strings).
+    let html = text(get("/en/", &[("cookie", "active-intro=1")]).await).await;
+    let mut files = vec!["/static/app.css"];
+    if site_dir().join("pkg/active_site_bg.wasm").exists() {
+        files.extend(["/pkg/active_site.js", "/pkg/active_site_bg.wasm"]);
+    }
+    for file in files {
+        let versioned = site.assets.url(file);
+        assert!(versioned.contains("?v="), "{versioned}");
+        assert!(html.contains(&versioned), "{versioned} in the page");
+        assert!(urls.contains(&versioned), "{versioned} precached");
+    }
+    // Every URL answers 200, or the installation would fail.
+    for url in &urls {
+        assert_eq!(get(url, &[]).await.status(), StatusCode::OK, "{url}");
+    }
+    // Same files, same version.
+    assert_eq!(Site::load(&site_dir()).pwa_version, site.pwa_version);
+}
+
+#[tokio::test]
+async fn every_page_is_installable() {
+    for path in [
+        "/en/",
+        "/fr/docs/",
+        "/es/docs/pwa/",
+        "/en/nope",
+        "/offline/",
+    ] {
+        let html = text(get(path, &[]).await).await;
+        assert_eq!(
+            html.matches(r#"<link rel="manifest" href="/manifest.webmanifest"/>"#)
+                .count(),
+            1,
+            "{path}"
+        );
+        assert_eq!(
+            html.matches(r##"<meta name="theme-color" content="#0b0b0c"/>"##)
+                .count(),
+            1,
+            "{path}"
+        );
+        assert_eq!(
+            html.matches(r#"<link rel="apple-touch-icon" href="/static/icon-512.png"/>"#)
+                .count(),
+            1,
+            "{path}"
+        );
+        assert!(
+            html.contains(r#"navigator.serviceWorker.register("/sw.js")"#),
+            "{path}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_offline_page_speaks_the_three_languages() {
+    let response = get("/offline/", &[]).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = text(response).await;
+    assert!(html.contains(r#"<meta name="robots" content="noindex"#));
+    assert!(html.contains("<title>You are offline. — active</title>"));
+    for (lang, text) in [
+        ("en", "Home page"),
+        ("fr", "Vous êtes hors ligne."),
+        ("es", "Estás sin conexión."),
+    ] {
+        assert!(html.contains(text), "{text}");
+        // Each language links its home page, which the worker always saves.
+        assert!(html.contains(&format!(r#"href="/{lang}/" hreflang="{lang}""#)));
+    }
+    let sitemap = text(get("/sitemap.xml", &[]).await).await;
+    assert!(!sitemap.contains("/offline/"));
+}
+
+#[tokio::test]
+async fn the_pwa_guide_is_in_the_docs_in_every_language() {
+    for (lang, title) in [
+        ("en", "Installable apps (PWA)"),
+        ("fr", "Applications installables (PWA)"),
+        ("es", "Apps instalables (PWA)"),
+    ] {
+        let index = text(get(&format!("/{lang}/docs/"), &[]).await).await;
+        assert!(
+            index.contains(&format!(r#"href="/{lang}/docs/pwa/""#)),
+            "{lang}"
+        );
+        let page = get(&format!("/{lang}/docs/pwa/"), &[]).await;
+        assert_eq!(page.status(), StatusCode::OK);
+        let html = text(page).await;
+        assert!(
+            html.contains(&format!("<title>{title} — active docs</title>")),
+            "{lang}"
+        );
+        assert!(html.contains(&format!(r#"<html lang="{lang}""#)));
+    }
+    let entries: Vec<_> = text(get("/search/fr.txt", &[]).await)
+        .await
+        .lines()
+        .map(|l| active_site::search::Entry::parse(l).expect("an index line"))
+        .collect();
+    let hits = active_site::search::search(&entries, "application installable hors ligne");
+    assert!(hits[0].href.starts_with("/fr/docs/pwa/"), "{:?}", hits[0]);
+}

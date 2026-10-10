@@ -70,6 +70,8 @@ Les balises charset et viewport sont toujours écrites : chaque page est donc en
 | `.stylesheet(href)` | un `<link rel="stylesheet">` ; appelez-la une fois par fichier |
 | `.head(html)` | du HTML de confiance ajouté à la fin du `<head>` : icônes, polices, mesure d'audience, `theme-color` |
 | `.client(js, wasm)` | charge le bundle WebAssembly (voir plus bas) |
+| `.manifest(href, &manifest)` | rend la page installable : lien vers le manifeste, `theme-color`, titre et icône de l'écran d'accueil (voir [PWA](../pwa/)) |
+| `.service_worker(url)` | enregistre le service worker hors ligne servi sur `url` (voir [PWA](../pwa/)) |
 | `.html_attr(name, value)` | un attribut sur `<html>` |
 | `.body_attr(name, value)` | un attribut sur `<body>` |
 | `.render()` | la page entière sous forme de `String` |

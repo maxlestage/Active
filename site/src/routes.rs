@@ -1,5 +1,6 @@
-//! URLs of the site: `/{lang}/`, `/{lang}/docs/`, `/{lang}/docs/{slug}/`, all behind an
-//! optional base path (`/Active` when the site is published on GitHub Pages).
+//! URLs of the site: `/{lang}/`, `/{lang}/docs/`, `/{lang}/docs/{slug}/` and the offline
+//! page `/offline/`, all behind an optional base path (`/Active` when the site is published
+//! on GitHub Pages).
 
 use std::sync::OnceLock;
 
@@ -56,6 +57,9 @@ pub enum Page {
     Docs,
     Doc(String),
     NotFound,
+    /// Shown by the service worker for a page that is not saved on the device while the
+    /// network is down. One page in the three languages: `/offline/`, whatever `lang`.
+    Offline,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -87,6 +91,7 @@ impl Route {
             Page::Docs => format!("/{l}/docs/"),
             Page::Doc(slug) => format!("/{l}/docs/{slug}/"),
             Page::NotFound => format!("/{l}/404/"),
+            Page::Offline => "/offline/".into(),
         }
     }
 
@@ -95,12 +100,14 @@ impl Route {
         link(&self.path())
     }
 
-    /// The same page in another language.
+    /// The same page in another language. The offline page already speaks the three
+    /// languages: its counterparts are the home pages, which are saved on the device.
     pub fn with_lang(&self, lang: Lang) -> Route {
-        Route {
-            lang,
-            page: self.page.clone(),
-        }
+        let page = match &self.page {
+            Page::Offline => Page::Home,
+            page => page.clone(),
+        };
+        Route { lang, page }
     }
 }
 
@@ -128,5 +135,11 @@ mod tests {
             Page::NotFound
         );
         assert_eq!(Route::parse("/de/", &slugs), None);
+        let offline = Route {
+            lang: Lang::Fr,
+            page: Page::Offline,
+        };
+        assert_eq!(offline.href(), "/offline/");
+        assert_eq!(offline.with_lang(Lang::Es).href(), "/es/");
     }
 }
