@@ -1,0 +1,112 @@
+{
+  "profiles": [
+    {
+      "name": "opt-level = 3",
+      "rawBytes": 144,
+      "bindgenBytes": 15871,
+      "bindgenGzip": 6758,
+      "fib30Ms": 3.7632059999887133
+    },
+    {
+      "name": "opt-level = 3 + wasm-opt -O3",
+      "rawBytes": 112,
+      "bindgenBytes": 14461,
+      "bindgenGzip": 6372,
+      "fib30Ms": 3.887934000013047
+    },
+    {
+      "name": "opt-level = \"s\"",
+      "rawBytes": 144,
+      "bindgenBytes": 14708,
+      "bindgenGzip": 6512,
+      "fib30Ms": 4.167172000001301
+    },
+    {
+      "name": "opt-level = \"z\"",
+      "rawBytes": 137,
+      "bindgenBytes": 14723,
+      "bindgenGzip": 6521,
+      "fib30Ms": 4.317437000005157
+    },
+    {
+      "name": "opt-level = \"z\" + wasm-opt -Oz",
+      "rawBytes": 109,
+      "bindgenBytes": 13577,
+      "bindgenGzip": 6194,
+      "fib30Ms": 3.8807379999925615
+    }
+  ],
+  "size": {
+    "active": {
+      "min": 1032,
+      "gzip": 596,
+      "brotli": 517
+    },
+    "react-wasm": {
+      "min": 5268,
+      "gzip": 2073,
+      "brotli": 1817
+    },
+    "glue": {
+      "min": 1893,
+      "gzip": 934,
+      "brotli": 855
+    },
+    "raw": {
+      "bytes": 144,
+      "gzip": 139
+    },
+    "bindgen": {
+      "bytes": 15871,
+      "gzip": 6758
+    }
+  },
+  "load": {
+    "ssr-preload": {
+      "head": "<link rel=\"preload\" href=\"/bindgen_bg.wasm\" as=\"fetch\" crossorigin=\"\" type=\"application/wasm\"/>",
+      "local": 20.199999999720603,
+      "rtt100": 224.20000000018626
+    },
+    "ssr-nopreload": {
+      "head": "",
+      "local": 24.5,
+      "rtt100": 330
+    },
+    "active-raw": {
+      "local": 28.800000000279397,
+      "rtt100": 331.5
+    },
+    "react-wasm": {
+      "local": 28.5,
+      "rtt100": 327.10000000009313
+    },
+    "effect-raw": {
+      "local": 25.800000000279397,
+      "rtt100": 328.89999999990687
+    },
+    "active-bindgen": {
+      "local": 23.5,
+      "rtt100": 328.39999999990687
+    },
+    "effect-bindgen": {
+      "local": 24.600000000093132,
+      "rtt100": 332.90000000037253
+    }
+  },
+  "calls": {
+    "addNs": {
+      "js": 0.55,
+      "raw": 4.05,
+      "bindgen": 4.810000000009313
+    },
+    "fib30Ms": {
+      "js": 11.399999999906868,
+      "raw": 2.1000000000931323,
+      "bindgen": 1.900000000372529
+    },
+    "greetNs": {
+      "js": 4.6666666663562255,
+      "bindgen": 552.9999999996895
+    }
+  }
+}
