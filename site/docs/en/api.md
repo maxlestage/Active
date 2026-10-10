@@ -176,6 +176,14 @@ pub fn on_cleanup(f: impl FnOnce() + 'static)
 
 Runs `f` when the component being built is released: its dynamic region re-renders, the router shows another page, or its `Scope` is disposed. Cleanups run last-registered first, before the scope's states are released. On the server, or outside any scope, `f` never runs.
 
+### memo
+
+```rust
+pub fn memo<T: Clone + PartialEq + 'static>(f: impl Fn() -> T + 'static) -> State<T>
+```
+
+A state holding `f()`, recomputed when the states `f` reads change and written only when the result differs. On the server it keeps the value computed at creation.
+
 ### untrack
 
 ```rust

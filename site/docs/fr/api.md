@@ -176,6 +176,14 @@ pub fn on_cleanup(f: impl FnOnce() + 'static)
 
 Exécute `f` quand le composant en cours de construction est libéré : sa région dynamique se reconstruit, le routeur affiche une autre page, ou son `Scope` est libéré. Les nettoyages s'exécutent du dernier enregistré au premier, avant la libération des états de la portée. Sur le serveur, ou hors de toute portée, `f` ne s'exécute jamais.
 
+### memo
+
+```rust
+pub fn memo<T: Clone + PartialEq + 'static>(f: impl Fn() -> T + 'static) -> State<T>
+```
+
+Un état qui contient `f()`, recalculé quand les états lus par `f` changent et écrit seulement si le résultat diffère. Sur le serveur, il garde la valeur calculée à sa création.
+
 ### untrack
 
 ```rust

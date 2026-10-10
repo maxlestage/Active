@@ -98,6 +98,17 @@ assert!(Node::from(view).render().contains("Total: 240 €"));
 
 Anything that reads `total()` is updated when either state changes.
 
+When the inputs change often but the result rarely does, store the result in a **memo**: `memo(f)` returns a `State` that is written only when `f`'s new result differs from the previous one, so what reads it re-runs only then.
+
+```rust
+use active::prelude::*;
+
+let positions = use_state(vec![("VER", 1), ("NOR", 2)]);
+// Updated every second while the names (and so this menu) rarely change.
+let names = memo(move || positions.with(|p| p.iter().map(|(n, _)| *n).collect::<Vec<_>>()));
+let menu = select().children_dyn(move || names.get().into_iter().map(|n| option().text(n).into()).collect());
+```
+
 ## Lists and conditions that change
 
 `.children_dyn(f)` appends a **dynamic region** to an element: `f` returns the nodes to show, and whenever a state it read changes, the region is rebuilt. Children added before or after the region stay where they are. `fragment_dyn(f)` creates the same region as a standalone node.

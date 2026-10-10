@@ -418,6 +418,36 @@ pub fn effect(f: impl Fn() + 'static) {
     });
 }
 
+/// A state computed from other states, updated only when its value really changes.
+///
+/// A closure such as `move || total(cart.get())` re-runs everything that reads it whenever
+/// `cart` changes. A memo stores the result instead: what reads the memo re-runs only when
+/// the new result differs (`PartialEq`) from the previous one. Use it when the inputs change
+/// often but the result rarely does, for instance the list of names shown in a menu while
+/// positions update every second.
+///
+/// ```
+/// use active::{memo, use_state};
+///
+/// let scores = use_state(vec![3, 9, 4]);
+/// let best = memo(move || scores.with(|s| s.iter().copied().max()));
+/// assert_eq!(best.get(), Some(9));
+/// ```
+///
+/// On the server, effects do not run: the memo keeps the value computed when it was created.
+pub fn memo<T: Clone + PartialEq + 'static>(f: impl Fn() -> T + 'static) -> State<T> {
+    let state = use_state(untrack(&f));
+    effect(move || {
+        let next = f();
+        untrack(|| {
+            if state.with(|current| *current != next) {
+                state.set(next);
+            }
+        });
+    });
+    state
+}
+
 /// Runs `f` when the component being built is released: the [`fragment_dyn`] region that
 /// created it re-renders, the router shows another page, or its [`Scope`] is disposed. Stop
 /// here what the component started outside the view: a timer, a socket, an animation loop, a
@@ -540,6 +570,22 @@ mod tests {
         assert!(log.borrow().is_empty());
         owner.dispose();
         assert_eq!(*log.borrow(), ["second", "first 7"]);
+    }
+
+    #[test]
+    fn a_memo_notifies_only_when_its_value_changes() {
+        let n = use_state(1);
+        let parity = memo(move || n.get() % 2);
+        let runs = Rc::new(Cell::new(0));
+        let r = runs.clone();
+        effect(move || {
+            parity.get();
+            r.set(r.get() + 1);
+        });
+        n.set(3); // still odd
+        assert_eq!(runs.get(), 1);
+        n.set(4);
+        assert_eq!((parity.get(), runs.get()), (0, 2));
     }
 
     #[test]
