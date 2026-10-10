@@ -169,7 +169,7 @@ A handle to a reactive value. Implements `Copy`, `Clone` and `Debug` for every `
 pub fn effect(f: impl Fn() + 'static)
 ```
 
-Runs `f` now, then again whenever a state it read during its last run changes. Browser only: without `client`, does nothing. An effect that writes a state it reads does not re-trigger itself.
+Runs `f` now, then again whenever a state it read during its last run changes, once the memos it reads are up to date. Browser only: without `client`, does nothing. A state written inside an effect notifies its readers once the effect has finished; an effect that writes a state it reads does not re-trigger itself.
 
 ### on_cleanup
 
@@ -185,7 +185,7 @@ Runs `f` when the component being built is released: its dynamic region re-rende
 pub fn memo<T: Clone + PartialEq + 'static>(f: impl Fn() -> T + 'static) -> State<T>
 ```
 
-A state holding `f()`, recomputed when the states `f` reads change and written only when the result differs. On the server it keeps the value computed at creation.
+A state holding `f()`, recomputed when the states `f` reads change — before the effects that read it run, and only if an input really changed — and written only when the result differs. On the server it keeps the value computed at creation.
 
 ### untrack
 

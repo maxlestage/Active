@@ -169,7 +169,7 @@ Un handle a un valor reactivo. Implementa `Copy`, `Clone` y `Debug` para cualqui
 pub fn effect(f: impl Fn() + 'static)
 ```
 
-Ejecuta `f` ahora, y de nuevo cada vez que cambia un estado que leyó durante su última ejecución. Solo en el navegador: sin `client`, no hace nada. Un efecto que escribe un estado que él mismo lee no se vuelve a disparar.
+Ejecuta `f` ahora, y de nuevo cada vez que cambia un estado que leyó durante su última ejecución, una vez actualizados los memos que lee. Solo en el navegador: sin `client`, no hace nada. Un estado escrito dentro de un efecto avisa a sus lectores cuando el efecto termina; un efecto que escribe un estado que él mismo lee no se vuelve a disparar.
 
 ### on_cleanup
 
@@ -185,7 +185,7 @@ Ejecuta `f` cuando se libera el componente en construcción: su región dinámic
 pub fn memo<T: Clone + PartialEq + 'static>(f: impl Fn() -> T + 'static) -> State<T>
 ```
 
-Un estado que contiene `f()`, recalculado cuando cambian los estados que lee `f` y escrito solo si el resultado difiere. En el servidor conserva el valor calculado al crearlo.
+Un estado que contiene `f()`, recalculado cuando cambian los estados que lee `f` — antes de que se ejecuten los efectos que lo leen, y solo si una entrada cambió de verdad — y escrito solo si el resultado difiere. En el servidor conserva el valor calculado al crearlo.
 
 ### untrack
 

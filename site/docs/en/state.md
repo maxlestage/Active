@@ -244,7 +244,9 @@ How effects behave:
 
 - **Browser only.** On the server `effect` does nothing at all, so an effect can freely use browser APIs. Never compute something the HTML needs in an effect; compute it in the view.
 - **Automatic dependencies.** An effect depends on the states it read during its last run. If it reads `a` only when `flag` is true, it stops reacting to `a` once `flag` is false.
-- **No infinite loops.** An effect that writes a state it reads does not trigger itself again.
+- **No glitches.** When a state changes, the memos computed from it are brought up to date before the effects that read them run, so an effect never sees a value and a memo derived from it out of step. Each effect runs once per change, and a memo is recomputed only when one of its inputs really changed.
+- **One at a time.** A state written inside an effect notifies its readers once that effect has finished (and before the `set` that started it all returns).
+- **No infinite loops.** An effect that writes a state it reads does not trigger itself again; two effects that each write what the other reads are stopped after a thousand runs.
 - **Released with their region.** Effects created inside a dynamic region stop when the region is rebuilt.
 
 ## Cleaning up

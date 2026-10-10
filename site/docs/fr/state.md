@@ -244,7 +244,9 @@ Comportement des effets :
 
 - **Navigateur uniquement.** Sur le serveur, `effect` ne fait absolument rien : un effet peut donc utiliser librement les API du navigateur. Ne calculez jamais dans un effet quelque chose dont le HTML a besoin ; calculez-le dans la vue.
 - **Dépendances automatiques.** Un effet dépend des états qu'il a lus lors de sa dernière exécution. S'il ne lit `a` que lorsque `flag` est vrai, il cesse de réagir à `a` dès que `flag` est faux.
-- **Pas de boucle infinie.** Un effet qui écrit un état qu'il lit ne se redéclenche pas lui-même.
+- **Pas d'incohérence.** Quand un état change, les memos calculés à partir de lui sont mis à jour avant l'exécution des effets qui les lisent : un effet ne voit jamais une valeur et un memo qui en dérive en décalage. Chaque effet s'exécute une fois par changement, et un memo n'est recalculé que si l'une de ses entrées a vraiment changé.
+- **Un à la fois.** Un état écrit dans un effet prévient ses lecteurs une fois cet effet terminé (et avant que le `set` à l'origine de tout ne rende la main).
+- **Pas de boucle infinie.** Un effet qui écrit un état qu'il lit ne se redéclenche pas lui-même ; deux effets qui écrivent chacun ce que l'autre lit sont arrêtés après mille exécutions.
 - **Libérés avec leur région.** Les effets créés dans une région dynamique s'arrêtent quand la région est reconstruite.
 
 ## Nettoyer

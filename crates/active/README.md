@@ -19,10 +19,10 @@ in the style of React hooks. Then ship them the way your project needs:
 - **Views**: builder functions for every HTML tag (`div().class("card").child(...)`),
   fragments, raw HTML, dynamic text, attributes, classes and lists.
 - **State**: `use_state` returns a `Copy` handle you move into closures; `effect` re-runs
-  when the states it read change. Fine-grained: only the bound text, attribute or class is
-  updated. `memo` derives a value that notifies only when it changes, `on_cleanup` stops a
-  component's timers and sockets when it goes away, `untrack` reads a state without
-  following it.
+  when the states it read change. Fine-grained and glitch-free: only the bound text,
+  attribute or class is updated, never from a stale value. `memo` derives a value that
+  notifies only when it changes, `on_cleanup` stops a component's timers and sockets when it
+  goes away, `untrack` reads a state without following it.
 - **SEO**: `Seo` renders title, description, robots, canonical, hreflang, Open Graph,
   Twitter and JSON-LD. Put a `Seo` anywhere in the tree: the document merges them, the
   deepest wins, no duplicate tags.
