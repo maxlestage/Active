@@ -68,6 +68,25 @@ impl Document {
         self
     }
 
+    /// Makes the page installable: `<link rel="manifest">` (serve
+    /// [`Manifest::to_json`](crate::pwa::Manifest::to_json) at `href`), the theme color,
+    /// the home screen title and the Apple touch icon (the largest PNG icon).
+    #[must_use]
+    pub fn manifest(self, href: &str, manifest: &crate::pwa::Manifest) -> Self {
+        self.head(crate::pwa::head_tags(href, manifest))
+    }
+
+    /// Registers the service worker served at `url` (see
+    /// [`ServiceWorker`](crate::pwa::ServiceWorker)) with a small inline script, once the
+    /// page has loaded.
+    #[must_use]
+    pub fn service_worker(self, url: &str) -> Self {
+        self.head(format!(
+            "<script>{}</script>",
+            crate::pwa::register_script(url)
+        ))
+    }
+
     /// Loads the browser bundle produced by `wasm-bindgen --target web --no-typescript`: `js` is the
     /// generated module, `wasm` the binary. Both are preloaded from `<head>`, so the
     /// binary downloads in parallel with the HTML instead of after the JavaScript glue.
