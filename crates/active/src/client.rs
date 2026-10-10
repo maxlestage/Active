@@ -13,7 +13,7 @@ use web_sys::{
 
 use crate::event::Event;
 use crate::island::IslandFn;
-use crate::reactive::{Scope, State, effect, keep_alive, root_state, scope, untrack};
+use crate::reactive::{Scope, State, effect, keep_alive, on_cleanup, root_state, scope, untrack};
 use crate::seo::Seo;
 use crate::view::{Attr, Content, DynNodes, DynText, Element, Keyed, Node, collect_seo};
 
@@ -587,6 +587,17 @@ fn sync_property(dom: &DomElement, name: &str, value: Option<&str>) {
 /// ancestors and written to the `<head>` (a router showing another page changes the title).
 fn bind_dynamic(parent: DomElement, start: DomNode, end: DomNode, f: DynNodes) {
     let current: Rc<RefCell<Option<Scope>>> = Rc::default();
+    // When the component that contains this region is released, what the region built is
+    // released too: its cleanups run, its effects stop and its states are freed.
+    {
+        let current = current.clone();
+        on_cleanup(move || {
+            let content = current.try_borrow_mut().ok().and_then(|mut c| c.take());
+            if let Some(content) = content {
+                content.dispose();
+            }
+        });
+    }
     let parent_head = HEAD.with(|h| h.borrow().clone());
     let applied = Cell::new(false);
     effect(move || {
@@ -671,6 +682,19 @@ fn bind_list(parent: DomElement, start: DomNode, end: DomNode, list: Rc<Keyed>) 
 /// released. On the first run (hydration), the server's nodes are replaced.
 pub(crate) fn bind_keyed(parent: DomElement, start: DomNode, end: DomNode, list: Rc<Keyed>) {
     let rows: Rc<RefCell<Vec<Row>>> = Rc::default();
+    // Released with the component that contains the list, like a dynamic region.
+    {
+        let rows = rows.clone();
+        on_cleanup(move || {
+            let released = rows
+                .try_borrow_mut()
+                .map(|mut r| std::mem::take(&mut *r))
+                .unwrap_or_default();
+            for row in released {
+                row.scope.dispose();
+            }
+        });
+    }
     let first_run = Cell::new(true);
     effect(move || {
         let items = (list.items)();
