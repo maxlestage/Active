@@ -387,6 +387,16 @@ pub(crate) fn keep_alive(value: Box<dyn Any>) {
     RUNTIME.with(|rt| rt.own(Owned::Value(value)));
 }
 
+/// Runs `f` without subscribing the running effect to the states `f` reads (building a
+/// list row must not make the whole list depend on the row's own states).
+#[cfg_attr(not(feature = "client"), allow(dead_code))]
+pub(crate) fn untracked<R>(f: impl FnOnce() -> R) -> R {
+    let previous = RUNTIME.with(|rt| rt.observer.replace(None));
+    let result = f();
+    RUNTIME.with(|rt| rt.observer.set(previous));
+    result
+}
+
 /// Everything created while running [`scope`]: dispose it to release states, effects and
 /// event closures.
 #[must_use = "a scope frees its states and effects only when disposed"]

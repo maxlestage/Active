@@ -143,13 +143,37 @@ fn details() -> Element {
 }
 ```
 
-### Keep regions small
+### Long lists: keyed rows
 
-A region is rebuilt as a whole: there is no keyed diffing. That is fast for the lists of a typical page (tens of items), and it keeps the library small. For large or frequently changing lists:
+A `children_dyn` region is rebuilt as a whole. That is fast for the lists of a typical page (tens of items) and the simplest choice. For long or interactive lists, `children_keyed` (or the free function `keyed`) keeps each row by key: when the items change, a row whose key is still there and whose item is equal keeps its DOM, its states, its listeners and the focus, and moves if the order changed. Only new or changed rows are built, and removed ones are released.
 
-- split the data into several states and several regions (one per group, per page of results…), so a change rebuilds only one of them;
-- keep text fields **outside** regions: a field inside a region is recreated on each rebuild and loses focus;
-- inside items, bind the values that change often with `text_dyn` or `class_if` instead of rebuilding the list.
+```rust
+use active::prelude::*;
+
+#[derive(Clone, PartialEq)]
+struct Todo {
+    id: u32,
+    text: String,
+    done: bool,
+}
+
+fn list(todos: State<Vec<Todo>>) -> Element {
+    ul().children_keyed(
+        move || todos.get(),
+        |todo| todo.id,
+        |todo| {
+            li().class(if todo.done { "done" } else { "" })
+                .text(todo.text.clone())
+                .into()
+        },
+    )
+}
+```
+
+- The first closure returns the items (reading states subscribes the list), the second a key that identifies an item over time (an id, not a position), the third builds a row.
+- The item type implements `PartialEq`: a row whose item changed is rebuilt, so it always shows the current values.
+- Make each row one element (`li`, `tr`…).
+- With `children_dyn`, keep text fields **outside** the region: they are recreated on each rebuild and lose focus. A keyed row that does not change keeps its field.
 
 ## Effects
 

@@ -25,7 +25,8 @@ in the style of React hooks. Then ship them the way your project needs:
   Twitter and JSON-LD. Put a `Seo` anywhere in the tree: the document merges them, the
   deepest wins, no duplicate tags.
 - **Lists and conditions**: `children_dyn` / `fragment_dyn` rebuild only their part of the
-  page when the states they read change.
+  page when the states they read change; `children_keyed` / `keyed` keep each row of a long
+  list by key (unchanged rows keep their DOM, states and focus).
 - **Islands**: `island("counter", props, counter)` on the server, `hydrate(&[("counter",
   counter)])` in the browser. Static content is never re-rendered or downloaded twice.
 - **Client-side apps**: `mount_to("#app", app())`, `location()` and `navigate()` for

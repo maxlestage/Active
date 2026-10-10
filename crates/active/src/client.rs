@@ -13,9 +13,9 @@ use web_sys::{
 
 use crate::event::Event;
 use crate::island::IslandFn;
-use crate::reactive::{Scope, State, effect, keep_alive, root_state, scope};
+use crate::reactive::{Scope, State, effect, keep_alive, root_state, scope, untracked};
 use crate::seo::Seo;
-use crate::view::{Attr, Content, DynNodes, DynText, Element, Node, collect_seo};
+use crate::view::{Attr, Content, DynNodes, DynText, Element, Keyed, Node, collect_seo};
 
 const SVG: &str = "http://www.w3.org/2000/svg";
 
@@ -418,29 +418,14 @@ fn hydrate_node(
             bind_element(e, &dom, true)
         }
         Node::Dynamic(f) => {
-            skip_separators(cursor);
-            let start = cursor
-                .take()
-                .filter(|n| is_marker(n, "["))
-                .ok_or(Mismatch("dynamic nodes"))?;
-            // Up to the matching end marker (dynamic nodes can be nested).
-            let mut depth = 0;
-            let mut next = start.next_sibling();
-            let end = loop {
-                let n = next.ok_or(Mismatch("dynamic nodes end"))?;
-                if is_marker(&n, "[") {
-                    depth += 1;
-                } else if is_marker(&n, "]") {
-                    if depth == 0 {
-                        break n;
-                    }
-                    depth -= 1;
-                }
-                next = n.next_sibling();
-            };
-            *cursor = end.next_sibling();
+            let (start, end) = take_region(cursor)?;
             // The server's nodes are replaced by freshly mounted ones on the first run.
             bind_dynamic(parent.clone(), start, end, f.clone());
+            Ok(())
+        }
+        Node::Keyed(list) => {
+            let (start, end) = take_region(cursor)?;
+            bind_list(parent.clone(), start, end, list.clone());
             Ok(())
         }
         Node::Island(island) => {
@@ -451,6 +436,32 @@ fn hydrate_node(
             Ok(())
         }
     }
+}
+
+/// The `<!--[-->` … `<!--]-->` markers of a dynamic region rendered by the server.
+fn take_region(cursor: &mut Option<DomNode>) -> Result<(DomNode, DomNode), Mismatch> {
+    skip_separators(cursor);
+    let start = cursor
+        .take()
+        .filter(|n| is_marker(n, "["))
+        .ok_or(Mismatch("dynamic nodes"))?;
+    // Up to the matching end marker (dynamic regions can be nested).
+    let mut depth = 0;
+    let mut next = start.next_sibling();
+    let end = loop {
+        let n = next.ok_or(Mismatch("dynamic nodes end"))?;
+        if is_marker(&n, "[") {
+            depth += 1;
+        } else if is_marker(&n, "]") {
+            if depth == 0 {
+                break n;
+            }
+            depth -= 1;
+        }
+        next = n.next_sibling();
+    };
+    *cursor = end.next_sibling();
+    Ok((start, end))
 }
 
 fn is_marker(node: &DomNode, text: &str) -> bool {
@@ -606,6 +617,129 @@ fn bind_dynamic(parent: DomElement, start: DomNode, end: DomNode, f: DynNodes) {
     });
 }
 
+/// One row of a keyed list: its item, the first and last of its top-level nodes (nodes in
+/// between may change: they are read again when the row moves) and what it created.
+struct Row {
+    key: u64,
+    item: Rc<dyn std::any::Any>,
+    range: Option<(DomNode, DomNode)>,
+    scope: Scope,
+}
+
+impl Row {
+    fn nodes(&self) -> Vec<DomNode> {
+        let Some((first, last)) = &self.range else {
+            return Vec::new();
+        };
+        let mut nodes = vec![first.clone()];
+        let mut node = first.clone();
+        while !node.is_same_node(Some(last)) {
+            match node.next_sibling() {
+                Some(next) => {
+                    nodes.push(next.clone());
+                    node = next;
+                }
+                None => break,
+            }
+        }
+        nodes
+    }
+
+    fn release(self, parent: &DomElement) {
+        for node in self.nodes() {
+            let _ = parent.remove_child(&node);
+        }
+        self.scope.dispose();
+    }
+}
+
+pub(crate) type BindKeyed = fn(DomElement, DomNode, DomNode, Rc<Keyed>);
+
+/// Calls the list's own binder: bundles that never call `keyed` do not contain it.
+fn bind_list(parent: DomElement, start: DomNode, end: DomNode, list: Rc<Keyed>) {
+    let bind = std::hint::black_box(list.bind);
+    bind(parent, start, end, list);
+}
+
+/// Keeps the rows of `list` between `start` and `end` in sync with its items: unchanged
+/// rows keep their DOM and move if needed, new or changed rows are built, removed ones are
+/// released. On the first run (hydration), the server's nodes are replaced.
+pub(crate) fn bind_keyed(parent: DomElement, start: DomNode, end: DomNode, list: Rc<Keyed>) {
+    let rows: Rc<RefCell<Vec<Row>>> = Rc::default();
+    let first_run = Cell::new(true);
+    effect(move || {
+        let items = (list.items)();
+        if first_run.replace(false) {
+            while let Some(old) = start.next_sibling() {
+                if old.is_same_node(Some(&end)) {
+                    break;
+                }
+                let _ = parent.remove_child(&old);
+            }
+        }
+        let mut old: Vec<Option<Row>> = rows.borrow_mut().drain(..).map(Some).collect();
+        // Lists mostly keep their order: look first where the previous row was found. Rows
+        // with the same key are matched in order.
+        let mut hint = 0;
+        let mut take = |key: u64| {
+            let n = old.len();
+            let start = hint;
+            let i = (0..n)
+                .map(|offset| (start + offset) % n)
+                .find(|&i| old[i].as_ref().is_some_and(|r| r.key == key))?;
+            hint = i + 1;
+            old[i].take()
+        };
+        let doc = document();
+        let mut next = Vec::with_capacity(items.len());
+        for (key, item) in items {
+            let row = match take(key) {
+                Some(row) if (list.same)(&*row.item, &*item) => row,
+                changed => {
+                    if let Some(row) = changed {
+                        row.release(&parent);
+                    }
+                    // Built at the end, then put in place below.
+                    let before = end.previous_sibling();
+                    let ((), scope) = untracked(|| {
+                        scope(|| mount_node(&(list.row)(&*item), &parent, Some(&end), &doc))
+                    });
+                    let first = before
+                        .and_then(|b| b.next_sibling())
+                        .or_else(|| start.next_sibling())
+                        .filter(|n| !n.is_same_node(Some(&end)));
+                    let range = first.zip(end.previous_sibling());
+                    Row {
+                        key,
+                        item,
+                        range,
+                        scope,
+                    }
+                }
+            };
+            next.push(row);
+        }
+        for row in old.into_iter().flatten() {
+            row.release(&parent);
+        }
+        // Rows already in place are skipped, the others are moved before the cursor.
+        let mut cursor = start.next_sibling();
+        for row in &next {
+            let Some((first, last)) = &row.range else {
+                continue;
+            };
+            if cursor.as_ref().is_some_and(|c| c.is_same_node(Some(first))) {
+                cursor = last.next_sibling();
+            } else {
+                for node in row.nodes() {
+                    let _ = parent.insert_before(&node, cursor.as_ref());
+                }
+            }
+        }
+        *rows.borrow_mut() = next;
+    });
+}
+
 /// Creates the DOM for `node` and inserts it in `parent`, before `before` (at the end when
 /// `None`).
 fn mount_node(node: &Node, parent: &DomElement, before: Option<&DomNode>, doc: &DomDocument) {
@@ -632,6 +766,12 @@ fn mount_node(node: &Node, parent: &DomElement, before: Option<&DomNode>, doc: &
             insert(&start);
             insert(&end);
             bind_dynamic(parent.clone(), start.into(), end.into(), f.clone());
+        }
+        Node::Keyed(list) => {
+            let (start, end) = (doc.create_comment("["), doc.create_comment("]"));
+            insert(&start);
+            insert(&end);
+            bind_list(parent.clone(), start.into(), end.into(), list.clone());
         }
         Node::Element(e) => {
             let svg = e.tag == "svg" || parent.namespace_uri().as_deref() == Some(SVG);

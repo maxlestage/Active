@@ -143,13 +143,37 @@ fn details() -> Element {
 }
 ```
 
-### Garder les régions petites
+### Longues listes : lignes par clé
 
-Une région est reconstruite d'un bloc : il n'y a pas de diff par clé. C'est rapide pour les listes d'une page typique (quelques dizaines d'éléments), et cela garde la bibliothèque légère. Pour les listes volumineuses ou qui changent souvent :
+Une région `children_dyn` est reconstruite d'un bloc. C'est rapide pour les listes d'une page typique (quelques dizaines d'éléments) et c'est le choix le plus simple. Pour les listes longues ou interactives, `children_keyed` (ou la fonction libre `keyed`) garde chaque ligne par clé : quand les éléments changent, une ligne dont la clé est toujours là et dont l'élément est identique garde son DOM, ses états, ses écouteurs et le focus, et se déplace si l'ordre a changé. Seules les lignes nouvelles ou modifiées sont construites, et les lignes retirées sont libérées.
 
-- répartissez les données entre plusieurs états et plusieurs régions (une par groupe, par page de résultats…), afin qu'un changement n'en reconstruise qu'une seule ;
-- gardez les champs de texte **en dehors** des régions : un champ placé dans une région est recréé à chaque reconstruction et perd le focus ;
-- à l'intérieur des éléments, liez les valeurs qui changent souvent avec `text_dyn` ou `class_if` plutôt que de reconstruire la liste.
+```rust
+use active::prelude::*;
+
+#[derive(Clone, PartialEq)]
+struct Todo {
+    id: u32,
+    text: String,
+    done: bool,
+}
+
+fn list(todos: State<Vec<Todo>>) -> Element {
+    ul().children_keyed(
+        move || todos.get(),
+        |todo| todo.id,
+        |todo| {
+            li().class(if todo.done { "done" } else { "" })
+                .text(todo.text.clone())
+                .into()
+        },
+    )
+}
+```
+
+- La première closure renvoie les éléments (lire des états abonne la liste), la deuxième une clé qui identifie un élément dans le temps (un identifiant, pas une position), la troisième construit une ligne.
+- Le type des éléments implémente `PartialEq` : une ligne dont l'élément a changé est reconstruite, elle affiche donc toujours les valeurs actuelles.
+- Faites de chaque ligne un seul élément (`li`, `tr`…).
+- Avec `children_dyn`, gardez les champs de texte **en dehors** de la région : ils sont recréés à chaque reconstruction et perdent le focus. Une ligne par clé qui ne change pas garde son champ.
 
 ## Effets
 

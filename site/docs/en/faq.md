@@ -61,7 +61,7 @@ With regular CSS. Add stylesheets with `Document::stylesheet("/static/app.css")`
 
 ## How big is the WebAssembly?
 
-About 22 kB gzipped (55 kB raw) for a page with one counter island, 42 kB gzipped for the complete to-do app in `examples/spa`, built with the size-optimized profile and served compressed. Static content adds nothing, and each additional island adds only its own code. Numbers, settings and tips: [Performance](../performance/#sizes).
+About 22 kB gzipped (57 kB raw) for a page with one counter island, 47 kB gzipped for the complete to-do app in `examples/spa`, built with the size-optimized profile and served compressed. Static content adds nothing, and each additional island adds only its own code. Numbers, settings and tips: [Performance](../performance/#sizes).
 
 ## How much does it cost to host on Heroku?
 

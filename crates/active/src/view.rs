@@ -1,8 +1,10 @@
 //! Views: [`Node`] trees built with element functions, rendered to HTML on the server and
 //! hydrated in the browser.
 
+use std::any::Any;
 use std::borrow::Cow;
 use std::fmt;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::rc::Rc;
 
 use crate::escape::escape_into;
@@ -15,6 +17,26 @@ pub type Str = Cow<'static, str>;
 
 pub(crate) type DynText = Rc<dyn Fn() -> String>;
 pub(crate) type DynNodes = Rc<dyn Fn() -> Vec<Node>>;
+
+/// The items of a keyed list, each with the hash of its key (item type erased).
+pub(crate) type KeyedItems = Rc<dyn Fn() -> Vec<(u64, Rc<dyn Any>)>>;
+/// Builds the row of an item of a keyed list.
+pub(crate) type KeyedRow = Rc<dyn Fn(&dyn Any) -> Node>;
+
+/// A list kept by key (see [`keyed`]), with its item type erased.
+#[doc(hidden)]
+pub struct Keyed {
+    /// The current items, each with the hash of its key.
+    pub(crate) items: KeyedItems,
+    /// Whether two items are equal (a kept row whose item changed is rebuilt).
+    #[cfg_attr(not(feature = "client"), allow(dead_code))]
+    pub(crate) same: fn(&dyn Any, &dyn Any) -> bool,
+    pub(crate) row: KeyedRow,
+    /// Browser: keeps the rows in sync. Set here, so that only apps using `keyed` contain
+    /// this code.
+    #[cfg(feature = "client")]
+    pub(crate) bind: crate::client::BindKeyed,
+}
 
 /// One piece of a view: an element, text, a list of nodes, SEO data or an island.
 ///
@@ -40,6 +62,8 @@ pub enum Node {
     /// Nodes recomputed from [`State`](crate::State)s, replaced in the browser when they
     /// change: see [`fragment_dyn`].
     Dynamic(DynNodes),
+    /// A list whose rows are kept by key: see [`keyed`].
+    Keyed(Rc<Keyed>),
 }
 
 impl fmt::Debug for Node {
@@ -140,6 +164,58 @@ pub fn fragment(nodes: impl IntoIterator<Item = impl Into<Node>>) -> Node {
 /// ```
 pub fn fragment_dyn(f: impl Fn() -> Vec<Node> + 'static) -> Node {
     Node::Dynamic(Rc::new(f))
+}
+
+/// A list whose rows are kept by key. When the [`State`](crate::State)s read by `items`
+/// change, the browser keeps the DOM of every row whose key is still there and whose item
+/// is unchanged (with its states, listeners, focus and scroll position), moves it if the
+/// order changed, builds the new or changed rows and releases the removed ones.
+///
+/// [`fragment_dyn`] rebuilds everything, which is simpler and fine for short lists; use
+/// `keyed` for long or interactive ones. Make each row one element (`li`, `tr`…).
+///
+/// ```
+/// use active::{html::*, keyed, use_state, Node};
+///
+/// #[derive(Clone, PartialEq)]
+/// struct Todo { id: u32, text: String }
+///
+/// let todos = use_state(vec![Todo { id: 1, text: "Write".into() }, Todo { id: 2, text: "Ship".into() }]);
+/// let list = ul().child(keyed(
+///     move || todos.get(),
+///     |todo| todo.id,
+///     |todo| li().text(todo.text.clone()).into(),
+/// ));
+/// assert_eq!(Node::from(list).render(), "<ul><!--[--><li>Write</li><li>Ship</li><!--]--></ul>");
+/// ```
+pub fn keyed<T, K>(
+    items: impl Fn() -> Vec<T> + 'static,
+    key: impl Fn(&T) -> K + 'static,
+    row: impl Fn(&T) -> Node + 'static,
+) -> Node
+where
+    T: PartialEq + 'static,
+    K: Hash,
+{
+    fn same<T: PartialEq + 'static>(a: &dyn Any, b: &dyn Any) -> bool {
+        a.downcast_ref::<T>() == b.downcast_ref::<T>()
+    }
+    Node::Keyed(Rc::new(Keyed {
+        items: Rc::new(move || {
+            items()
+                .into_iter()
+                .map(|item| {
+                    let mut hasher = DefaultHasher::new();
+                    key(&item).hash(&mut hasher);
+                    (hasher.finish(), Rc::new(item) as Rc<dyn Any>)
+                })
+                .collect()
+        }),
+        same: same::<T>,
+        row: Rc::new(move |item| row(item.downcast_ref::<T>().expect("keyed: item type"))),
+        #[cfg(feature = "client")]
+        bind: crate::client::bind_keyed,
+    }))
 }
 
 impl Element {
@@ -300,6 +376,22 @@ impl Element {
         self.child(fragment_dyn(f))
     }
 
+    /// Appends a list whose rows are kept by key: shorthand for
+    /// `.child(keyed(items, key, row))`, see [`keyed`].
+    #[must_use]
+    pub fn children_keyed<T, K>(
+        self,
+        items: impl Fn() -> Vec<T> + 'static,
+        key: impl Fn(&T) -> K + 'static,
+        row: impl Fn(&T) -> Node + 'static,
+    ) -> Self
+    where
+        T: PartialEq + 'static,
+        K: Hash,
+    {
+        self.child(keyed(items, key, row))
+    }
+
     /// Listens to a DOM event in the browser (ignored on the server).
     ///
     /// ```
@@ -400,7 +492,7 @@ pub(crate) fn static_seo<'a>(node: &'a Node, out: &mut Vec<&'a Seo>) -> bool {
             _ => true,
         },
         Node::Island(island) => static_seo(&island.view, out),
-        Node::Dynamic(_) => false,
+        Node::Dynamic(_) | Node::Keyed(_) => false,
         Node::Empty | Node::Text(_) | Node::DynText(_) => true,
     }
 }
@@ -467,6 +559,15 @@ fn render_node(node: &Node, out: &mut String, text_before: &mut bool) {
             out.push_str("<!--]-->");
             *text_before = false;
         }
+        Node::Keyed(list) => {
+            out.push_str("<!--[-->");
+            let mut inner = false;
+            for (_, item) in (list.items)() {
+                render_node(&(list.row)(&*item), out, &mut inner);
+            }
+            out.push_str("<!--]-->");
+            *text_before = false;
+        }
     }
 }
 
@@ -526,7 +627,10 @@ pub(crate) fn collect_seo(node: &Node, dynamic: bool, out: &mut Vec<Seo>) {
         }
         Node::Island(island) => collect_seo(&island.view, dynamic, out),
         Node::Dynamic(f) if dynamic => f().iter().for_each(|n| collect_seo(n, dynamic, out)),
-        Node::Empty | Node::Text(_) | Node::DynText(_) | Node::Dynamic(_) => {}
+        Node::Keyed(list) if dynamic => (list.items)()
+            .iter()
+            .for_each(|(_, item)| collect_seo(&(list.row)(&**item), dynamic, out)),
+        Node::Empty | Node::Text(_) | Node::DynText(_) | Node::Dynamic(_) | Node::Keyed(_) => {}
     }
 }
 
@@ -704,6 +808,20 @@ mod tests {
         assert_eq!(
             Node::from(view).render(),
             r#"<a class="x y" href="/b" hidden="">"#.to_string() + "</a>"
+        );
+    }
+
+    #[test]
+    fn keyed_lists_render_every_item_even_with_repeated_keys() {
+        let items = use_state(vec![(1, "a"), (2, "b"), (1, "c")]);
+        let view = ol().children_keyed(
+            move || items.get(),
+            |item| item.0,
+            |item| li().text(item.1).into(),
+        );
+        assert_eq!(
+            Node::from(view).render(),
+            "<ol><!--[--><li>a</li><li>b</li><li>c</li><!--]--></ol>"
         );
     }
 

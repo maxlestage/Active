@@ -21,7 +21,7 @@ The crate uses the 2024 edition and needs Rust 1.85 or newer. It contains no `un
 | --- | --- |
 | `active::*` | every item below |
 | `active::html` | one function per HTML and SVG tag |
-| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `island`, `text`, `text_dyn`, `use_state`; with `client`, also `location`, `navigate` and `query_param` |
+| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `island`, `keyed`, `text`, `text_dyn`, `use_state`; with `client`, also `location`, `navigate` and `query_param` |
 
 Not in the prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Use them as `active::hydrate`, etc.
 
@@ -54,6 +54,7 @@ One piece of a view. You rarely build variants by hand: tag functions, `text`, `
 | `Seo` | SEO tags, written in the `<head>` by `Document` |
 | `Island` | an island ([`island`](#island)) |
 | `Dynamic` | a region rebuilt when its states change ([`fragment_dyn`](#free-functions)) |
+| `Keyed` | a list whose rows are kept by key ([`keyed`](#free-functions)) |
 
 | Method | Description |
 | --- | --- |
@@ -90,6 +91,7 @@ An HTML element under construction, created by a [tag function](#tag-functions) 
 | `pub fn text(self, value: impl Into<Str>) -> Self` | Appends escaped text. |
 | `pub fn text_dyn(self, f: impl Fn() -> String + 'static) -> Self` | Appends text recomputed from states. |
 | `pub fn children_dyn(self, f: impl Fn() -> Vec<Node> + 'static) -> Self` | Appends a dynamic region, rebuilt when the states `f` read change. Same as `.child(fragment_dyn(f))`. |
+| `pub fn children_keyed<T, K>(self, items: impl Fn() -> Vec<T> + 'static, key: impl Fn(&T) -> K + 'static, row: impl Fn(&T) -> Node + 'static) -> Self` (`T: PartialEq`, `K: Hash`) | Appends a list kept by key. Same as `.child(keyed(items, key, row))`. |
 | `pub fn html(self, html: impl Into<Str>) -> Self` | Replaces the content with trusted, unescaped HTML. |
 | `pub fn html_dyn(self, f: impl Fn() -> String + 'static) -> Self` | Same, recomputed from states. |
 
@@ -111,6 +113,7 @@ An HTML element under construction, created by a [tag function](#tag-functions) 
 | `pub fn text_dyn(f: impl Fn() -> String + 'static) -> Node` | Text recomputed from states. |
 | `pub fn fragment(nodes: impl IntoIterator<Item = impl Into<Node>>) -> Node` | Several nodes without a wrapper element. |
 | `pub fn fragment_dyn(f: impl Fn() -> Vec<Node> + 'static) -> Node` | A dynamic region: rebuilt as a whole in the browser when the states `f` read change; the states, effects and listeners created for the previous nodes are released. Rendered between `<!--[-->` and `<!--]-->` on the server. |
+| `pub fn keyed<T, K>(items: impl Fn() -> Vec<T> + 'static, key: impl Fn(&T) -> K + 'static, row: impl Fn(&T) -> Node + 'static) -> Node` (`T: PartialEq`, `K: Hash`) | A list whose rows are kept by key: in the browser, rows whose key is still there and whose item is equal keep their DOM, states, listeners and focus (and move if the order changed); new or changed rows are built, removed ones released. Rendered like `fragment_dyn` on the server. See [State](../state/#long-lists-keyed-rows). |
 
 ### Str
 

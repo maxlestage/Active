@@ -22,7 +22,7 @@ description: Por qué active renderiza rápido en el servidor y pesa poco en el 
 - **Handles Copy.** Un `State` son dos enteros. Moverlo dentro de closures no cuesta nada y no necesita conteo de referencias.
 - **Pagas solo por lo que usas.** El código que mantiene actualizado el `<head>` en las aplicaciones del lado del cliente solo se incluye cuando el bundle llama a `mount` o `mount_to`; un bundle que solo hidrata islas no lo contiene.
 
-Las regiones dinámicas (`children_dyn`, `fragment_dyn`) son la excepción: reconstruyen todo su contenido cuando cambia un estado que leen. Mantenlas pequeñas o divídelas (consulta [Mantén las regiones pequeñas](../state/#manten-las-regiones-pequenas)).
+Las regiones dinámicas (`children_dyn`, `fragment_dyn`) son la excepción: reconstruyen todo su contenido cuando cambia un estado que leen. Para listas largas, conserva las filas por clave con `children_keyed` (consulta [Listas largas: filas por clave](../state/#listas-largas-filas-por-clave)).
 
 ## Ajustes de compilación
 
@@ -57,8 +57,8 @@ Medido en este repositorio con Rust 1.97, `wasm-bindgen` 0.2.129 y el perfil `wa
 
 | Bundle | `_bg.wasm` sin comprimir | gzip | Brotli |
 | --- | ---: | ---: | ---: |
-| `examples/hello`: una isla de contador | 55 408 B | 21 926 B | 18 644 B |
-| `examples/spa`: aplicación de tareas con enrutamiento, formularios y almacenamiento | 105 895 B | 42 271 B | 35 381 B |
+| `examples/hello`: una isla de contador | 56 668 B | 22 249 B | 18 935 B |
+| `examples/spa`: aplicación de tareas con enrutamiento, formularios y almacenamiento | 119 774 B | 46 562 B | 39 104 B |
 | Este sitio web: cuatro islas, animaciones, búsqueda | 177 913 B | 64 747 B | 54 520 B |
 
 Los cargadores generados por `wasm-bindgen` añaden 4.2 kB (hello), 5.2 kB (spa) y 7.6 kB (sitio web) con gzip.

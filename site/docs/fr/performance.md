@@ -22,7 +22,7 @@ description: Pourquoi active rend vite sur le serveur et reste léger dans le na
 - **Des handles Copy.** Un `State` se résume à deux entiers. Le déplacer dans des closures ne coûte rien et ne demande aucun comptage de références.
 - **Vous ne payez que ce que vous utilisez.** Le code qui tient le `<head>` à jour dans les applications côté client n'est inclus que si le bundle appelle `mount` ou `mount_to` ; un bundle qui ne fait qu'hydrater des îlots ne le contient pas.
 
-Les régions dynamiques (`children_dyn`, `fragment_dyn`) font exception : elles reconstruisent leur contenu d'un bloc quand un état qu'elles lisent change. Gardez-les petites, ou découpez-les (voir [Garder les régions petites](../state/#garder-les-regions-petites)).
+Les régions dynamiques (`children_dyn`, `fragment_dyn`) font exception : elles reconstruisent leur contenu d'un bloc quand un état qu'elles lisent change. Pour les longues listes, gardez les lignes par clé avec `children_keyed` (voir [Longues listes : lignes par clé](../state/#longues-listes-lignes-par-cle)).
 
 ## Réglages de compilation
 
@@ -57,8 +57,8 @@ Mesures effectuées sur ce dépôt avec Rust 1.97, `wasm-bindgen` 0.2.129 et le 
 
 | Bundle | `_bg.wasm` brut | gzip | Brotli |
 | --- | ---: | ---: | ---: |
-| `examples/hello` : un îlot compteur | 55 408 o | 21 926 o | 18 644 o |
-| `examples/spa` : liste de tâches avec routage, formulaires et stockage | 105 895 o | 42 271 o | 35 381 o |
+| `examples/hello` : un îlot compteur | 56 668 o | 22 249 o | 18 935 o |
+| `examples/spa` : liste de tâches avec routage, formulaires et stockage | 119 774 o | 46 562 o | 39 104 o |
 | Ce site : quatre îlots, animations, recherche | 177 913 o | 64 747 o | 54 520 o |
 
 Les chargeurs générés par `wasm-bindgen` ajoutent 4,2 ko (hello), 5,2 ko (spa) et 7,6 ko (site web) une fois compressés avec gzip.

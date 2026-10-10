@@ -317,4 +317,4 @@ On the server, `Document` finds the `Seo` of the page shown by the dynamic regio
 
 ## Size
 
-The whole `examples/spa` app (routing, forms, filters, storage) compiles to about 106 kB of WebAssembly, 42 kB gzipped, with the `wasm-release` profile. See [Performance](../performance/) for how to measure and reduce it.
+The whole `examples/spa` app (routing, forms, filters, storage) compiles to about 120 kB of WebAssembly, 47 kB gzipped, with the `wasm-release` profile. See [Performance](../performance/) for how to measure and reduce it.
