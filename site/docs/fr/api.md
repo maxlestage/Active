@@ -22,7 +22,7 @@ Le crate utilise l'édition 2024 et nécessite Rust 1.85 ou plus récent. Il ne 
 | `active::*` | tous les éléments ci-dessous |
 | `active::html` | une fonction par balise HTML et SVG |
 | `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) et [`register_script`](#register-script) : sites installables et hors ligne |
-| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `island`, `keyed`, `text`, `text_dyn`, `use_state` ; avec `client`, aussi `location`, `navigate` et `query_param` |
+| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state` ; avec `client`, aussi `location`, `navigate` et `query_param` |
 
 Absents du prélude : `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Utilisez-les sous la forme `active::hydrate`, etc.
 
@@ -92,6 +92,7 @@ Un élément HTML en cours de construction, créé par une [fonction de balise](
 | `pub fn text(self, value: impl Into<Str>) -> Self` | Ajoute du texte échappé. |
 | `pub fn text_dyn(self, f: impl Fn() -> String + 'static) -> Self` | Ajoute du texte recalculé à partir d'états. |
 | `pub fn children_dyn(self, f: impl Fn() -> Vec<Node> + 'static) -> Self` | Ajoute une région dynamique, reconstruite quand les états lus par `f` changent. Équivaut à `.child(fragment_dyn(f))`. |
+| `pub fn children_indexed<T>(self, items: impl Fn() -> Vec<T> + 'static, row: impl Fn(State<T>) -> Node + 'static) -> Self` (`T: Clone + PartialEq`) | Ajoute une liste gardée par position. Équivaut à `.child(indexed(items, row))`. |
 | `pub fn children_keyed<T, K>(self, items: impl Fn() -> Vec<T> + 'static, key: impl Fn(&T) -> K + 'static, row: impl Fn(&T) -> Node + 'static) -> Self` (`T: PartialEq`, `K: Hash`) | Ajoute une liste gardée par clé. Équivaut à `.child(keyed(items, key, row))`. |
 | `pub fn html(self, html: impl Into<Str>) -> Self` | Remplace le contenu par du HTML de confiance, non échappé. |
 | `pub fn html_dyn(self, f: impl Fn() -> String + 'static) -> Self` | Idem, recalculé à partir d'états. |
@@ -115,6 +116,8 @@ Un élément HTML en cours de construction, créé par une [fonction de balise](
 | `pub fn fragment(nodes: impl IntoIterator<Item = impl Into<Node>>) -> Node` | Plusieurs nœuds sans élément englobant. |
 | `pub fn fragment_dyn(f: impl Fn() -> Vec<Node> + 'static) -> Node` | Une région dynamique : reconstruite d'un bloc dans le navigateur quand les états lus par `f` changent ; les états, effets et écouteurs créés pour les nœuds précédents sont libérés. Rendue entre `<!--[-->` et `<!--]-->` sur le serveur. |
 | `pub fn keyed<T, K>(items: impl Fn() -> Vec<T> + 'static, key: impl Fn(&T) -> K + 'static, row: impl Fn(&T) -> Node + 'static) -> Node` (`T: PartialEq`, `K: Hash`) | Une liste dont les lignes sont gardées par clé : dans le navigateur, les lignes dont la clé est toujours là et dont l'élément est identique gardent leur DOM, leurs états, leurs écouteurs et le focus (et se déplacent si l'ordre a changé) ; les lignes nouvelles ou modifiées sont construites, les lignes retirées libérées. Rendue comme `fragment_dyn` sur le serveur. Voir [État](../state/#longues-listes-lignes-par-cle). |
+| `pub fn indexed<T>(items: impl Fn() -> Vec<T> + 'static, row: impl Fn(State<T>) -> Node + 'static) -> Node` (`T: Clone + PartialEq`) | Une liste dont les lignes sont gardées par position : la ligne `i` est construite une fois avec un `State` du `i`-ième élément et mise à jour sur place ; les lignes sont ajoutées ou retirées à la fin. Voir [État](../state/#lignes-par-position-indexed). |
+| `pub fn switch<V, K>(value: impl Fn() -> V + 'static, kind: impl Fn(&V) -> K + 'static, view: impl Fn(State<V>) -> Node + 'static) -> Node` (`V: Clone + PartialEq`, `K: PartialEq`) | Affiche `view` pour `value()`, reconstruite seulement quand `kind` change ; sinon le `State<V>` de la vue reçoit la nouvelle valeur. Voir [Applications côté client](../client-app/#garder-une-page-quand-ses-paramètres-changent). |
 
 ### Str
 

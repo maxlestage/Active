@@ -186,6 +186,33 @@ fn list(todos: State<Vec<Todo>>) -> Element {
 - Faites de chaque ligne un seul élément (`li`, `tr`…).
 - Avec `children_dyn`, gardez les champs de texte **en dehors** de la région : ils sont recréés à chaque reconstruction et perdent le focus. Une ligne par clé qui ne change pas garde son champ.
 
+### Lignes par position : indexed
+
+`children_keyed` suit chaque élément : quand un élément change, sa ligne est reconstruite. Pour les listes dont les éléments changent **sur place** — un classement rafraîchi chaque seconde, les résultats d'une autre saison affichés dans le même tableau —, `children_indexed` (ou la fonction libre `indexed`) garde chaque ligne par **position** et ne la reconstruit jamais : la ligne `i` est construite une fois avec un `State` qui contient le `i`-ième élément, et seuls les textes, attributs et classes liés à cet état sont mis à jour. Les lignes sont ajoutées ou retirées à la fin quand la liste s'allonge ou raccourcit.
+
+```rust
+use active::prelude::*;
+
+#[derive(Clone, PartialEq)]
+struct Line {
+    driver: String,
+    gap: String,
+}
+
+fn timing(lines: State<Vec<Line>>) -> Element {
+    ol().children_indexed(
+        move || lines.get(),
+        |line| {
+            li().child(span().text_dyn(move || line.with(|l| l.driver.clone())))
+                .child(span().class("gap").text_dyn(move || line.with(|l| l.gap.clone())))
+                .into()
+        },
+    )
+}
+```
+
+Les lignes gardent leur DOM : les animations CSS d'entrée ne se rejouent pas et un champ garde le focus. Choisissez `indexed` quand les positions comptent plus que les identités, `keyed` quand les lignes doivent suivre leur élément (une liste de tâches qu'on réordonne).
+
 ## Effets
 
 `effect(f)` exécute `f` une fois, puis de nouveau chaque fois qu'un état qu'elle a lu change. Utilisez-le pour le travail extérieur à la vue : enregistrer dans `localStorage`, programmer un minuteur, journaliser, appeler une API du navigateur.

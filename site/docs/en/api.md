@@ -22,7 +22,7 @@ The crate uses the 2024 edition and needs Rust 1.85 or newer. It contains no `un
 | `active::*` | every item below |
 | `active::html` | one function per HTML and SVG tag |
 | `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) and [`register_script`](#register-script): installable, offline sites |
-| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `island`, `keyed`, `text`, `text_dyn`, `use_state`; with `client`, also `location`, `navigate` and `query_param` |
+| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state`; with `client`, also `location`, `navigate` and `query_param` |
 
 Not in the prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Use them as `active::hydrate`, etc.
 
@@ -92,6 +92,7 @@ An HTML element under construction, created by a [tag function](#tag-functions) 
 | `pub fn text(self, value: impl Into<Str>) -> Self` | Appends escaped text. |
 | `pub fn text_dyn(self, f: impl Fn() -> String + 'static) -> Self` | Appends text recomputed from states. |
 | `pub fn children_dyn(self, f: impl Fn() -> Vec<Node> + 'static) -> Self` | Appends a dynamic region, rebuilt when the states `f` read change. Same as `.child(fragment_dyn(f))`. |
+| `pub fn children_indexed<T>(self, items: impl Fn() -> Vec<T> + 'static, row: impl Fn(State<T>) -> Node + 'static) -> Self` (`T: Clone + PartialEq`) | Appends a list kept by position. Same as `.child(indexed(items, row))`. |
 | `pub fn children_keyed<T, K>(self, items: impl Fn() -> Vec<T> + 'static, key: impl Fn(&T) -> K + 'static, row: impl Fn(&T) -> Node + 'static) -> Self` (`T: PartialEq`, `K: Hash`) | Appends a list kept by key. Same as `.child(keyed(items, key, row))`. |
 | `pub fn html(self, html: impl Into<Str>) -> Self` | Replaces the content with trusted, unescaped HTML. |
 | `pub fn html_dyn(self, f: impl Fn() -> String + 'static) -> Self` | Same, recomputed from states. |
@@ -115,6 +116,8 @@ An HTML element under construction, created by a [tag function](#tag-functions) 
 | `pub fn fragment(nodes: impl IntoIterator<Item = impl Into<Node>>) -> Node` | Several nodes without a wrapper element. |
 | `pub fn fragment_dyn(f: impl Fn() -> Vec<Node> + 'static) -> Node` | A dynamic region: rebuilt as a whole in the browser when the states `f` read change; the states, effects and listeners created for the previous nodes are released. Rendered between `<!--[-->` and `<!--]-->` on the server. |
 | `pub fn keyed<T, K>(items: impl Fn() -> Vec<T> + 'static, key: impl Fn(&T) -> K + 'static, row: impl Fn(&T) -> Node + 'static) -> Node` (`T: PartialEq`, `K: Hash`) | A list whose rows are kept by key: in the browser, rows whose key is still there and whose item is equal keep their DOM, states, listeners and focus (and move if the order changed); new or changed rows are built, removed ones released. Rendered like `fragment_dyn` on the server. See [State](../state/#long-lists-keyed-rows). |
+| `pub fn indexed<T>(items: impl Fn() -> Vec<T> + 'static, row: impl Fn(State<T>) -> Node + 'static) -> Node` (`T: Clone + PartialEq`) | A list whose rows are kept by position: row `i` is built once with a `State` of the `i`-th item and updated in place; rows are added or removed at the end. See [State](../state/#rows-by-position-indexed). |
+| `pub fn switch<V, K>(value: impl Fn() -> V + 'static, kind: impl Fn(&V) -> K + 'static, view: impl Fn(State<V>) -> Node + 'static) -> Node` (`V: Clone + PartialEq`, `K: PartialEq`) | Shows `view` for `value()`, rebuilt only when `kind` changes; otherwise the view's `State<V>` receives the new value. See [Client-side apps](../client-app/#keeping-a-page-when-its-parameters-change). |
 
 ### Str
 

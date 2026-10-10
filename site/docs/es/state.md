@@ -186,6 +186,33 @@ fn list(todos: State<Vec<Todo>>) -> Element {
 - Haz que cada fila sea un solo elemento (`li`, `tr`…).
 - Con `children_dyn`, deja los campos de texto **fuera** de la región: se recrean en cada reconstrucción y pierden el foco. Una fila por clave que no cambia conserva su campo.
 
+### Filas por posición: indexed
+
+`children_keyed` sigue a cada elemento: cuando un elemento cambia, su fila se reconstruye. Para listas cuyos elementos cambian **en su sitio** — una clasificación que se actualiza cada segundo, los resultados de otra temporada mostrados en la misma tabla —, `children_indexed` (o la función libre `indexed`) conserva cada fila por **posición** y nunca la reconstruye: la fila `i` se construye una vez con un `State` que contiene el elemento `i`, y solo se actualizan los textos, atributos y clases vinculados a ese estado. Las filas se añaden o se quitan al final cuando la lista crece o se acorta.
+
+```rust
+use active::prelude::*;
+
+#[derive(Clone, PartialEq)]
+struct Line {
+    driver: String,
+    gap: String,
+}
+
+fn timing(lines: State<Vec<Line>>) -> Element {
+    ol().children_indexed(
+        move || lines.get(),
+        |line| {
+            li().child(span().text_dyn(move || line.with(|l| l.driver.clone())))
+                .child(span().class("gap").text_dyn(move || line.with(|l| l.gap.clone())))
+                .into()
+        },
+    )
+}
+```
+
+Las filas conservan su DOM: las animaciones CSS de entrada no se repiten y un campo conserva el foco. Elige `indexed` cuando las posiciones importan más que las identidades, y `keyed` cuando las filas deben seguir a su elemento (una lista de tareas que se reordena).
+
 ## Efectos
 
 `effect(f)` ejecuta `f` una vez, y de nuevo cada vez que cambia un estado que leyó. Úsalo para trabajo fuera de la vista: guardar en `localStorage`, programar un temporizador, escribir logs, llamar a una API del navegador.
