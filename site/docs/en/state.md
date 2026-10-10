@@ -186,6 +186,33 @@ fn list(todos: State<Vec<Todo>>) -> Element {
 - Make each row one element (`li`, `tr`…).
 - With `children_dyn`, keep text fields **outside** the region: they are recreated on each rebuild and lose focus. A keyed row that does not change keeps its field.
 
+### Rows by position: indexed
+
+`children_keyed` follows each item: when an item changes, its row is rebuilt. For lists whose items change **in place** — a ranking refreshed every second, the results of another season shown in the same table — `children_indexed` (or the free function `indexed`) keeps each row by **position** and never rebuilds it: row `i` is built once with a `State` holding the `i`-th item, and only the texts, attributes and classes bound to that state are updated. Rows are added or removed at the end when the list grows or shrinks.
+
+```rust
+use active::prelude::*;
+
+#[derive(Clone, PartialEq)]
+struct Line {
+    driver: String,
+    gap: String,
+}
+
+fn timing(lines: State<Vec<Line>>) -> Element {
+    ol().children_indexed(
+        move || lines.get(),
+        |line| {
+            li().child(span().text_dyn(move || line.with(|l| l.driver.clone())))
+                .child(span().class("gap").text_dyn(move || line.with(|l| l.gap.clone())))
+                .into()
+        },
+    )
+}
+```
+
+Rows keep their DOM, so CSS entrance animations do not replay and a field keeps its focus. Pick `indexed` when positions matter more than identities, `keyed` when rows must follow their item (a to-do list being reordered).
+
 ## Effects
 
 `effect(f)` runs `f` once, then again whenever a state it read changes. Use it for work outside the view: saving to `localStorage`, setting a timer, logging, calling a browser API.

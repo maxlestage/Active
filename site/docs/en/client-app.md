@@ -160,6 +160,56 @@ assert!(Node::from(div().children(route("/posts/hello-rust"))).render().contains
 
 In the app: `.children_dyn(move || route(&path.get()))`.
 
+### Keeping a page when its parameters change
+
+With `children_dyn`, going from `/posts/1` to `/posts/2` rebuilds the post page from scratch: its states are reset and everything it loaded is loaded again. `switch(value, kind, view)` rebuilds the view only when the **kind** of the value changes, and otherwise gives the new value to the page that is already there, through the `State` it was built with:
+
+```rust
+use active::prelude::*;
+
+#[derive(Clone, PartialEq)]
+enum Route {
+    Blog,
+    Post(String),
+    NotFound,
+}
+
+fn parse(path: &str) -> Route {
+    let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    match segments.as_slice() {
+        [] => Route::Blog,
+        ["posts", slug] => Route::Post(slug.to_string()),
+        _ => Route::NotFound,
+    }
+}
+
+/// Kept from one post to the next: only what reads `slug` follows.
+fn post(route: State<Route>) -> Node {
+    let slug = move || route.with(|r| match r {
+        Route::Post(slug) => slug.clone(),
+        _ => String::new(),
+    });
+    article().child(h1().text_dyn(slug)).into()
+}
+
+fn pages(path: State<String>) -> Node {
+    switch(
+        move || parse(&path.get()),
+        |route| std::mem::discriminant(route),
+        |route| match untrack(|| route.get()) {
+            Route::Blog => h1().text("Blog").into(),
+            Route::Post(_) => post(route),
+            Route::NotFound => h1().text("Not found").into(),
+        },
+    )
+}
+
+let path = use_state("/posts/hello-rust".to_string());
+assert!(pages(path).render().contains("hello-rust</h1>"));
+```
+
+In the app, pass `active::location()` as `path`. The state given to a page only ever holds routes of that page's kind, so the page can read its parameters without handling other routes. Inside the page, follow the parameters like any state: `use_state`/`effect` for data to reload, `text_dyn` for what shows them.
+
 ### Query strings
 
 `active::query()` returns the query string without the `?` (`"q=rust&page=2"`) as a state, and `active::query_param(name)` returns one parameter, decoded, or `None`. Both follow the router: links, `navigate` and the history buttons update them. Going from `/search?q=a` to `/search?q=b` rebuilds the regions that read the query, while those that read only the path stay as they are.

@@ -10,6 +10,7 @@ use std::rc::Rc;
 use crate::escape::escape_into;
 use crate::event::Event;
 use crate::island::IslandNode;
+use crate::reactive::{State, effect, memo, untrack, use_state};
 use crate::seo::Seo;
 
 /// A string that is either borrowed for the whole program or owned.
@@ -218,6 +219,131 @@ where
     }))
 }
 
+/// A list whose rows are kept by **position** and updated in place: row `i` is built once,
+/// with a [`State`] holding the `i`-th item, and when the items change only the texts,
+/// attributes and classes bound to that state change. Rows are added or removed at the end
+/// when the list grows or shrinks.
+///
+/// Use it for lists whose items change in place, such as a ranking refreshed every second or
+/// the results of another season: rows are never rebuilt, so they keep their DOM, their
+/// animations and their focus. [`keyed`] follows each item instead (rows move with their
+/// item); [`fragment_dyn`] rebuilds everything.
+///
+/// ```
+/// use active::{html::*, indexed, use_state, Node};
+///
+/// let ranking = use_state(vec!["Norris", "Piastri"]);
+/// let list = ol().child(indexed(
+///     move || ranking.get(),
+///     |name| li().text_dyn(move || name.get().to_string()).into(),
+/// ));
+/// assert_eq!(
+///     Node::from(list).render(),
+///     "<ol><!--[--><li><!--#-->Norris</li><li><!--#-->Piastri</li><!--]--></ol>"
+/// );
+/// ```
+pub fn indexed<T>(
+    items: impl Fn() -> Vec<T> + 'static,
+    row: impl Fn(State<T>) -> Node + 'static,
+) -> Node
+where
+    T: Clone + PartialEq + 'static,
+{
+    let list = memo(items);
+    keyed(
+        move || list.with(|items| (0..items.len()).collect()),
+        |i: &usize| *i,
+        move |&i| {
+            let Some(first) = untrack(|| list.with(|items| items.get(i).cloned())) else {
+                return Node::Empty;
+            };
+            let item = use_state(first);
+            effect(move || {
+                // `None`: the list just shrank, this row is about to be removed.
+                if let Some(next) = list.with(|items| items.get(i).cloned()) {
+                    untrack(|| {
+                        if item.with(|current| *current != next) {
+                            item.set(next);
+                        }
+                    });
+                }
+            });
+            row(item)
+        },
+    )
+}
+
+/// Shows a view for a value that changes, and rebuilds it only when the **kind** of the
+/// value changes. While `kind` returns the same thing, the view is kept (its states, requests,
+/// DOM and focus) and the [`State`] it was built with receives the new value.
+///
+/// The typical use is a router: `value` reads the current route, `kind` says which page it is,
+/// and going from `/posts/1` to `/posts/2` keeps the post page and only updates what depends
+/// on the post id. The state given to a view only ever holds values of that view's kind.
+///
+/// ```
+/// use active::{html::*, switch, untrack, use_state, Node, State};
+///
+/// #[derive(Clone, PartialEq)]
+/// enum Page { Home, Post(u32) }
+///
+/// fn post(page: State<Page>) -> Node {
+///     let id = move || page.with(|p| match p { Page::Post(id) => *id, _ => 0 });
+///     h1().text_dyn(move || format!("Post {}", id())).into()
+/// }
+///
+/// let current = use_state(Page::Post(7));
+/// let view = switch(
+///     move || current.get(),
+///     |page| std::mem::discriminant(page),
+///     |page| match untrack(|| page.get()) {
+///         Page::Home => h1().text("Home").into(),
+///         Page::Post(_) => post(page),
+///     },
+/// );
+/// assert_eq!(view.render(), "<!--[--><h1><!--#-->Post 7</h1><!--]-->");
+/// ```
+pub fn switch<V, K>(
+    value: impl Fn() -> V + 'static,
+    kind: impl Fn(&V) -> K + 'static,
+    view: impl Fn(State<V>) -> Node + 'static,
+) -> Node
+where
+    V: Clone + PartialEq + 'static,
+    K: PartialEq + 'static,
+{
+    let latest = Rc::new(std::cell::RefCell::new(untrack(&value)));
+    let shown = use_state(kind(&latest.borrow()));
+    // The value state of the view on screen (created with it, released with it).
+    let current: Rc<std::cell::Cell<Option<State<V>>>> = Rc::default();
+    {
+        let (latest, current) = (latest.clone(), current.clone());
+        effect(move || {
+            let next = value();
+            untrack(|| {
+                let next_kind = kind(&next);
+                *latest.borrow_mut() = next.clone();
+                if shown.with(|k| *k != next_kind) {
+                    // Another kind: the view is rebuilt below, with the new value.
+                    shown.set(next_kind);
+                } else if let Some(state) = current.get().filter(|s| s.is_alive()) {
+                    if state.with(|v| *v != next) {
+                        state.set(next);
+                    }
+                }
+            });
+        });
+    }
+    fragment_dyn(move || {
+        shown.with(|_| ());
+        untrack(|| {
+            let state = use_state(latest.borrow().clone());
+            current.set(Some(state));
+            vec![view(state)]
+        })
+    })
+}
+
 impl Element {
     /// Sets an attribute; setting the same name again replaces the value.
     /// `attr("class", …)` adds classes, like [`class`](Element::class).
@@ -390,6 +516,20 @@ impl Element {
         K: Hash,
     {
         self.child(keyed(items, key, row))
+    }
+
+    /// Appends a list whose rows are kept by position and updated in place: shorthand for
+    /// `.child(indexed(items, row))`, see [`indexed`].
+    #[must_use]
+    pub fn children_indexed<T>(
+        self,
+        items: impl Fn() -> Vec<T> + 'static,
+        row: impl Fn(State<T>) -> Node + 'static,
+    ) -> Self
+    where
+        T: Clone + PartialEq + 'static,
+    {
+        self.child(indexed(items, row))
     }
 
     /// Listens to a DOM event in the browser (ignored on the server).
@@ -823,6 +963,58 @@ mod tests {
             Node::from(view).render(),
             "<ol><!--[--><li>a</li><li>b</li><li>c</li><!--]--></ol>"
         );
+    }
+
+    #[test]
+    fn indexed_rows_follow_their_position_in_place() {
+        use std::cell::RefCell;
+        let items = use_state(vec![1, 2, 3]);
+        let rows: Rc<RefCell<Vec<State<i32>>>> = Rc::default();
+        let seen = rows.clone();
+        let list = ul().children_indexed(
+            move || items.get(),
+            move |n| {
+                seen.borrow_mut().push(n);
+                li().text_dyn(move || n.get().to_string()).into()
+            },
+        );
+        assert_eq!(
+            Node::from(list).render(),
+            "<ul><!--[--><li><!--#-->1</li><li><!--#-->2</li><li><!--#-->3</li><!--]--></ul>"
+        );
+        let rows = rows.borrow().clone();
+        // The second item changes: the second row's state follows, the others stay.
+        items.set(vec![1, 20, 3]);
+        assert_eq!(rows.iter().map(|r| r.get()).collect::<Vec<_>>(), [1, 20, 3]);
+        // Shrinking leaves the remaining rows untouched.
+        items.set(vec![5]);
+        assert_eq!(rows[0].get(), 5);
+    }
+
+    #[test]
+    fn a_switch_keeps_its_view_while_the_kind_stays_the_same() {
+        use std::cell::{Cell, RefCell};
+        let route = use_state((1, "a"));
+        let built = Rc::new(Cell::new(0));
+        type Route = (i32, &'static str);
+        let states: Rc<RefCell<Vec<State<Route>>>> = Rc::default();
+        let (count, seen) = (built.clone(), states.clone());
+        let view = switch(
+            move || route.get(),
+            |r| r.0,
+            move |r| {
+                count.set(count.get() + 1);
+                seen.borrow_mut().push(r);
+                p().text_dyn(move || r.get().1.to_string()).into()
+            },
+        );
+        assert_eq!(view.render(), "<!--[--><p><!--#-->a</p><!--]-->");
+        let first = states.borrow()[0];
+        route.set((1, "b")); // same kind: the view's state is updated
+        assert_eq!(first.get(), (1, "b"));
+        route.set((2, "c")); // another kind: the old view never sees it
+        assert_eq!(first.get(), (1, "b"));
+        assert_eq!(built.get(), 1);
     }
 
     #[test]

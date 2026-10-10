@@ -160,6 +160,56 @@ assert!(Node::from(div().children(route("/posts/hello-rust"))).render().contains
 
 En la aplicación: `.children_dyn(move || route(&path.get()))`.
 
+### Conservar una página cuando cambian sus parámetros
+
+Con `children_dyn`, pasar de `/posts/1` a `/posts/2` reconstruye la página del artículo desde cero: sus estados vuelven a su valor inicial y todo lo que había cargado se vuelve a cargar. `switch(value, kind, view)` solo reconstruye la vista cuando cambia el **tipo** del valor y, si no, entrega el nuevo valor a la página que ya está en pantalla, mediante el `State` con el que se construyó:
+
+```rust
+use active::prelude::*;
+
+#[derive(Clone, PartialEq)]
+enum Route {
+    Blog,
+    Post(String),
+    NotFound,
+}
+
+fn parse(path: &str) -> Route {
+    let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    match segments.as_slice() {
+        [] => Route::Blog,
+        ["posts", slug] => Route::Post(slug.to_string()),
+        _ => Route::NotFound,
+    }
+}
+
+/// Se conserva de un artículo a otro: solo sigue lo que lee `slug`.
+fn post(route: State<Route>) -> Node {
+    let slug = move || route.with(|r| match r {
+        Route::Post(slug) => slug.clone(),
+        _ => String::new(),
+    });
+    article().child(h1().text_dyn(slug)).into()
+}
+
+fn pages(path: State<String>) -> Node {
+    switch(
+        move || parse(&path.get()),
+        |route| std::mem::discriminant(route),
+        |route| match untrack(|| route.get()) {
+            Route::Blog => h1().text("Blog").into(),
+            Route::Post(_) => post(route),
+            Route::NotFound => h1().text("Not found").into(),
+        },
+    )
+}
+
+let path = use_state("/posts/hello-rust".to_string());
+assert!(pages(path).render().contains("hello-rust</h1>"));
+```
+
+En la aplicación, pasa `active::location()` como `path`. El estado que recibe una página solo contiene rutas de ese tipo de página, así que la página lee sus parámetros sin tener que gestionar las demás rutas. Dentro de la página, sigue los parámetros como cualquier estado: `use_state`/`effect` para los datos que hay que recargar, `text_dyn` para lo que los muestra.
+
 ### Cadenas de consulta
 
 `active::query()` devuelve la cadena de consulta sin el `?` (`"q=rust&page=2"`) como un estado, y `active::query_param(name)` devuelve un parámetro, decodificado, o `None`. Ambos siguen al enrutador: los enlaces, `navigate` y los botones del historial los actualizan. Pasar de `/search?q=a` a `/search?q=b` reconstruye las regiones que leen la consulta, mientras que las que solo leen la ruta se quedan como están.
