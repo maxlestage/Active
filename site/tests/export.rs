@@ -70,6 +70,9 @@ async fn exports_every_page_behind_the_base_path() {
     let manifest: serde_json::Value =
         serde_json::from_str(&read(&dir, "manifest.webmanifest")).expect("valid JSON");
     assert_eq!(manifest["start_url"], "/Active/en/");
+    let french: serde_json::Value =
+        serde_json::from_str(&read(&dir, "fr/manifest.webmanifest")).expect("valid JSON");
+    assert_eq!(french["start_url"], "/Active/fr/");
     assert_eq!(manifest["scope"], "/Active/");
     assert_eq!(manifest["id"], "/Active/");
     exists(manifest["start_url"].as_str().unwrap());
@@ -99,7 +102,7 @@ async fn exports_every_page_behind_the_base_path() {
     for url in &precache {
         exists(url);
     }
-    assert!(page.contains(r#"<link rel="manifest" href="/Active/manifest.webmanifest"/>"#));
+    assert!(page.contains(r#"<link rel="manifest" href="/Active/fr/manifest.webmanifest"/>"#));
     assert!(page.contains(r#"navigator.serviceWorker.register("/Active/sw.js")"#));
     assert!(read(&dir, "offline/index.html").contains("Vous êtes hors ligne."));
     let _ = std::fs::remove_dir_all(&dir);

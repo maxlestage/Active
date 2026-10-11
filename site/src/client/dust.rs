@@ -1,4 +1,4 @@
-//! Hero animation: particles that gather into the word "active", flee the pointer and
+//! Hero animation: particles that gather into the word "Active", flee the pointer and
 //! scatter while the page scrolls. Simulation and drawing are Rust.
 
 use std::cell::RefCell;
@@ -112,7 +112,7 @@ impl Rng {
     }
 }
 
-/// Points of the word "active" drawn in the display font, in canvas pixels.
+/// Points of the word "Active" drawn in the display font, in canvas pixels.
 fn word_points(width: u32, height: u32, mobile: bool) -> Vec<f32> {
     let doc = window().document().unwrap();
     let canvas: HtmlCanvasElement = doc.create_element("canvas").unwrap().unchecked_into();
@@ -127,7 +127,7 @@ fn word_points(width: u32, height: u32, mobile: bool) -> Vec<f32> {
     ));
     ctx.set_text_align("center");
     ctx.set_text_baseline("middle");
-    let _ = ctx.fill_text("active", w / 2.0, h * if mobile { 0.25 } else { 0.28 });
+    let _ = ctx.fill_text("Active", w / 2.0, h * if mobile { 0.25 } else { 0.28 });
     let Ok(image) = ctx.get_image_data(0.0, 0.0, w, h) else {
         return Vec::new();
     };

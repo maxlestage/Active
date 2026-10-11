@@ -105,7 +105,7 @@ fn logo() -> Element {
                         .attr("fill", "var(--accent)"),
                 ),
         )
-        .child(span().text("active"))
+        .child(span().text("Active"))
 }
 
 fn alternates(seo: Seo, route: &Route) -> Seo {
@@ -151,7 +151,7 @@ fn header(route: &Route) -> Element {
         .child(
             a().href(home.clone())
                 .class("brand")
-                .attr("aria-label", "active")
+                .attr("aria-label", "Active")
                 .attr("data-magnetic", "")
                 .child(logo()),
         )
@@ -260,7 +260,7 @@ fn footer(route: &Route) -> Element {
                 .attr("data-cursor", "")
                 .child(span().text(f.start))
                 .child(Node::from(" "))
-                .child(em().text("active"))
+                .child(em().text("Active"))
                 .child(arrow()),
         )
         .child(
@@ -277,7 +277,7 @@ fn footer(route: &Route) -> Element {
         .child(p().text(f.tagline))
         .child(
             ul().class("badges")
-                .attr("aria-label", "active")
+                .attr("aria-label", "Active")
                 .child(li().text(format!("v{}", active::VERSION)))
                 .child(li().text(f.rust_only))
                 .child(
@@ -351,7 +351,7 @@ fn footer(route: &Route) -> Element {
         .class("wordmark")
         .attr("aria-hidden", "true")
         .children(
-            "active"
+            "Active"
                 .chars()
                 .enumerate()
                 .map(|(i, c)| span().style(format!("--i:{i}")).text(c.to_string())),
@@ -386,9 +386,12 @@ fn footer(route: &Route) -> Element {
 
 /// Makes a page installable: the manifest link with the theme color and the home screen
 /// icon, and the registration of the offline service worker (see [`pwa`]).
-fn installable(doc: Document) -> Document {
-    doc.manifest(&link("/manifest.webmanifest"), &pwa::manifest())
-        .service_worker(&link("/sw.js"))
+fn installable(doc: Document, lang: Lang) -> Document {
+    doc.manifest(
+        &link(&format!("/{}/manifest.webmanifest", lang.code())),
+        &pwa::manifest(lang),
+    )
+    .service_worker(&link("/sw.js"))
 }
 
 /// A complete HTML page around `content`.
@@ -413,8 +416,8 @@ pub fn document(ctx: &Ctx<'_>, kind: &str, content: Node) -> String {
         div().class("grain").attr("aria-hidden", "true").into(),
     ]);
     let site = Seo::new()
-        .site_name("active")
-        .title_template("%s — active")
+        .site_name("Active")
+        .title_template("%s — Active")
         .base_url(ctx.origin)
         .image("/og.png")
         .locale(t(route.lang).locale);
@@ -434,6 +437,7 @@ pub fn document(ctx: &Ctx<'_>, kind: &str, content: Node) -> String {
                 base = base(),
                 author = AUTHOR
             )),
+        route.lang,
     )
     .client(assets.url("/pkg/active_site.js"), assets.url("/pkg/active_site_bg.wasm"));
     if ctx.intro {
@@ -596,13 +600,13 @@ fn home(ctx: &Ctx<'_>) -> Node {
     let h = &d.home;
     let seo = alternates(Seo::new().title(h.title).title_template("%s").description(h.description).canonical(format!("/{}/", lang.code())), ctx.route)
         .json_ld(format!(
-            r#"{{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"active","description":"{}","programmingLanguage":"Rust","license":"{}{LICENSE_PATH}","author":{{"@type":"Person","name":"{AUTHOR}"}},"url":"{}/{}/"}}"#,
+            r#"{{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Active","description":"{}","programmingLanguage":"Rust","license":"{}{LICENSE_PATH}","author":{{"@type":"Person","name":"{AUTHOR}"}},"url":"{}/{}/"}}"#,
             json(h.description),
             ctx.origin,
             ctx.origin,
             lang.code()
         ))
-        .json_ld(format!(r#"{{"@context":"https://schema.org","@type":"WebSite","name":"active","url":"{}/","inLanguage":"{}"}}"#, ctx.origin, lang.code()));
+        .json_ld(format!(r#"{{"@context":"https://schema.org","@type":"WebSite","name":"Active","url":"{}/","inLanguage":"{}"}}"#, ctx.origin, lang.code()));
     let manifesto_words = h.manifesto.split_whitespace().count();
     fragment([
         Node::from(seo),
@@ -863,7 +867,7 @@ fn doc_page(ctx: &Ctx<'_>, slug: &str) -> Node {
     let seo = alternates(
         Seo::new()
             .title(doc.title.clone())
-            .title_template("%s — active docs")
+            .title_template("%s — Active docs")
             .description(doc.description.clone())
             .canonical(format!("/{}/docs/{slug}/", lang.code()))
             .og_type("article"),
@@ -1052,14 +1056,14 @@ fn language_redirect(target: &str) -> String {
 /// (`target` = `404/`): it goes to the visitor's language by itself, and links the languages.
 pub fn language_picker(origin: &str, target: &str) -> String {
     let seo = Seo::new()
-        .title("active")
+        .title("Active")
         .description(t(Lang::En).home.description)
         .base_url(origin)
         .canonical(format!("/en/{target}"))
         .noindex(true);
     let body = main()
         .class("doc-body")
-        .child(h1().text("active"))
+        .child(h1().text("Active"))
         .child(ul().children(Lang::ALL.map(|l| {
             li().child(
                 a().href(link(&format!("/{}/{target}", l.code())))
@@ -1073,6 +1077,7 @@ pub fn language_picker(origin: &str, target: &str) -> String {
             .lang("en")
             .seo(seo)
             .head(language_redirect(target)),
+        Lang::En,
     )
     .render()
 }

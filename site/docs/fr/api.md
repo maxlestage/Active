@@ -1,6 +1,6 @@
 ---
 title: Référence de l'API
-description: Chaque élément public du crate active et sa signature : vues, éléments, état, effets, événements, Seo, Document, PWA, îlots, fonctions navigateur, fonctionnalités.
+description: Chaque élément public du crate Active et sa signature : vues, éléments, état, effets, événements, Seo, Document, PWA, îlots, fonctions navigateur, fonctionnalités.
 ---
 
 Cette page liste chaque élément public du crate `active`, regroupé par thème, avec sa signature exacte et une description d'une ligne. Les guides expliquent comment s'en servir ; la documentation générée sur [docs.rs/active](https://docs.rs/active) contient les mêmes éléments, avec des exemples.

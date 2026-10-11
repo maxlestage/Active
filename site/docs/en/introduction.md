@@ -1,6 +1,6 @@
 ---
 title: Introduction
-description: active is a small Rust front-end library. Write components as functions, render them to HTML with complete SEO tags, and add WebAssembly only where needed.
+description: Active is a small Rust front-end library. Write components as functions, render them to HTML with complete SEO tags, and add WebAssembly only where needed.
 ---
 
 `active` is a small Rust library for building the front end of a website. You write components as plain Rust functions, keep state in `use_state` handles, describe each page for search engines with `Seo`, and compile the interactive parts to WebAssembly. The same code runs on the server and in the browser, and you never write JavaScript.

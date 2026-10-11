@@ -1,6 +1,6 @@
 ---
 title: Referencia de la API
-description: Cada elemento público del crate active con su firma: vistas, elementos, estado, efectos, eventos, Seo, Document, PWA, islas, funciones del navegador y features.
+description: Cada elemento público del crate Active con su firma: vistas, elementos, estado, efectos, eventos, Seo, Document, PWA, islas, funciones del navegador y features.
 ---
 
 Esta página enumera todos los elementos públicos del crate `active`, agrupados por tema, con su firma exacta y una descripción de una línea. Las guías explican cómo usarlos; la documentación generada en [docs.rs/active](https://docs.rs/active) contiene los mismos elementos con ejemplos.

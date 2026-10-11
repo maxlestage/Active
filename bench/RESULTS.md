@@ -31,7 +31,7 @@ Each implementation runs in its own process. Before timing, its output is checke
 | maud | maud 0.27.0 | 1.37 | 729 288 | ×0.68 | 1.36–1.63 | 1 831 |
 | Hand-written | — | 2.01 | 497 191 | ×1.00 | 1.96–2.37 | 1 843 |
 | Leptos (plain `<head>`) | leptos 0.8.22 | 5.19 | 192 686 | ×2.58 | 4.96–8.56 | 1 834 |
-| **active** | active 0.1.0 (local) | 5.58 | 179 083 | ×2.78 | 5.37–6.78 | 1 889 |
+| **active** | Active 0.1.0 (local) | 5.58 | 179 083 | ×2.78 | 5.37–6.78 | 1 889 |
 | Leptos + leptos_meta | leptos 0.8.22 + leptos_meta 0.8.7 | 13.44 | 74 406 | ×6.68 | 13.09–22.65 | 1 845 |
 | Yew | yew 0.23.0 | 17.17 | 58 257 | ×8.53 | 16.53–21.15 | 1 875 |
 | Dioxus | dioxus 0.7.10 + dioxus-ssr 0.7.10 | 24.22 | 41 281 | ×12.04 | 23.64–25.72 | 1 843 |
@@ -56,7 +56,7 @@ The same counter in every framework: a button that increments the number next to
 
 | Framework | Versions | Browser mode | .wasm | .wasm gzip | JS glue gzip | Total gzip |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
-| **active** | active 0.1.0 (local) | island hydration (`active::hydrate`) | 81.6 kB | 32.4 kB | 4.3 kB | **36.8 kB** |
+| **active** | Active 0.1.0 (local) | island hydration (`active::hydrate`) | 81.6 kB | 32.4 kB | 4.3 kB | **36.8 kB** |
 | Sycamore | sycamore 0.9.4 | hydration (`sycamore::hydrate`) | 105.8 kB | 41.1 kB | 4.7 kB | **45.8 kB** |
 | Leptos | leptos 0.8.22 | hydration (`hydrate_body`) | 144.9 kB | 54.8 kB | 6.2 kB | **60.9 kB** |
 | Yew | yew 0.23.0 | hydration (`Renderer::hydrate`) | 241.8 kB | 90.0 kB | 6.3 kB | **96.3 kB** |

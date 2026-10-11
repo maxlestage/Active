@@ -1,6 +1,6 @@
 ---
 title: Sites statiques
-description: Générez les pages d'un site active en fichiers HTML à la compilation, avec sitemap et robots.txt, hébergez-les gratuitement et gardez les îlots interactifs.
+description: Générez les pages d'un site Active en fichiers HTML à la compilation, avec sitemap et robots.txt, hébergez-les gratuitement et gardez les îlots interactifs.
 ---
 
 Quand vos pages ne dépendent pas de la requête (un blog, une documentation, un portfolio, une page de présentation), vous n'avez besoin d'aucun serveur. Un petit programme Rust rend chaque page dans un fichier HTML, une seule fois, au moment de la compilation, et n'importe quel hébergeur statique sert les fichiers. Les pages conservent leurs balises SEO complètes, et les [îlots](../islands/) sont toujours hydratés dans le navigateur, car l'hydratation n'a besoin que du HTML et du bundle.

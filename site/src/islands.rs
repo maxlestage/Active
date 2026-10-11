@@ -18,7 +18,7 @@ pub const ISLANDS: [(&str, active::IslandFn); 4] = [
     ("search", search),
 ];
 
-/// Hero background: particles simulated in Rust gather into the word "active".
+/// Hero background: particles simulated in Rust gather into the word "Active".
 pub fn dust(props: &str) -> Node {
     let d = labels(lang(props));
     let particles = use_state(0usize);
@@ -300,7 +300,7 @@ pub fn playground(props: &str) -> Node {
                                     div()
                                         .class("social-img")
                                         .attr("aria-hidden", "true")
-                                        .child(span().text("active")),
+                                        .child(span().text("Active")),
                                 )
                                 .child(span().class("social-domain").text("acme.com"))
                                 .child(span().class("social-title").text_dyn(move || {

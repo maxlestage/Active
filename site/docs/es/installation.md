@@ -1,6 +1,6 @@
 ---
 title: Instalación
-description: Instala Rust, añade el crate active, prepara un solo crate para el servidor y el navegador, e instala el target WebAssembly y la CLI de wasm-bindgen.
+description: Instala Rust, añade el crate Active, prepara un solo crate para el servidor y el navegador, e instala el target WebAssembly y la CLI de wasm-bindgen.
 ---
 
 Esta página prepara todo lo que necesitas: la toolchain de Rust, el crate `active`, una estructura de proyecto que compila tanto para el servidor como para el navegador, y las dos herramientas que generan el bundle de WebAssembly.

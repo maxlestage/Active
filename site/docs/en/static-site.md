@@ -1,6 +1,6 @@
 ---
 title: Static sites
-description: Generate every page of an active site as HTML files at build time, with a sitemap and robots.txt, host them anywhere for free, and keep the islands interactive.
+description: Generate every page of an Active site as HTML files at build time, with a sitemap and robots.txt, host them anywhere for free, and keep the islands interactive.
 ---
 
 When your pages do not depend on the request (a blog, documentation, a portfolio, a landing page), you do not need a server at all. A small Rust program renders every page to an HTML file once, at build time, and any static host serves the files. Pages keep their complete SEO tags, and [islands](../islands/) still hydrate in the browser, because hydration only needs the HTML and the bundle.

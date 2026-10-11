@@ -1,6 +1,6 @@
 ---
 title: Rendimiento
-description: Por qué active renderiza rápido en el servidor y pesa poco en el navegador: los ajustes de compilación que importan, tamaños medidos y cómo reducir los tuyos.
+description: Por qué Active renderiza rápido en el servidor y pesa poco en el navegador: los ajustes de compilación que importan, tamaños medidos y cómo reducir los tuyos.
 ---
 
 `active` está diseñado para que el camino rápido sea el camino por defecto: en el servidor, las páginas se escriben directamente en una cadena, el navegador recibe primero el HTML completo y solo las partes interactivas cargan código. Esta página explica qué lo hace rápido, muestra tamaños medidos y enumera lo que puedes ajustar. Para comparaciones con otros frameworks de Rust, consulta [Benchmarks](../benchmarks/).

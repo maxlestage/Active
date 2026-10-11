@@ -1,6 +1,6 @@
 ---
 title: Introduction
-description: active est une petite bibliothèque front-end en Rust : des composants-fonctions, rendus en HTML avec toutes les balises SEO, et du WebAssembly là où il sert.
+description: Active est une petite bibliothèque front-end en Rust : des composants-fonctions, rendus en HTML avec toutes les balises SEO, et du WebAssembly là où il sert.
 ---
 
 `active` est une petite bibliothèque Rust pour construire le front-end d'un site web. Vous écrivez vos composants comme de simples fonctions Rust, vous gardez l'état dans des handles `use_state`, vous décrivez chaque page aux moteurs de recherche avec `Seo`, et vous compilez les parties interactives en WebAssembly. Le même code s'exécute sur le serveur et dans le navigateur, et vous n'écrivez jamais de JavaScript.

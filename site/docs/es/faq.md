@@ -5,7 +5,7 @@ description: Dudas habituales sobre active: otros frameworks, JavaScript, SEO en
 
 Respuestas breves a las preguntas más habituales, con enlaces a las páginas que profundizan en cada tema.
 
-## ¿Qué es active, en una frase?
+## ¿Qué es Active, en una frase?
 
 Una pequeña biblioteca de Rust para construir el front-end de sitios web: los componentes son funciones, el estado vive en handles de `use_state`, cada página recibe etiquetas SEO completas y las partes interactivas se ejecutan como WebAssembly, en páginas renderizadas en el servidor, sitios estáticos o aplicaciones del lado del cliente. Consulta la [Introducción](../introduction/).
 

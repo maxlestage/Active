@@ -1,6 +1,6 @@
 ---
 title: Publicar el crate
-description: Publica versiones de active en crates.io con una GitHub Release desde el teléfono o con cargo publish desde tu equipo, y descubre cómo la CI revisa cada push.
+description: Publica versiones de Active en crates.io con una GitHub Release desde el teléfono o con cargo publish desde tu equipo, y descubre cómo la CI revisa cada push.
 ---
 
 Esta página es para quienes mantienen el repositorio o un fork. Una publicación del crate `active` requiere una sola acción: **publicar una GitHub Release cuya etiqueta sea la versión**, como `v0.2.0`. Un workflow de GitHub Actions prueba el crate y lo publica en [crates.io](https://crates.io). Todo ocurre en los sitios web de GitHub y crates.io, así que basta con un teléfono.

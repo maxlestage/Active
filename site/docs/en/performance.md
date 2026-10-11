@@ -1,6 +1,6 @@
 ---
 title: Performance
-description: Why active renders fast on the server and stays small in the browser: the build settings that matter, measured bundle sizes, and how to shrink your own.
+description: Why Active renders fast on the server and stays small in the browser: the build settings that matter, measured bundle sizes, and how to shrink your own.
 ---
 
 `active` is designed so that the fast path is the default one: pages are written straight to a string on the server, the browser receives complete HTML first, and only the interactive parts load code. This page explains what makes it fast, shows measured sizes, and lists what you can tune. For comparisons with other Rust frameworks, see [Benchmarks](../benchmarks/).

@@ -86,6 +86,9 @@ pub async fn export(out: &Path, base: &str, site_url: Option<String>) -> io::Res
         "/sitemap.xml",
         "/robots.txt",
         "/manifest.webmanifest",
+        "/en/manifest.webmanifest",
+        "/fr/manifest.webmanifest",
+        "/es/manifest.webmanifest",
         "/sw.js",
         "/offline/",
     ] {

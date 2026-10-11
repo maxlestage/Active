@@ -1,6 +1,6 @@
 ---
 title: Vitesse
-description: Sirve páginas de active con Vitesse: rutas que devuelven Html, islas, archivos estáticos, 404, sitemap, datos asíncronos, compresión, pruebas y renderizado seguro por petición.
+description: Sirve páginas de Active con Vitesse: rutas que devuelven Html, islas, archivos estáticos, 404, sitemap, datos asíncronos, compresión, pruebas y renderizado seguro por petición.
 ---
 
 [Vitesse](https://maxlestage.github.io/Vitesse/) es un framework web de Rust con la API de Express: `app.get`, `req.param`, middlewares, enrutadores, su propio motor HTTP/1.1 sobre tokio. Renderizar una página de `active` en un manejador de Vitesse ocupa una línea, `Html(Document::new(view).render())`; esta página construye a su alrededor una pequeña tienda completa: páginas con etiquetas SEO, una isla, archivos estáticos, una página 404, un sitemap y datos cargados de forma asíncrona. Este mismo sitio web es un servidor Vitesse, en `site/src/server`.

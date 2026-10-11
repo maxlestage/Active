@@ -1,6 +1,6 @@
 ---
 title: Sitios estáticos
-description: Genera cada página de un sitio active como archivo HTML al compilar, con sitemap y robots.txt, alójala gratis donde quieras y mantén las islas interactivas.
+description: Genera cada página de un sitio Active como archivo HTML al compilar, con sitemap y robots.txt, alójala gratis donde quieras y mantén las islas interactivas.
 ---
 
 Cuando tus páginas no dependen de la petición (un blog, documentación, un portafolio, una landing page), no necesitas ningún servidor. Un pequeño programa en Rust renderiza cada página a un archivo HTML una sola vez, en tiempo de compilación, y cualquier hosting estático sirve los archivos. Las páginas conservan sus etiquetas SEO completas y las [islas](../islands/) se siguen hidratando en el navegador, porque la hidratación solo necesita el HTML y el bundle.

@@ -1,6 +1,6 @@
 ---
 title: Desplegar en GitHub Pages
-description: Publica gratis el sitio de active en GitHub Pages desde un teléfono: activa Pages una vez y cada fusión en master estará en línea unos minutos después.
+description: Publica gratis el sitio de Active en GitHub Pages desde un teléfono: activa Pages una vez y cada fusión en master estará en línea unos minutos después.
 ---
 
 GitHub Pages aloja archivos estáticos gratis, en `https://<propietario>.github.io/<repositorio>/`. Este repositorio publica allí su sitio automáticamente: el workflow `pages.yml` convierte las páginas del servidor Rust en archivos con `active-site export` y luego las despliega. Todo lo que sigue se puede hacer desde un teléfono.
