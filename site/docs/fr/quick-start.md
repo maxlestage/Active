@@ -10,7 +10,7 @@ Cette page affiche une vraie page sur votre écran : du HTML rendu par un serveu
 Le dépôt contient une application minimale, `examples/hello`. Clonez-le, compilez le bundle du navigateur, puis démarrez le serveur :
 
 ```sh
-git clone <the address of the repository>
+git clone https://github.com/maxlestage/Active
 cd Active
 cargo build -p hello --lib --target wasm32-unknown-unknown --profile wasm-release
 wasm-bindgen --target web --no-typescript --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
@@ -44,13 +44,13 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-active = "0.1"
+active = { git = "https://github.com/maxlestage/Active" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-vitesse = "0.1"
+vitesse = { git = "https://github.com/maxlestage/Vitesse" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-active = { version = "0.1", features = ["client"] }
+active = { git = "https://github.com/maxlestage/Active", features = ["client"] }
 wasm-bindgen = "=0.2.129"
 
 [profile.release]

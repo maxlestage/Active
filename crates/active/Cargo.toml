@@ -7,6 +7,7 @@ description = "A simple, fast front-end library for Rust: components, state, rou
 authors = ["Maxime Nathan Lestage"]
 license-file = "LICENSE"
 homepage = "https://maxlestage.github.io/Active/"
+repository = "https://github.com/maxlestage/Active"
 documentation = "https://docs.rs/active"
 readme = "README.md"
 keywords = ["frontend", "web", "seo", "wasm", "ssr"]

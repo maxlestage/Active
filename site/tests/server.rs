@@ -87,10 +87,16 @@ async fn every_page_ends_with_the_signature_footer() {
         assert!(footer.contains(rights), "{lang}");
         assert!(footer.contains(r#"href="/static/LICENSE.txt""#), "{lang}");
         assert!(!html.contains("MIT"), "{lang}");
-        // No link to GitHub anywhere: the project is not open source.
-        assert!(!html.contains("github.com"), "{lang}");
+        // The source is on GitHub, the only way to get the crate until it is on crates.io.
+        assert!(
+            html.contains("https://github.com/maxlestage/Active"),
+            "{lang}"
+        );
         // The install command and the version of the crate.
-        assert!(footer.contains("cargo add active"), "{lang}");
+        assert!(
+            footer.contains("cargo add active --git https://github.com/maxlestage/Active"),
+            "{lang}"
+        );
         assert!(footer.contains(&format!("v{}", active::VERSION)), "{lang}");
         // The six projects of the ecosystem, this one marked as the current page.
         for project in [

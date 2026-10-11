@@ -29,7 +29,7 @@ Sous Windows, téléchargez plutôt `rustup-init.exe` depuis [rustup.rs](https:/
 ## Ajouter le crate
 
 ```sh
-cargo add active
+cargo add active --git https://github.com/maxlestage/Active
 ```
 
 ### Fonctionnalités
@@ -63,15 +63,15 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-active = "0.1"
+active = { git = "https://github.com/maxlestage/Active" }
 
 # Dépendances propres au serveur : elles ne compilent pas pour wasm32.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-vitesse = "0.1"
+vitesse = { git = "https://github.com/maxlestage/Vitesse" }
 
 # Propres au navigateur : le runtime client et le générateur de liaisons.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-active = { version = "0.1", features = ["client"] }
+active = { git = "https://github.com/maxlestage/Active", features = ["client"] }
 wasm-bindgen = "=0.2.129"
 ```
 

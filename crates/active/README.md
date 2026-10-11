@@ -43,8 +43,8 @@ in the style of React hooks. Then ship them the way your project needs:
 ## Install
 
 ```sh
-cargo add active                      # server
-cargo add active --features client    # browser bundle (wasm32)
+cargo add active --git https://github.com/maxlestage/Active                      # server
+cargo add active --git https://github.com/maxlestage/Active --features client    # browser bundle (wasm32)
 ```
 
 ## A page

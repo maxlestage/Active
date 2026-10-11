@@ -61,8 +61,8 @@ Le plus petit bundle de tous, et un rendu côté serveur 2,4 fois plus rapide qu
 ## Installation
 
 ```sh
-cargo add active                      # server
-cargo add active --features client    # browser bundle, for wasm32-unknown-unknown
+cargo add active --git https://github.com/maxlestage/Active                      # server
+cargo add active --git https://github.com/maxlestage/Active --features client    # browser bundle, for wasm32-unknown-unknown
 ```
 
 Deux applications complètes : [`examples/hello`](examples/hello), une page serveur avec un îlot (un seul crate pour les deux côtés), et [`examples/spa`](examples/spa), une liste de tâches côté client avec routage. Pour lancer la première :
@@ -94,7 +94,7 @@ Guide : [`site/docs/fr/deploy-pages.md`](site/docs/fr/deploy-pages.md).
 
 ## Déployer le site sur Heroku depuis un téléphone
 
-1. Ouvrez `https://heroku.com/deploy?template=<l'adresse de votre dépôt>` dans le navigateur de votre téléphone, choisissez un nom et touchez **Deploy app**. Heroku lit [`app.json`](app.json) et construit le [`Dockerfile`](Dockerfile) (voir [`heroku.yml`](heroku.yml)) : le bundle WebAssembly, puis le serveur, entièrement à partir des sources Rust.
+1. Ouvrez `https://heroku.com/deploy?template=https://github.com/maxlestage/Active` dans le navigateur de votre téléphone, choisissez un nom et touchez **Deploy app**. Heroku lit [`app.json`](app.json) et construit le [`Dockerfile`](Dockerfile) (voir [`heroku.yml`](heroku.yml)) : le bundle WebAssembly, puis le serveur, entièrement à partir des sources Rust.
 2. Pour redéployer à chaque changement : dans l'onglet **Deploy** de l'application, connectez le dépôt et activez **Enable Automatic Deploys** depuis `master`.
 
 Heroku n'a pas d'offre gratuite : un dyno Eco coûte environ 5 $ par mois. Guide pas à pas : [`site/docs/fr/deploy-heroku.md`](site/docs/fr/deploy-heroku.md).

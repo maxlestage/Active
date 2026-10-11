@@ -27,7 +27,7 @@ You now have `https://github.com/<you>/Active`, which you can edit from the GitH
 
 The button reads `app.json` and creates a Heroku app that builds the repository with Docker.
 
-1. Open the deploy link of your repository: `https://heroku.com/deploy?template=<the address of your repository>`.
+1. Open the deploy link of your repository: `https://heroku.com/deploy?template=https://github.com/maxlestage/Active`.
 2. Log in to Heroku if asked.
 3. **App name:** choose a lowercase name such as `my-active-site`. Your address becomes `my-active-site-<random>.herokuapp.com` or similar, shown at the end.
 4. **Region:** United States or Europe, whichever is closer to your visitors.
