@@ -21,7 +21,7 @@ The crate uses the 2024 edition and needs Rust 1.85 or newer. It contains no `un
 | --- | --- |
 | `active::*` | every item below |
 | `active::html` | one function per HTML and SVG tag |
-| `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) and [`register_script`](#register-script): installable, offline sites |
+| `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) and [`register_script`](#register-script) and [`version`](#version): installable, offline sites |
 | `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state`; with `client`, also `location`, `navigate` and `query_param` |
 
 Not in the prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Use them as `active::hydrate`, etc.
@@ -353,6 +353,17 @@ pub fn register_script(url: &str) -> String
 ```
 
 The inline script written by `Document::service_worker`: registers the worker at `url` on `load`. Hash it to allow it in a Content-Security-Policy.
+
+### version
+
+```rust
+pub fn version<I, B>(parts: I) -> String
+where
+    I: IntoIterator<Item = B>,
+    B: AsRef<[u8]>,
+```
+
+A short hash of `parts` (10 hexadecimal characters, FNV-1a), for `ServiceWorker::new`: hash what the worker saves, and every deployment that changes it installs a new worker.
 
 ## Islands
 

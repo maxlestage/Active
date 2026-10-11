@@ -5,7 +5,6 @@
 use active::pwa::{Manifest, ServiceWorker};
 
 use super::Site;
-use super::assets::hash;
 use super::pages;
 use crate::i18n::t;
 use crate::routes::{Lang, Page, Route, link};
@@ -128,7 +127,7 @@ pub fn version(site: &Site) -> String {
     for (url, version) in files {
         all.push_str(&format!("\n{url} {version}"));
     }
-    hash(all.as_bytes())
+    active::pwa::version([all.as_bytes()])
 }
 
 /// The service worker: pages from the network first (the saved copy offline, else the

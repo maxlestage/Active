@@ -9,7 +9,7 @@ Une Progressive Web App est un site web que les téléphones et les ordinateurs 
 - le **service worker** (`sw.js`) : un petit script que le navigateur exécute à côté des pages, qui enregistre le site sur l'appareil et répond à sa place hors ligne, généré par `ServiceWorker` ;
 - dans chaque page, `Document::manifest` et `Document::service_worker` ajoutent le lien vers le manifeste, la couleur du thème, le titre et l'icône de l'écran d'accueil, et la ligne qui enregistre le worker.
 
-Aucun JavaScript à écrire : les navigateurs n'exécutent les service workers que sous forme de scripts, alors active génère le worker à partir de vos réglages en Rust. Ce site est une PWA construite ainsi : installez-le depuis le menu de votre navigateur, ou passez en mode avion et rechargez la page.
+Aucun JavaScript à écrire : les navigateurs n'exécutent les service workers que sous forme de scripts, alors active génère le worker à partir de vos réglages en Rust. Ce site est une PWA construite ainsi : installez-le depuis le menu de votre navigateur, ou passez en mode avion et rechargez la page. L'application `hello` du dossier `examples` du dépôt est la plus petite : un îlot compteur sur une page, servie par la seule bibliothèque standard, installable et hors ligne en quarante lignes.
 
 Les service workers ne fonctionnent que dans un contexte sécurisé : HTTPS, ou `http://localhost` pendant le développement.
 
@@ -107,26 +107,21 @@ Le worker généré traite les requêtes `GET` de son propre site et laisse tout
 
 ### Quoi mettre en cache d'avance
 
-Mettez en cache ce dont un visiteur a besoin pour ouvrir l'application hors ligne : la page de démarrage et les pages principales, la feuille de style, le bundle WebAssembly (le chargeur JavaScript et le fichier `.wasm`), les polices et les icônes. Utilisez **exactement les URL qu'utilisent les pages** : le cache tient compte de la chaîne de requête, donc si une page charge `/static/app.css?v=3f2a…`, mettez cette URL en cache et non `/static/app.css`. Laissez de côté les fichiers qui n'existent pas : un seul téléchargement raté annule l'installation.
+Mettez en cache ce dont un visiteur a besoin pour ouvrir l'application hors ligne : la page de démarrage et les pages principales, la feuille de style, le bundle WebAssembly (le chargeur JavaScript et le fichier `.wasm`), les polices et les icônes. Utilisez **exactement les URL qu'utilisent les pages** : le cache tient compte de la chaîne de requête, donc si une page charge `/static/app.css?v=3f2a…`, mettez cette URL en cache et non `/static/app.css`. Laissez de côté les fichiers qui n'existent pas : un seul téléchargement raté annule l'installation. Une URL donnée deux fois n'est enregistrée qu'une fois.
 
 ### Choisir la version
 
-Changez `version` à chaque déploiement qui modifie quelque chose que le worker enregistre ; sinon les navigateurs gardent l'ancien worker et ses anciens fichiers. Un hash de ces fichiers s'en charge automatiquement, le même hash FNV-1a que ce site utilise pour ses URL en `?v=` (voir [Documents, Mise en cache longue durée](../documents/#mise-en-cache-longue-duree)) :
+Changez `version` à chaque déploiement qui modifie quelque chose que le worker enregistre ; sinon les navigateurs gardent l'ancien worker et ses anciens fichiers. `active::pwa::version` s'en charge automatiquement : un hash FNV-1a court de ce que vous lui donnez, le même que ce site utilise pour ses URL en `?v=` (voir [Documents, Mise en cache longue durée](../documents/#mise-en-cache-longue-duree)) :
 
 ```rust
-/// Un hash court de tout ce que le worker enregistre : nouveaux fichiers, nouveau worker.
-fn version(files: &[&[u8]]) -> String {
-    let hash = files.iter().flat_map(|f| f.iter()).fold(0xcbf2_9ce4_8422_2325_u64, |h, b| {
-        (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3)
-    });
-    format!("{hash:016x}")[..10].to_string()
-}
+use active::pwa::version;
 
-let v1 = version(&[b"body{color:red}", b"\0asm"]);
-assert_ne!(v1, version(&[b"body{color:blue}", b"\0asm"]));
+let v1 = version([b"body{color:red}".as_slice(), b"\0asm".as_slice()]);
+assert_eq!(v1.len(), 10);
+assert_ne!(v1, version([b"body{color:blue}".as_slice(), b"\0asm".as_slice()]));
 ```
 
-Ce site hache les pages mises en cache telles qu'elles sont rendues, le manifeste et tous les fichiers statiques : le moindre changement publie un nouveau worker.
+Hachez ce que le worker enregistre : les pages mises en cache telles qu'elles sont rendues, le manifeste et les fichiers statiques. C'est exactement ce que fait ce site : le moindre changement publie un nouveau worker.
 
 ## Les balises de chaque page
 
