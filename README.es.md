@@ -122,4 +122,4 @@ Active es software propietario: © 2026 Maxime Nathan Lestage, todos los derecho
 
 ## Créditos
 
-Diseñado y desarrollado por Maxime Nathan Lestage, dentro de una misma familia de proyectos Rust: [Active](https://maxlestage.github.io/Active/), [Vitesse](https://maxlestage.github.io/Vitesse/), [Securite](https://maxlestage.github.io/Securite/), [Memoire](https://maxlestage.github.io/Memoire/), [Paquets](https://maxlestage.github.io/Paquets/) y [FerroSwift](https://maxlestage.github.io/FerroSwift/).
+Diseñado y desarrollado por Maxime Nathan Lestage, dentro de una misma familia de proyectos Rust: [Active](https://maxlestage.github.io/Active/), [Vitesse](https://maxlestage.github.io/Vitesse/), [Securite](https://maxlestage.github.io/Securite/), [Memoire](https://maxlestage.github.io/Memoire/), [Paquets](https://maxlestage.github.io/Paquets/), [FerroSwift](https://maxlestage.github.io/FerroSwift/) y [Solidify](https://maxlestage.github.io/Solidify/).
