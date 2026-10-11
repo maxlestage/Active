@@ -137,7 +137,7 @@ Lisez les fichiers une fois au démarrage, calculez leurs URL versionnées et pa
 
 `render()` rend d'abord le corps, en récupérant ses valeurs `Seo` au passage, puis écrit la page autour : chaque région dynamique est évaluée une seule fois par rendu. Un document peut être rendu autant de fois que nécessaire ; sur le serveur, les états qu'utilise sa vue sont libérés automatiquement dès que les rendus suivants n'en ont plus besoin (voir [État, Côté serveur](../state/#cote-serveur)). `final_seo()`, quand vous l'appelez vous-même, évalue les régions dynamiques séparément.
 
-Pour envoyer la page, renvoyez-la avec le type de contenu `text/html; charset=utf-8`. Avec Axum, l'envelopper dans `axum::response::Html` s'en charge pour vous (voir [Axum](../axum/)). Pour un site statique, écrivez-la dans un fichier `index.html` (voir [Sites statiques](../static-site/)).
+Pour envoyer la page, renvoyez-la avec le type de contenu `text/html; charset=utf-8`. Avec Vitesse, l'envelopper dans `Html` s'en charge pour vous (voir [Vitesse](../vitesse/)). Pour un site statique, écrivez-la dans un fichier `index.html` (voir [Sites statiques](../static-site/)).
 
 ## Sans Document
 

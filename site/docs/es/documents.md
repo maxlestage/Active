@@ -137,7 +137,7 @@ Lee los archivos una vez al arrancar, calcula sus URL versionadas y pásalas a `
 
 `render()` renderiza primero el body, recogiendo sus valores `Seo` por el camino, y después escribe la página a su alrededor: cada región dinámica se evalúa una vez por renderizado. Un documento se puede renderizar tantas veces como haga falta; en el servidor, los estados que usa su vista se liberan automáticamente en cuanto los renderizados posteriores ya no los necesitan (consulta [Estado, En el servidor](../state/#en-el-servidor)). `final_seo()`, cuando lo llamas tú, evalúa las regiones dinámicas por separado.
 
-Para enviarlo, devuélvelo con el tipo de contenido `text/html; charset=utf-8`. Con Axum, envolverlo en `axum::response::Html` lo hace por ti (consulta [Axum](../axum/)). Para un sitio estático, escríbelo en un archivo `index.html` (consulta [Sitios estáticos](../static-site/)).
+Para enviarlo, devuélvelo con el tipo de contenido `text/html; charset=utf-8`. Con Vitesse, envolverlo en `Html` lo hace por ti (consulta [Vitesse](../vitesse/)). Para un sitio estático, escríbelo en un archivo `index.html` (consulta [Sitios estáticos](../static-site/)).
 
 ## Sin Document
 

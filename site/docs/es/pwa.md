@@ -165,11 +165,11 @@ Si tu servidor envía una Content-Security-Policy sin `'unsafe-inline'`, autoriz
 
 ## Servir los archivos
 
-El manifiesto debe servirse como `application/manifest+json` y el worker como JavaScript. Sirve el worker con `Cache-Control: no-cache`, para que los navegadores vean una versión nueva en cuanto se despliega. Con [Axum](../axum/):
+El manifiesto debe servirse como `application/manifest+json` y el worker como JavaScript. Sirve el worker con `Cache-Control: no-cache`, para que los navegadores vean una versión nueva en cuanto se despliega. Con [Vitesse](../vitesse/):
 
 ```rust
 use active::pwa::{Manifest, ServiceWorker};
-use axum::{Router, http::header, response::IntoResponse, routing::get};
+use vitesse::prelude::*;
 
 fn manifest() -> Manifest {
     Manifest::new("Acme").start_url("/").icon("/icon-512.png", "512x512", "image/png")
@@ -179,23 +179,21 @@ fn worker() -> ServiceWorker {
     ServiceWorker::new("acme", env!("CARGO_PKG_VERSION")).precache(["/", "/icon-512.png"])
 }
 
-async fn manifest_file() -> impl IntoResponse {
-    (
-        [(header::CONTENT_TYPE, "application/manifest+json"), (header::CACHE_CONTROL, "no-cache")],
-        manifest().to_json(),
-    )
+async fn manifest_file(_: Request) -> Response {
+    res::send(manifest().to_json())
+        .header("content-type", "application/manifest+json")
+        .header("cache-control", "no-cache")
 }
 
-async fn worker_file() -> impl IntoResponse {
-    (
-        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8"), (header::CACHE_CONTROL, "no-cache")],
-        worker().to_js(),
-    )
+async fn worker_file(_: Request) -> Response {
+    res::send(worker().to_js())
+        .header("content-type", "text/javascript; charset=utf-8")
+        .header("cache-control", "no-cache")
 }
 
-let app: Router = Router::new()
-    .route("/manifest.webmanifest", get(manifest_file))
-    .route("/sw.js", get(worker_file));
+let mut app = App::new();
+app.get("/manifest.webmanifest", manifest_file)
+    .get("/sw.js", worker_file);
 ```
 
 Un worker controla las páginas que están bajo su propia carpeta: sirve `sw.js` en la raíz del sitio (`/sw.js`), no en `/static/` ni en `/pkg/`, o solo atendería las URL de esa carpeta.

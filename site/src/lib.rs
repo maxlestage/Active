@@ -1,4 +1,4 @@
-//! The active website: islands shared by the server and the browser, the Axum server
+//! The active website: islands shared by the server and the browser, the Vitesse server
 //! (native) and the browser bundle (wasm32).
 
 pub mod i18n;

@@ -165,11 +165,11 @@ If your server sends a Content-Security-Policy without `'unsafe-inline'`, allow 
 
 ## Serving the files
 
-The manifest must be served as `application/manifest+json` and the worker as JavaScript. Serve the worker with `Cache-Control: no-cache`, so that browsers see a new version as soon as it is deployed. With [Axum](../axum/):
+The manifest must be served as `application/manifest+json` and the worker as JavaScript. Serve the worker with `Cache-Control: no-cache`, so that browsers see a new version as soon as it is deployed. With [Vitesse](../vitesse/):
 
 ```rust
 use active::pwa::{Manifest, ServiceWorker};
-use axum::{Router, http::header, response::IntoResponse, routing::get};
+use vitesse::prelude::*;
 
 fn manifest() -> Manifest {
     Manifest::new("Acme").start_url("/").icon("/icon-512.png", "512x512", "image/png")
@@ -179,23 +179,21 @@ fn worker() -> ServiceWorker {
     ServiceWorker::new("acme", env!("CARGO_PKG_VERSION")).precache(["/", "/icon-512.png"])
 }
 
-async fn manifest_file() -> impl IntoResponse {
-    (
-        [(header::CONTENT_TYPE, "application/manifest+json"), (header::CACHE_CONTROL, "no-cache")],
-        manifest().to_json(),
-    )
+async fn manifest_file(_: Request) -> Response {
+    res::send(manifest().to_json())
+        .header("content-type", "application/manifest+json")
+        .header("cache-control", "no-cache")
 }
 
-async fn worker_file() -> impl IntoResponse {
-    (
-        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8"), (header::CACHE_CONTROL, "no-cache")],
-        worker().to_js(),
-    )
+async fn worker_file(_: Request) -> Response {
+    res::send(worker().to_js())
+        .header("content-type", "text/javascript; charset=utf-8")
+        .header("cache-control", "no-cache")
 }
 
-let app: Router = Router::new()
-    .route("/manifest.webmanifest", get(manifest_file))
-    .route("/sw.js", get(worker_file));
+let mut app = App::new();
+app.get("/manifest.webmanifest", manifest_file)
+    .get("/sw.js", worker_file);
 ```
 
 A worker controls the pages under its own folder: serve `sw.js` at the root of the site (`/sw.js`), not in `/static/` or `/pkg/`, or it would only handle the URLs below that folder.

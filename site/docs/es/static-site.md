@@ -275,4 +275,4 @@ Un sitio estático también se puede instalar en la pantalla de inicio y seguir 
 
 ## Actualizar el contenido
 
-El sitio solo cambia cuando lo vuelves a generar. El contenido suele vivir en el repositorio (datos en Rust como arriba, o archivos Markdown que el generador lee con un crate como [`pulldown-cmark`](https://docs.rs/pulldown-cmark) e inserta con `.html(...)`), así que un commit desencadena una nueva compilación a través de CI. Cuando las páginas deben cambiar en cada petición o para cada visitante, usa un servidor: consulta [Axum](../axum/).
+El sitio solo cambia cuando lo vuelves a generar. El contenido suele vivir en el repositorio (datos en Rust como arriba, o archivos Markdown que el generador lee con un crate como [`pulldown-cmark`](https://docs.rs/pulldown-cmark) e inserta con `.html(...)`), así que un commit desencadena una nueva compilación a través de CI. Cuando las páginas deben cambiar en cada petición o para cada visitante, usa un servidor: consulta [Vitesse](../vitesse/).

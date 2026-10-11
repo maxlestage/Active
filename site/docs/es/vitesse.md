@@ -1,13 +1,13 @@
 ---
-title: Axum
-description: Sirve páginas de active con Axum 0.8: rutas que devuelven Html, islas, archivos estáticos, 404, sitemap, datos asíncronos y renderizado seguro por petición.
+title: Vitesse
+description: Sirve páginas de active con Vitesse: rutas que devuelven Html, islas, archivos estáticos, 404, sitemap, datos asíncronos, compresión, pruebas y renderizado seguro por petición.
 ---
 
-[Axum](https://docs.rs/axum) es un framework web de Rust muy popular, construido sobre Tokio. Renderizar una página de `active` en un manejador de Axum ocupa una línea, `Html(Document::new(view).render())`; esta página construye a su alrededor una pequeña tienda completa: páginas con etiquetas SEO, una isla, archivos estáticos, una página 404, un sitemap y datos cargados de forma asíncrona. Este mismo sitio web es un servidor Axum, en `site/src/server`.
+[Vitesse](https://maxlestage.github.io/Vitesse/) es un framework web de Rust con la API de Express: `app.get`, `req.param`, middlewares, enrutadores, su propio motor HTTP/1.1 sobre tokio. Renderizar una página de `active` en un manejador de Vitesse ocupa una línea, `Html(Document::new(view).render())`; esta página construye a su alrededor una pequeña tienda completa: páginas con etiquetas SEO, una isla, archivos estáticos, una página 404, un sitemap y datos cargados de forma asíncrona. Este mismo sitio web es un servidor Vitesse, en `site/src/server`.
 
 ## Dependencias
 
-La estructura del crate es la de [Instalación](../installation/#un-crate-dos-destinos): los componentes en `src/lib.rs` y el servidor en `src/main.rs`.
+La estructura del crate es la de [Instalación](../installation/#un-crate-dos-destinos): los componentes en `src/lib.rs` y el servidor en `src/main.rs`. Vitesse trae su propio runtime: no hay que añadir tokio.
 
 ```toml
 [package]
@@ -22,9 +22,7 @@ crate-type = ["cdylib", "rlib"]
 active = "0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-axum = "0.8"
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
-tower-http = { version = "0.7", features = ["compression-br", "compression-gzip", "fs"] }
+vitesse = { version = "0.1", features = ["compress"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 active = { version = "0.1", features = ["client"] }
@@ -125,75 +123,66 @@ pub fn start() {
 `src/main.rs` asocia las URL con las funciones de página y sirve los archivos:
 
 ```rust
-use std::sync::Arc;
-
-use axum::Router;
-use axum::extract::{Path, State};
-use axum::http::{StatusCode, header};
-use axum::response::{Html, IntoResponse, Response};
-use axum::routing::get;
-use tower_http::compression::CompressionLayer;
-use tower_http::services::ServeDir;
+use vitesse::prelude::*;
 
 /// Compartido por todas las peticiones.
-struct App {
+struct Shop {
     /// Dirección pública, usada en las URL canónicas y en el sitemap.
     origin: String,
 }
 
-type Shared = State<Arc<App>>;
-
-async fn home(State(app): Shared) -> Html<String> {
-    Html(my_site::home_page(&app.origin))
+async fn home(req: Request) -> Html<String> {
+    let shop = req.state::<Shop>();
+    Html(my_site::home_page(&shop.origin))
 }
 
-async fn product(State(app): Shared, Path(slug): Path<String>) -> Response {
-    match my_site::find_product(&slug) {
-        Some(product) => Html(my_site::product_page(&app.origin, product)).into_response(),
-        None => not_found(State(app)).await,
+async fn product(req: Request) -> Response {
+    let shop = req.state::<Shop>();
+    match my_site::find_product(req.param("slug").unwrap_or("")) {
+        Some(product) => Html(my_site::product_page(&shop.origin, product)).into_response(),
+        None => not_found(req).await,
     }
 }
 
-async fn not_found(State(app): Shared) -> Response {
-    (StatusCode::NOT_FOUND, Html(my_site::not_found_page(&app.origin))).into_response()
+async fn not_found(req: Request) -> Response {
+    let shop = req.state::<Shop>();
+    res::status(404).html(my_site::not_found_page(&shop.origin))
 }
 
-async fn sitemap(State(app): Shared) -> impl IntoResponse {
+async fn sitemap(req: Request) -> Response {
+    let shop = req.state::<Shop>();
     let mut xml = String::from(
         r#"<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">"#,
     );
     let paths = std::iter::once("/".to_string())
         .chain(my_site::PRODUCTS.iter().map(|p| format!("/products/{}", p.slug)));
     for path in paths {
-        xml.push_str(&format!("<url><loc>{}{path}</loc></url>", app.origin));
+        xml.push_str(&format!("<url><loc>{}{path}</loc></url>", shop.origin));
     }
     xml.push_str("</urlset>");
-    ([(header::CONTENT_TYPE, "application/xml; charset=utf-8")], xml)
+    res::send(xml).header("content-type", "application/xml; charset=utf-8")
 }
 
-async fn robots(State(app): Shared) -> impl IntoResponse {
-    let body = format!("User-agent: *\nAllow: /\n\nSitemap: {}/sitemap.xml\n", app.origin);
-    ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], body)
+async fn robots(req: Request) -> String {
+    let shop = req.state::<Shop>();
+    format!("User-agent: *\nAllow: /\n\nSitemap: {}/sitemap.xml\n", shop.origin)
 }
 
-#[tokio::main]
-async fn main() {
-    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".into());
+fn main() -> std::io::Result<()> {
+    let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(3000);
     let origin = std::env::var("SITE_URL").unwrap_or_else(|_| format!("http://localhost:{port}"));
-    let app = Router::new()
-        .route("/", get(home))
-        .route("/products/{slug}", get(product))
-        .route("/sitemap.xml", get(sitemap))
-        .route("/robots.txt", get(robots))
-        .nest_service("/pkg", ServeDir::new("pkg"))
-        .nest_service("/static", ServeDir::new("static"))
-        .fallback(not_found)
-        .layer(CompressionLayer::new())
-        .with_state(Arc::new(App { origin }));
-
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await.unwrap();
+    let mut app = App::new();
+    app.state(Shop { origin });
+    app.middleware(middleware::compress());
+    app.get("/", home)
+        .get("/products/:slug", product)
+        .get("/sitemap.xml", sitemap)
+        .get("/robots.txt", robots)
+        .static_dir("/pkg", "pkg")
+        .static_dir("/static", "static")
+        .fallback(not_found);
     println!("http://localhost:{port}");
-    axum::serve(listener, app).await.unwrap();
+    app.run(port)
 }
 ```
 
@@ -202,9 +191,10 @@ Compila el bundle en `pkg/` ([Compilar el cliente](../client-build/)), pon `app.
 Qué hace cada parte:
 
 - **`Html(...)`** define `Content-Type: text/html; charset=utf-8`.
-- **`ServeDir`** sirve el bundle y los archivos estáticos con los tipos de contenido correctos, incluido `application/wasm`.
-- **`CompressionLayer`** comprime las páginas, el cargador y el archivo `.wasm` con Brotli o gzip, según lo que acepte el navegador.
-- **`PORT` y `SITE_URL`** vienen del entorno, que es como los hostings como [Heroku](../deploy-heroku/) configuran una aplicación.
+- **`static_dir`** sirve el bundle y los archivos estáticos con los tipos de contenido correctos, incluido `application/wasm`, y las cabeceras `ETag` y `Last-Modified` con las que los navegadores los guardan en caché.
+- **`middleware::compress()`** comprime las páginas, el cargador y el archivo `.wasm` con Brotli o gzip, según lo que acepte el navegador (la feature `compress` de Vitesse).
+- **`app.state(...)`** comparte un valor con todos los manejadores, que lo leen con `req.state()`.
+- **`PORT` y `SITE_URL`** vienen del entorno, que es como los hostings como [Heroku](../deploy-heroku/) configuran una aplicación. `app.run` escucha en todas las interfaces, arranca el runtime en todos los núcleos y se detiene limpiamente con Ctrl+C o SIGTERM.
 
 ## Errores y 404
 
@@ -216,7 +206,7 @@ Las páginas reales cargan datos de una base de datos o de una API. Haz primero 
 
 ```rust
 use active::prelude::*;
-use axum::{extract::Path, response::Html};
+use vitesse::prelude::*;
 
 /// Representa una consulta a una base de datos o una llamada HTTP.
 async fn fetch_reviews(slug: &str) -> Vec<String> {
@@ -230,7 +220,8 @@ fn reviews_page(slug: &str, reviews: &[String]) -> String {
     Document::new(body).render()
 }
 
-async fn reviews(Path(slug): Path<String>) -> Html<String> {
+async fn reviews(req: Request) -> Html<String> {
+    let slug = req.param("slug").unwrap_or("").to_string();
     // 1. Espera todo lo que necesita la página.
     let reviews = fetch_reviews(&slug).await;
     // 2. Construye y renderiza en una sola llamada síncrona.
@@ -238,9 +229,9 @@ async fn reviews(Path(slug): Path<String>) -> Html<String> {
 }
 ```
 
-El compilador impone esta regla. Axum ejecuta los manejadores en varios hilos, así que sus futures deben ser `Send`. Las vistas (que contienen closures con conteo de referencias) y los estados (que pertenecen al hilo que los creó) no son `Send`: un manejador que conserve cualquiera de ellos a través de un `.await` no compila. La solución es siempre la misma: mueve el `.await` antes del código que construye la vista.
+El compilador impone esta regla. Vitesse ejecuta los manejadores en varios hilos, así que sus futures deben ser `Send`. Las vistas (que contienen closures con conteo de referencias) y los estados (que pertenecen al hilo que los creó) no son `Send`: un manejador que conserve cualquiera de ellos a través de un `.await` no compila. La solución es siempre la misma: mueve el `.await` antes del código que construye la vista.
 
-> **Consejo:** Axum lo notifica con un largo error "the trait bound `…: Handler<_, _>` is not satisfied". Pon `#[axum::debug_handler]` en el manejador (requiere la feature `macros` de axum) para obtener en su lugar la causa real: "future cannot be sent between threads safely", que señala el valor conservado a través del `.await`.
+> **Consejo:** El error dice que el future "cannot be sent between threads safely", o que la función no es un `Handler`; en ambos casos señala la vista o el estado conservado a través del `.await`.
 
 ## Por qué es seguro renderizar en cada petición
 
@@ -251,44 +242,44 @@ El compilador impone esta regla. Axum ejecuta los manejadores en varios hilos, a
 Para desplegar un único archivo, incrusta el bundle con `include_bytes!` en lugar de servir `pkg/` desde el disco. Compila el bundle antes que el servidor, ya que los archivos se leen en tiempo de compilación:
 
 ```rust
-use axum::Router;
-use axum::http::header;
-use axum::response::IntoResponse;
-use axum::routing::get;
+use vitesse::prelude::*;
 
 static JS: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/pkg/my_site.js"));
 static WASM: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/pkg/my_site_bg.wasm"));
 
-/// Rutas para el bundle incrustado, utilizables en un enrutador con cualquier tipo de estado.
-fn bundle_routes<S: Clone + Send + Sync + 'static>() -> Router<S> {
-    Router::new()
-        .route("/pkg/my_site.js", get(|| async { ([(header::CONTENT_TYPE, "text/javascript")], JS).into_response() }))
-        .route("/pkg/my_site_bg.wasm", get(|| async { ([(header::CONTENT_TYPE, "application/wasm")], WASM).into_response() }))
+/// Las rutas del bundle incrustado, para montar en cualquier aplicación.
+fn bundle() -> Router {
+    let mut router = Router::new();
+    router
+        .get("/my_site.js", |_| async { res::send(JS).header("content-type", "text/javascript") })
+        .get("/my_site_bg.wasm", |_| async { res::send(WASM).header("content-type", "application/wasm") });
+    router
 }
 ```
 
-Combínalas con tu enrutador mediante `.merge(bundle_routes())` (antes de `.with_state(...)`). Con un hash del contenido en las URL (consulta [Documentos, Caché a largo plazo](../documents/#cache-a-largo-plazo)), también puedes añadir una cabecera `Cache-Control: public, max-age=31536000, immutable`.
+Móntalas con `app.mount("/pkg", bundle())`. Con un hash del contenido en las URL (consulta [Documentos, Caché a largo plazo](../documents/#cache-a-largo-plazo)), también puedes añadir una cabecera `Cache-Control: public, max-age=31536000, immutable`.
 
 ## Pruebas
 
-Los enrutadores de Axum se pueden llamar sin red, lo que hace que las pruebas de páginas sean rápidas:
+El cliente de pruebas de Vitesse llama a la aplicación sin red, lo que hace que las pruebas de páginas sean rápidas:
 
 ```rust
-use axum::{Router, body::Body, http::{Request, StatusCode}, response::Html, routing::get};
-use tower::ServiceExt;
+use vitesse::prelude::*;
+use vitesse::test::TestClient;
 
 #[tokio::test]
 async fn home_has_a_title() {
-    let app = Router::new().route("/", get(|| async { Html(String::from("<title>Home</title>")) }));
-    let response = app.oneshot(Request::get("/").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(response.into_body(), 1_000_000).await.unwrap();
-    assert!(String::from_utf8_lossy(&body).contains("<title>Home</title>"));
+    let mut app = App::new();
+    app.get("/", |_| async { Html("<title>Home</title>") });
+    let client = TestClient::new(app);
+    let response = client.get("/").await;
+    assert_eq!(response.status(), 200);
+    assert!(response.text().contains("<title>Home</title>"));
 }
 ```
 
-Esto requiere `tower = { version = "0.5", features = ["util"] }` en `[dev-dependencies]`. Las pruebas de este sitio, en `site/tests/server.rs`, comprueban así sus etiquetas SEO, sus redirecciones y su caché.
+Esto requiere `tokio = { version = "1", features = ["macros", "rt"] }` en `[dev-dependencies]`. Las pruebas de este sitio, en `site/tests/server.rs`, comprueban así sus etiquetas SEO, sus redirecciones y su caché.
 
 ## Otros servidores
 
-Nada en `active` es específico de Axum: `Document::render()` devuelve un `String`. En Actix Web, Rocket, Warp, Hyper o un servidor escrito a mano, envía esa cadena con el tipo de contenido `text/html; charset=utf-8`. `examples/hello` lo hace solo con la biblioteca estándar.
+Nada en `active` es específico de Vitesse: `Document::render()` devuelve un `String`. En Axum, Actix Web, Rocket, Warp, Hyper o un servidor escrito a mano, envía esa cadena con el tipo de contenido `text/html; charset=utf-8`. `examples/hello` lo hace solo con la biblioteca estándar.

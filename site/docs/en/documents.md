@@ -137,7 +137,7 @@ Read the files once at startup, compute their versioned URLs, and pass those to 
 
 `render()` renders the body first, collecting its `Seo` values on the way, then writes the page around it: each dynamic region is evaluated once per render. A document can be rendered as many times as needed; on the server, the states its view uses are released automatically once later renders no longer need them (see [State, On the server](../state/#on-the-server)). `final_seo()`, when you call it yourself, evaluates the dynamic regions separately.
 
-To send it, return it with the `text/html; charset=utf-8` content type. With Axum, wrapping it in `axum::response::Html` does that for you (see [Axum](../axum/)). For a static site, write it to an `index.html` file (see [Static sites](../static-site/)).
+To send it, return it with the `text/html; charset=utf-8` content type. With Vitesse, wrapping it in `Html` does that for you (see [Vitesse](../vitesse/)). For a static site, write it to an `index.html` file (see [Static sites](../static-site/)).
 
 ## Without Document
 

@@ -302,23 +302,20 @@ Pour conserver des données d'une visite à l'autre, enregistrez-les dans `local
 
 Chaque URL de l'application doit renvoyer la coquille, pour que recharger `/about` ou ouvrir un lien partagé fonctionne. Les requêtes vers le bundle (`/pkg/…`) renvoient les fichiers.
 
-Avec Axum, servez `/pkg` sous forme de fichiers et répondez avec la coquille pour tout le reste :
+Avec Vitesse, servez `/pkg` sous forme de fichiers et répondez avec la coquille pour tout le reste :
 
 ```rust
-use axum::{Router, response::Html, routing::get};
-use tower_http::services::ServeDir;
+use vitesse::prelude::*;
 
 fn shell() -> String {
     String::from("<!DOCTYPE html>…") // the shell() function above
 }
 
-#[tokio::main]
-async fn main() {
-    let app = Router::new()
-        .nest_service("/pkg", ServeDir::new("pkg"))
-        .fallback(get(|| async { Html(shell()) }));
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+fn main() -> std::io::Result<()> {
+    let mut app = App::new();
+    app.static_dir("/pkg", "pkg")
+        .fallback(|_| async { Html(shell()) });
+    app.run(3000)
 }
 ```
 

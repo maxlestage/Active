@@ -1,4 +1,4 @@
-//! The web server (Axum): pages in three languages, docs search, static files, and the
+//! The web server (Vitesse): pages in three languages, docs search, static files, and the
 //! web app manifest and service worker that make the site an installable app.
 
 pub mod assets;
@@ -10,15 +10,12 @@ pub mod pages;
 pub mod pwa;
 pub mod snippets;
 
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use axum::Router;
-use axum::extract::{Path as Param, State};
-use axum::http::{HeaderMap, HeaderValue, StatusCode, Uri, header};
-use axum::response::{IntoResponse, Response};
-use axum::routing::get;
-use tower_http::compression::CompressionLayer;
+use vitesse::SameSite;
+use vitesse::prelude::*;
 
 use crate::routes::{Lang, Page, Route};
 use assets::Assets;
@@ -106,14 +103,13 @@ impl Site {
         routes
     }
 
-    fn origin(&self, headers: &HeaderMap) -> String {
+    /// The public address of the site: `SITE_URL`, else the one the request was sent to.
+    fn origin(&self, req: &Request) -> String {
         if let Some(url) = &self.site_url {
             return url.clone();
         }
         let header = |name: &str| {
-            headers
-                .get(name)
-                .and_then(|v| v.to_str().ok())
+            req.header(name)
                 .map(|v| v.split(',').next().unwrap_or("").trim().to_string())
         };
         let host = header("x-forwarded-host")
@@ -153,95 +149,51 @@ pub fn pick_lang(header: &str) -> Lang {
     ranked.first().map_or(Lang::En, |r| r.0)
 }
 
-fn security(headers: &mut HeaderMap, https: bool) {
-    headers.insert(
-        "x-content-type-options",
-        HeaderValue::from_static("nosniff"),
-    );
-    headers.insert(
-        "referrer-policy",
-        HeaderValue::from_static("strict-origin-when-cross-origin"),
-    );
-    headers.insert("x-frame-options", HeaderValue::from_static("SAMEORIGIN"));
-    if https {
-        headers.insert(
-            "strict-transport-security",
-            HeaderValue::from_static("max-age=31536000"),
-        );
-    }
-}
-
-fn is_https(headers: &HeaderMap) -> bool {
-    headers
-        .get("x-forwarded-proto")
-        .is_some_and(|v| v == "https")
-}
-
-type Shared = State<Arc<Site>>;
-
-async fn root(headers: HeaderMap) -> Response {
-    let accept = headers
-        .get(header::ACCEPT_LANGUAGE)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    let mut response = (
-        StatusCode::FOUND,
-        [(
-            header::LOCATION,
-            crate::routes::link(&format!("/{}/", pick_lang(accept).code())),
-        )],
-    )
-        .into_response();
-    response
-        .headers_mut()
-        .insert(header::VARY, HeaderValue::from_static("Accept-Language"));
-    response
-        .headers_mut()
-        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
-    security(response.headers_mut(), is_https(&headers));
-    response
+/// `/`: the home page of the visitor's language.
+fn root(_site: &Site, req: &Request) -> Response {
+    let accept = req.header("accept-language").unwrap_or("");
+    Redirect::to(crate::routes::link(&format!(
+        "/{}/",
+        pick_lang(accept).code()
+    )))
+    .into_response()
+    .header("vary", "Accept-Language")
+    .header("cache-control", "no-cache")
 }
 
 /// Every page: `/{lang}/`, `/{lang}/docs/`, `/{lang}/docs/{slug}/`, or a 404.
-async fn page(State(site): Shared, uri: Uri, headers: HeaderMap) -> Response {
-    let path = uri.path();
-    let accept = headers
-        .get(header::ACCEPT_LANGUAGE)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
+fn page(site: &Site, req: &Request) -> Response {
+    let path = req.path();
+    let accept = req.header("accept-language").unwrap_or("");
     let route = Route::parse(path, site.docs.slugs()).unwrap_or(Route {
         lang: pick_lang(accept),
         page: Page::NotFound,
     });
     if route.page != Page::NotFound && !path.ends_with('/') {
-        let query = uri.query().map(|q| format!("?{q}")).unwrap_or_default();
-        return (
-            StatusCode::MOVED_PERMANENTLY,
-            [(header::LOCATION, format!("{path}/{query}"))],
-        )
-            .into_response();
+        let query = req
+            .query_string()
+            .map(|q| format!("?{q}"))
+            .unwrap_or_default();
+        return Redirect::permanent(format!("{path}/{query}")).into_response();
     }
-    html(&site, &route, &headers)
+    html(site, &route, req)
 }
 
 /// `/offline/`: the page the service worker shows for a page not saved on the device.
-async fn offline(State(site): Shared, headers: HeaderMap) -> Response {
+fn offline(site: &Site, req: &Request) -> Response {
     let route = Route {
         lang: Lang::En,
         page: Page::Offline,
     };
-    html(&site, &route, &headers)
+    html(site, &route, req)
 }
 
 /// The HTML page of `route` (404 for `Page::NotFound`).
-fn html(site: &Site, route: &Route, headers: &HeaderMap) -> Response {
+fn html(site: &Site, route: &Route, req: &Request) -> Response {
     // The opening curtain plays on the first home page of a browser session.
-    let seen = headers
-        .get(header::COOKIE)
-        .and_then(|c| c.to_str().ok())
-        .is_some_and(|c| c.contains("active-intro=1"));
+    let seen = req.cookie("active-intro") == Some("1");
     let intro = route.page == Page::Home && !seen;
-    let origin = site.origin(headers);
+    let origin = site.origin(req);
     let html = pages::render(&pages::Ctx {
         site,
         route,
@@ -249,61 +201,45 @@ fn html(site: &Site, route: &Route, headers: &HeaderMap) -> Response {
         intro,
     });
     let status = if route.page == Page::NotFound {
-        StatusCode::NOT_FOUND
+        404
     } else {
-        StatusCode::OK
+        200
     };
-    let mut response = (status, html).into_response();
-    let h = response.headers_mut();
-    h.insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("text/html; charset=utf-8"),
-    );
-    h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    let response = res::status(status)
+        .header("cache-control", "no-cache")
+        .html(html);
     if intro {
-        h.insert(
-            header::SET_COOKIE,
-            HeaderValue::from_static("active-intro=1; Path=/; SameSite=Lax"),
-        );
+        response.cookie(
+            Cookie::new("active-intro", "1")
+                .path("/")
+                .same_site(SameSite::Lax),
+        )
+    } else {
+        response
     }
-    security(h, is_https(headers));
-    response
 }
 
 /// `/manifest.webmanifest`: name, icons and colors of the installed app.
-async fn manifest(headers: HeaderMap) -> Response {
-    let mut response = (
-        [
-            (header::CONTENT_TYPE, "application/manifest+json"),
-            (header::CACHE_CONTROL, "no-cache"),
-        ],
-        pwa::manifest().to_json(),
-    )
-        .into_response();
-    security(response.headers_mut(), is_https(&headers));
-    response
+fn manifest(_site: &Site, _req: &Request) -> Response {
+    res::send(pwa::manifest().to_json())
+        .header("content-type", "application/manifest+json")
+        .header("cache-control", "no-cache")
 }
 
 /// `/sw.js`: the offline service worker. Never cached by HTTP, so that browsers see a new
 /// version as soon as it is deployed.
-async fn service_worker(State(site): Shared, headers: HeaderMap) -> Response {
-    let mut response = (
-        [
-            (header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
-            (header::CACHE_CONTROL, "no-cache"),
-        ],
-        pwa::worker(&site).to_js(),
-    )
-        .into_response();
-    security(response.headers_mut(), is_https(&headers));
-    response
+fn service_worker(site: &Site, _req: &Request) -> Response {
+    res::send(pwa::worker(site).to_js())
+        .header("content-type", "text/javascript; charset=utf-8")
+        .header("cache-control", "no-cache")
 }
 
 /// `/search/{lang}.txt`: the search index of a language, one entry per line (see
 /// [`crate::search::Entry`]). The browser downloads it once and searches locally.
-async fn search_index(State(site): Shared, Param(file): Param<String>) -> Response {
+fn search_index(site: &Site, req: &Request) -> Response {
+    let file = req.param("file").unwrap_or("");
     let Some(lang) = file.strip_suffix(".txt").and_then(Lang::parse) else {
-        return StatusCode::NOT_FOUND.into_response();
+        return res::status(404);
     };
     let body: String = site
         .docs
@@ -311,47 +247,39 @@ async fn search_index(State(site): Shared, Param(file): Param<String>) -> Respon
         .iter()
         .map(|e| e.line())
         .collect();
-    (
-        [
-            (header::CONTENT_TYPE, "text/plain; charset=utf-8"),
-            (header::CACHE_CONTROL, "public, max-age=300"),
-        ],
-        body,
-    )
-        .into_response()
+    res::text(body).header("cache-control", "public, max-age=300")
 }
 
-fn asset(site: &Site, url: &str, uri: &Uri) -> Response {
+/// A static file by its URL. Versioned URLs (`?v=`) never change: browsers keep them a year.
+fn asset(site: &Site, url: &str, req: &Request) -> Response {
     match site.assets.get(url) {
         Some(a) => {
-            let cache = if uri.query().is_some_and(|q| q.starts_with("v=")) {
+            let cache = if req.query_string().is_some_and(|q| q.starts_with("v=")) {
                 "public, max-age=31536000, immutable"
             } else {
                 "public, max-age=3600"
             };
-            (
-                [
-                    (header::CONTENT_TYPE, a.content_type),
-                    (header::CACHE_CONTROL, cache),
-                ],
-                a.bytes.clone(),
-            )
-                .into_response()
+            res::send(a.bytes.clone())
+                .header("content-type", a.content_type)
+                .header("cache-control", cache)
         }
-        None => StatusCode::NOT_FOUND.into_response(),
+        None => res::status(404),
     }
 }
 
-async fn files(State(site): Shared, uri: Uri) -> Response {
-    asset(&site, uri.path(), &uri)
+/// `/static/…` and `/pkg/…`.
+fn files(site: &Site, req: &Request) -> Response {
+    asset(site, req.path(), req)
 }
 
-async fn root_file(State(site): Shared, uri: Uri) -> Response {
-    asset(&site, &format!("/static{}", uri.path()), &uri)
+/// The files browsers look for at the root: the favicon, the Open Graph image, the Apple
+/// touch icon.
+fn root_file(site: &Site, req: &Request) -> Response {
+    asset(site, &format!("/static{}", req.path()), req)
 }
 
-async fn sitemap(State(site): Shared, headers: HeaderMap) -> Response {
-    let origin = site.origin(&headers);
+fn sitemap(site: &Site, req: &Request) -> Response {
+    let origin = site.origin(req);
     let mut xml = String::from(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\" xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">\n",
     );
@@ -371,40 +299,48 @@ async fn sitemap(State(site): Shared, headers: HeaderMap) -> Response {
         xml.push('\n');
     }
     xml.push_str("</urlset>\n");
-    (
-        [(header::CONTENT_TYPE, "application/xml; charset=utf-8")],
-        xml,
-    )
-        .into_response()
+    res::send(xml).header("content-type", "application/xml; charset=utf-8")
 }
 
-async fn robots(State(site): Shared, headers: HeaderMap) -> Response {
-    let origin = site.origin(&headers);
-    (
-        [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        format!("User-agent: *\nAllow: /\n\nSitemap: {origin}/sitemap.xml\n"),
-    )
-        .into_response()
+fn robots(site: &Site, req: &Request) -> Response {
+    let origin = site.origin(req);
+    res::text(format!(
+        "User-agent: *\nAllow: /\n\nSitemap: {origin}/sitemap.xml\n"
+    ))
 }
 
-/// The application, ready to serve or to test.
-pub fn app(site: Arc<Site>) -> Router {
-    Router::new()
-        .route("/", get(root))
-        .route("/search/{file}", get(search_index))
-        .route("/sitemap.xml", get(sitemap))
-        .route("/robots.txt", get(robots))
-        .route("/manifest.webmanifest", get(manifest))
-        .route("/sw.js", get(service_worker))
-        .route("/offline/", get(offline))
-        .route("/static/{*path}", get(files))
-        .route("/pkg/{*path}", get(files))
-        .route("/favicon.svg", get(root_file))
-        .route("/og.png", get(root_file))
-        .route("/apple-touch-icon.png", get(root_file))
-        .fallback(get(page))
-        .layer(CompressionLayer::new())
-        .with_state(site)
+/// Routes a handler that only needs the site and the request.
+fn route(app: &mut App, path: &str, site: &Arc<Site>, handler: fn(&Site, &Request) -> Response) {
+    let site = site.clone();
+    app.get(path, move |req: Request| {
+        let site = site.clone();
+        async move { handler(&site, &req) }
+    });
+}
+
+/// The application, ready to serve or to test: every response compressed for the browsers
+/// that accept it and sent with the usual security headers.
+pub fn app(site: Arc<Site>) -> App {
+    let mut app = App::new();
+    app.middleware(middleware::compress());
+    app.middleware(middleware::helmet());
+    route(&mut app, "/", &site, root);
+    route(&mut app, "/search/:file", &site, search_index);
+    route(&mut app, "/sitemap.xml", &site, sitemap);
+    route(&mut app, "/robots.txt", &site, robots);
+    route(&mut app, "/manifest.webmanifest", &site, manifest);
+    route(&mut app, "/sw.js", &site, service_worker);
+    route(&mut app, "/offline", &site, offline);
+    route(&mut app, "/static/*path", &site, files);
+    route(&mut app, "/pkg/*path", &site, files);
+    for file in ["/favicon.svg", "/og.png", "/apple-touch-icon.png"] {
+        route(&mut app, file, &site, root_file);
+    }
+    app.fallback(move |req: Request| {
+        let site = site.clone();
+        async move { page(&site, &req) }
+    });
+    app
 }
 
 /// The `site/` folder: `SITE_DIR`, or the crate folder when run with cargo.
@@ -413,34 +349,15 @@ pub fn site_dir() -> PathBuf {
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")), PathBuf::from)
 }
 
-/// Ctrl+C locally, SIGTERM on Heroku.
-async fn shutdown() {
-    #[cfg(unix)]
-    {
-        let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("signal");
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {},
-            _ = term.recv() => {},
-        }
-    }
-    #[cfg(not(unix))]
-    let _ = tokio::signal::ctrl_c().await;
-}
-
-pub async fn run() {
+/// `cargo run -p active-site`: the site on `PORT` (Heroku) or 3000, on every core, stopped
+/// by Ctrl+C locally and by SIGTERM on Heroku.
+pub fn run() -> io::Result<()> {
     crate::routes::set_base(&std::env::var("BASE_PATH").unwrap_or_default());
     let site = Arc::new(Site::load(&site_dir()));
     let port = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(3000u16);
-    let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
-        .await
-        .expect("bind");
     println!("active site on http://localhost:{port}");
-    axum::serve(listener, app(site))
-        .with_graceful_shutdown(shutdown())
-        .await
-        .expect("server");
+    app(site).run(port)
 }

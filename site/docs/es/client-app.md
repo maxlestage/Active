@@ -302,23 +302,20 @@ Para conservar datos entre visitas, guárdalos en `localStorage` desde un [efect
 
 Cada URL de la aplicación debe devolver el shell, para que funcione recargar `/about` o abrir un enlace compartido. Las peticiones del bundle (`/pkg/…`) devuelven los archivos.
 
-Con Axum, sirve `/pkg` como archivos y responde con el shell a todo lo demás:
+Con Vitesse, sirve `/pkg` como archivos y responde con el shell a todo lo demás:
 
 ```rust
-use axum::{Router, response::Html, routing::get};
-use tower_http::services::ServeDir;
+use vitesse::prelude::*;
 
 fn shell() -> String {
     String::from("<!DOCTYPE html>…") // the shell() function above
 }
 
-#[tokio::main]
-async fn main() {
-    let app = Router::new()
-        .nest_service("/pkg", ServeDir::new("pkg"))
-        .fallback(get(|| async { Html(shell()) }));
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+fn main() -> std::io::Result<()> {
+    let mut app = App::new();
+    app.static_dir("/pkg", "pkg")
+        .fallback(|_| async { Html(shell()) });
+    app.run(3000)
 }
 ```
 

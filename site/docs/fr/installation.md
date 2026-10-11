@@ -67,8 +67,7 @@ active = "0.1"
 
 # Dépendances propres au serveur : elles ne compilent pas pour wasm32.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-axum = "0.8"
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
+vitesse = "0.1"
 
 # Propres au navigateur : le runtime client et le générateur de liaisons.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -98,7 +97,7 @@ pub fn start() {
 }
 ```
 
-> **Attention :** Gardez les crates serveur comme `tokio` et `axum` dans la table `cfg(not(target_arch = "wasm32"))`. Cargo compile toutes les dépendances du paquet pour la cible que vous construisez, même celles que seul `main.rs` utilise, et les crates réseau ne compilent pas pour `wasm32-unknown-unknown`.
+> **Attention :** Gardez les crates serveur comme `vitesse` dans la table `cfg(not(target_arch = "wasm32"))`. Cargo compile toutes les dépendances du paquet pour la cible que vous construisez, même celles que seul `main.rs` utilise, et les crates réseau ne compilent pas pour `wasm32-unknown-unknown`.
 
 ## Installer les outils WebAssembly
 

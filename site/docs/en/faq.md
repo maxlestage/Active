@@ -46,14 +46,14 @@ When the browser hydrates an island, it expects the HTML from the server to matc
 
 ## How do I load data asynchronously?
 
-- **On the server:** await your database or API calls first, then build and render the view in one synchronous call, without any `.await` in between (the compiler rejects a `State` kept across an `.await` in a multi-threaded server). See [Axum, Async data](../axum/#async-data).
+- **On the server:** await your database or API calls first, then build and render the view in one synchronous call, without any `.await` in between (the compiler rejects a `State` kept across an `.await` in a multi-threaded server). See [Vitesse, Async data](../vitesse/#async-data).
 - **In the browser:** start a future with `wasm_bindgen_futures::spawn_local` from a handler or an effect, and write the result into a state; the view updates. See [Events, Async work in handlers](../events/#async-work-in-handlers).
 
 Components themselves are synchronous functions.
 
 ## Is there a router?
 
-On the server, use your web framework's router (Axum routes in the [Axum](../axum/) guide), one page function per route. In a client-side app, `active::location()` gives the current path as a state and handles links and the back button, `active::query()` and `active::query_param("q")` give the query string, and `active::navigate()` changes page from code. See [Client-side apps, Routing](../client-app/#routing).
+On the server, use your web framework's router (Vitesse routes in the [Vitesse](../vitesse/) guide), one page function per route. In a client-side app, `active::location()` gives the current path as a state and handles links and the back button, `active::query()` and `active::query_param("q")` give the query string, and `active::navigate()` changes page from code. See [Client-side apps, Routing](../client-app/#routing).
 
 ## How do I style components?
 
@@ -77,7 +77,7 @@ Rust 1.85 or newer: the crate uses the 2024 edition, declared as `rust-version =
 
 ## Can I use it with Actix Web, Rocket or another server?
 
-Yes. `Document::render()` returns a `String`: send it with the `text/html; charset=utf-8` content type from any framework. The [Axum](../axum/) guide shows one integration, and `examples/hello` uses only the standard library. A `Seo` can also be used on its own in any template.
+Yes. `Document::render()` returns a `String`: send it with the `text/html; charset=utf-8` content type from any framework. The [Vitesse](../vitesse/) guide shows one integration, and `examples/hello` uses only the standard library. A `Seo` can also be used on its own in any template.
 
 ## How do I see panic messages from the browser?
 

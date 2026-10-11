@@ -161,12 +161,12 @@ CMD ["/app/my-site"]
 Añade un `.dockerignore` que contenga `target` y `pkg`, y haz que el servidor escuche en `PORT` en todas las interfaces:
 
 ```rust
-#[tokio::main]
-async fn main() {
-    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".into());
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await.unwrap();
-    let app = axum::Router::new(); // your routes
-    axum::serve(listener, app).await.unwrap();
+use vitesse::prelude::*;
+
+fn main() -> std::io::Result<()> {
+    let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(3000);
+    let app = App::new(); // your routes
+    app.run(port)
 }
 ```
 

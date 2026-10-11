@@ -46,14 +46,14 @@ Cuando el navegador hidrata una isla, espera que el HTML del servidor coincida c
 
 ## ¿Cómo cargo datos de forma asíncrona?
 
-- **En el servidor:** espera primero tus llamadas a la base de datos o a la API, y después construye y renderiza la vista en una sola llamada síncrona, sin ningún `.await` entre medias (el compilador rechaza un `State` conservado a través de un `.await` en un servidor multihilo). Consulta [Axum, Datos asíncronos](../axum/#datos-asincronos).
+- **En el servidor:** espera primero tus llamadas a la base de datos o a la API, y después construye y renderiza la vista en una sola llamada síncrona, sin ningún `.await` entre medias (el compilador rechaza un `State` conservado a través de un `.await` en un servidor multihilo). Consulta [Vitesse, Datos asíncronos](../vitesse/#datos-asincronos).
 - **En el navegador:** inicia un future con `wasm_bindgen_futures::spawn_local` desde un manejador o un efecto, y escribe el resultado en un estado; la vista se actualiza. Consulta [Eventos, Trabajo asíncrono en los manejadores](../events/#trabajo-asincrono-en-los-manejadores).
 
 Los componentes en sí son funciones síncronas.
 
 ## ¿Hay un enrutador?
 
-En el servidor, usa el enrutador de tu framework web (rutas de Axum en la guía de [Axum](../axum/)), con una función de página por ruta. En una aplicación del lado del cliente, `active::location()` da la ruta actual como estado y gestiona los enlaces y el botón Atrás, `active::query()` y `active::query_param("q")` dan la cadena de consulta, y `active::navigate()` cambia de página desde el código. Consulta [Aplicaciones del lado del cliente, Enrutamiento](../client-app/#enrutamiento).
+En el servidor, usa el enrutador de tu framework web (rutas de Vitesse en la guía de [Vitesse](../vitesse/)), con una función de página por ruta. En una aplicación del lado del cliente, `active::location()` da la ruta actual como estado y gestiona los enlaces y el botón Atrás, `active::query()` y `active::query_param("q")` dan la cadena de consulta, y `active::navigate()` cambia de página desde el código. Consulta [Aplicaciones del lado del cliente, Enrutamiento](../client-app/#enrutamiento).
 
 ## ¿Cómo doy estilo a los componentes?
 
@@ -77,7 +77,7 @@ Rust 1.85 o posterior: el crate usa la edición 2024, declarada como `rust-versi
 
 ## ¿Puedo usarlo con Actix Web, Rocket u otro servidor?
 
-Sí. `Document::render()` devuelve un `String`: envíalo con el tipo de contenido `text/html; charset=utf-8` desde cualquier framework. La guía de [Axum](../axum/) muestra una integración, y `examples/hello` usa solo la biblioteca estándar. Un `Seo` también se puede usar por sí solo en cualquier plantilla.
+Sí. `Document::render()` devuelve un `String`: envíalo con el tipo de contenido `text/html; charset=utf-8` desde cualquier framework. La guía de [Vitesse](../vitesse/) muestra una integración, y `examples/hello` usa solo la biblioteca estándar. Un `Seo` también se puede usar por sí solo en cualquier plantilla.
 
 ## ¿Cómo veo los mensajes de pánico del navegador?
 

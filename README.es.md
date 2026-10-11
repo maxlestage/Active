@@ -82,7 +82,7 @@ cargo run -p hello   # http://localhost:3000
 | [`crates/active`](crates/active) | El crate `active`: vistas, estado, SEO, documentos, islas, hidratación |
 | [`examples/hello`](examples/hello) | La aplicación más pequeña: una página y una isla de contador, con un servidor que solo usa std |
 | [`examples/spa`](examples/spa) | Una aplicación del lado del cliente: lista de tareas, enrutamiento, formularios, `localStorage` |
-| [`site`](site) | Sitio web de presentación y documentación (en/fr/es): servidor Axum, animaciones en WebAssembly, búsqueda y área de pruebas interactiva, instalable y sin conexión (PWA) |
+| [`site`](site) | Sitio web de presentación y documentación (en/fr/es): servidor Vitesse, animaciones en WebAssembly, búsqueda y área de pruebas interactiva, instalable y sin conexión (PWA) |
 | [`bench`](bench) | Benchmarks frente a Leptos, Dioxus, Yew, Sycamore, maud y HTML escrito a mano |
 
 ## Publicar el sitio en GitHub Pages (gratis)

@@ -78,7 +78,7 @@ Sirve la carpeta `pkg/` en una URL, normalmente `/pkg/`, con estos tipos de cont
 | `.js` | `text/javascript` |
 | `.wasm` | `application/wasm` |
 
-Con el tipo correcto, el navegador compila el módulo mientras lo descarga. Con uno incorrecto, el cargador muestra una advertencia en la consola y recurre a un método más lento. El `ServeDir` de [Axum](../axum/) y la mayoría de los hostings estáticos definen ambos tipos automáticamente.
+Con el tipo correcto, el navegador compila el módulo mientras lo descarga. Con uno incorrecto, el cargador muestra una advertencia en la consola y recurre a un método más lento. El `static_dir` de [Vitesse](../vitesse/) y la mayoría de los hostings estáticos definen ambos tipos automáticamente.
 
 Comprime ambos archivos: WebAssembly se comprime bien con Brotli o gzip (consulta [Rendimiento](../performance/#tamanos)).
 
