@@ -1,6 +1,6 @@
 ---
 title: Deploy to Heroku
-description: Put an active site online with Heroku using only a phone: fork on GitHub, deploy with one button, then redeploy automatically on every push to master.
+description: Put an Active site online with Heroku using only a phone: fork on GitHub, deploy with one button, then redeploy automatically on every push to master.
 ---
 
 This guide puts a site built with `active` online with [Heroku](https://www.heroku.com), using only a phone and a web browser. It uses this repository (the `active` website) as the example; the last sections show how to deploy your own app the same way.

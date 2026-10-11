@@ -23,7 +23,7 @@ use docs::Docs;
 
 /// Bench numbers shown on the home page (bench/RESULTS.md).
 pub const BENCH_SIZE: pages::Bars = &[
-    ("active", 36.8, true, false),
+    ("Active", 36.8, true, false),
     ("sycamore", 45.8, false, false),
     ("leptos", 60.9, false, false),
     ("yew", 96.3, false, false),
@@ -34,7 +34,7 @@ pub const BENCH_SSR: pages::Bars = &[
     ("maud", 1.37, false, false),
     ("write! (baseline)", 2.01, false, true),
     ("leptos (manual <head>)", 5.19, false, false),
-    ("active", 5.58, true, false),
+    ("Active", 5.58, true, false),
     ("leptos + leptos_meta", 13.44, false, false),
     ("yew", 17.17, false, false),
     ("dioxus", 24.22, false, false),
@@ -219,9 +219,17 @@ fn html(site: &Site, route: &Route, req: &Request) -> Response {
     }
 }
 
-/// `/manifest.webmanifest`: name, icons and colors of the installed app.
-fn manifest(_site: &Site, _req: &Request) -> Response {
-    res::send(pwa::manifest().to_json())
+/// `/{lang}/manifest.webmanifest`: name, icons and colors of the installed app, which
+/// opens in that language (`/manifest.webmanifest`: English).
+fn manifest(_site: &Site, req: &Request) -> Response {
+    let lang = match req.param("lang") {
+        None => Lang::En,
+        Some(code) => match Lang::parse(code) {
+            Some(lang) => lang,
+            None => return res::status(404),
+        },
+    };
+    res::send(pwa::manifest(lang).to_json())
         .header("content-type", "application/manifest+json")
         .header("cache-control", "no-cache")
 }
@@ -329,6 +337,7 @@ pub fn app(site: Arc<Site>) -> App {
     route(&mut app, "/sitemap.xml", &site, sitemap);
     route(&mut app, "/robots.txt", &site, robots);
     route(&mut app, "/manifest.webmanifest", &site, manifest);
+    route(&mut app, "/:lang/manifest.webmanifest", &site, manifest);
     route(&mut app, "/sw.js", &site, service_worker);
     route(&mut app, "/offline", &site, offline);
     route(&mut app, "/static/*path", &site, files);

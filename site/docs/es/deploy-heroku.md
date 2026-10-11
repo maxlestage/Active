@@ -1,6 +1,6 @@
 ---
 title: Desplegar en Heroku
-description: Pon en línea un sitio de active con Heroku usando solo un teléfono: haz un fork en GitHub, despliega con un botón y redespliega en cada push a master.
+description: Pon en línea un sitio de Active con Heroku usando solo un teléfono: haz un fork en GitHub, despliega con un botón y redespliega en cada push a master.
 ---
 
 Esta guía pone en línea con [Heroku](https://www.heroku.com) un sitio hecho con `active`, usando solo un teléfono y un navegador web. Toma como ejemplo este repositorio (el sitio web de `active`); las últimas secciones muestran cómo desplegar tu propia aplicación de la misma manera.

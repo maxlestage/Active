@@ -1,6 +1,6 @@
 ---
 title: Vitesse
-description: Servez des pages active avec Vitesse : routes renvoyant du Html, îlots, fichiers statiques, page 404, sitemap, données asynchrones, compression, tests et rendu par requête sûr.
+description: Servez des pages Active avec Vitesse : routes renvoyant du Html, îlots, fichiers statiques, page 404, sitemap, données asynchrones, compression, tests et rendu par requête sûr.
 ---
 
 [Vitesse](https://maxlestage.github.io/Vitesse/) est un framework web Rust qui reprend l'API d'Express : `app.get`, `req.param`, middlewares, routeurs, son propre moteur HTTP/1.1 sur tokio. Rendre une page `active` dans un gestionnaire Vitesse tient en une ligne, `Html(Document::new(view).render())` ; cette page construit autour une petite boutique complète : des pages avec leurs balises SEO, un îlot, des fichiers statiques, une page 404, un sitemap et des données chargées de manière asynchrone. Ce site web est lui-même un serveur Vitesse, dans `site/src/server`.

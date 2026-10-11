@@ -19,19 +19,20 @@ const ICONS: [(&str, &str, bool); 3] = [
     ("/static/icon-maskable-512.png", "512x512", true),
 ];
 
-/// The web app manifest. The app opens on the English home page: a page that answers 200
+/// The web app manifest of the pages in `lang` (`/{lang}/manifest.webmanifest`): the app
+/// opens on the home page of the language it was installed in, a page that answers 200
 /// and is saved on the device (`/` is a redirect, which a service worker cannot replay
-/// offline), with the language switch one tap away.
-pub fn manifest() -> Manifest {
-    let manifest = Manifest::new("active")
-        .short_name("active")
-        .description(t(Lang::En).home.description)
+/// offline).
+pub fn manifest(lang: Lang) -> Manifest {
+    let manifest = Manifest::new("Active")
+        .short_name("Active")
+        .description(t(lang).home.description)
         .id(link("/"))
-        .start_url(link("/en/"))
+        .start_url(link(&format!("/{}/", lang.code())))
         .scope(link("/"))
         .theme_color(THEME)
         .background_color(THEME)
-        .lang("en")
+        .lang(lang.code())
         .categories(["developer", "education"]);
     ICONS
         .iter()
@@ -104,7 +105,10 @@ pub fn precache(site: &Site) -> Vec<String> {
 /// The version of the worker: a hash of everything it saves (the pages rendered, the
 /// files) and of the manifest. Any change makes a new worker, which replaces the cache.
 pub fn version(site: &Site) -> String {
-    let mut all = manifest().to_json();
+    let mut all: String = Lang::ALL
+        .into_iter()
+        .map(|l| manifest(l).to_json())
+        .collect();
     let origin = site.site_url.as_deref().unwrap_or("http://localhost");
     for route in saved_pages().iter().chain([&offline()]) {
         all.push_str(&pages::render(&pages::Ctx {

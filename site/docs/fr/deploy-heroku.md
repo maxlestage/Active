@@ -1,6 +1,6 @@
 ---
 title: Déployer sur Heroku
-description: Mettez un site active en ligne sur Heroku avec un simple téléphone : fork sur GitHub, déploiement en un bouton, puis redéploiement à chaque push sur master.
+description: Mettez un site Active en ligne sur Heroku avec un simple téléphone : fork sur GitHub, déploiement en un bouton, puis redéploiement à chaque push sur master.
 ---
 
 Ce guide met en ligne un site construit avec `active` sur [Heroku](https://www.heroku.com), avec seulement un téléphone et un navigateur web. Il prend ce dépôt (le site web d'`active`) comme exemple ; les dernières sections montrent comment déployer votre propre application de la même façon.

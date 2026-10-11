@@ -236,9 +236,22 @@ async fn the_manifest_describes_the_installed_app() {
     );
     let manifest: serde_json::Value =
         serde_json::from_str(&text(response).await).expect("valid JSON");
-    assert_eq!(manifest["name"], "active");
+    assert_eq!(manifest["name"], "Active");
     // A page that answers 200 (`/` redirects), saved by the service worker.
     assert_eq!(manifest["start_url"], "/en/");
+    // Each language has its manifest: the installed app opens in that language.
+    for lang in ["fr", "es"] {
+        let localized: serde_json::Value = serde_json::from_str(
+            &text(get(&format!("/{lang}/manifest.webmanifest"), &[]).await).await,
+        )
+        .expect("valid JSON");
+        assert_eq!(localized["start_url"], format!("/{lang}/"));
+        assert_eq!(localized["lang"], lang);
+    }
+    assert_eq!(
+        get("/de/manifest.webmanifest", &[]).await.status(),
+        StatusCode::NOT_FOUND
+    );
     assert_eq!(manifest["scope"], "/");
     assert_eq!(manifest["display"], "standalone");
     assert_eq!(manifest["theme_color"], "#0b0b0c");
@@ -332,20 +345,16 @@ async fn the_service_worker_saves_the_home_pages_and_what_they_load() {
 
 #[tokio::test]
 async fn every_page_is_installable() {
-    for path in [
-        "/en/",
-        "/fr/docs/",
-        "/es/docs/pwa/",
-        "/en/nope",
-        "/offline/",
+    for (path, lang) in [
+        ("/en/", "en"),
+        ("/fr/docs/", "fr"),
+        ("/es/docs/pwa/", "es"),
+        ("/en/nope", "en"),
+        ("/offline/", "en"),
     ] {
         let html = text(get(path, &[]).await).await;
-        assert_eq!(
-            html.matches(r#"<link rel="manifest" href="/manifest.webmanifest"/>"#)
-                .count(),
-            1,
-            "{path}"
-        );
+        let link = format!(r#"<link rel="manifest" href="/{lang}/manifest.webmanifest"/>"#);
+        assert_eq!(html.matches(&link).count(), 1, "{path}");
         assert_eq!(
             html.matches(r##"<meta name="theme-color" content="#0b0b0c"/>"##)
                 .count(),
@@ -371,7 +380,7 @@ async fn the_offline_page_speaks_the_three_languages() {
     assert_eq!(response.status(), StatusCode::OK);
     let html = text(response).await;
     assert!(html.contains(r#"<meta name="robots" content="noindex"#));
-    assert!(html.contains("<title>You are offline. — active</title>"));
+    assert!(html.contains("<title>You are offline. — Active</title>"));
     for (lang, text) in [
         ("en", "Home page"),
         ("fr", "Vous êtes hors ligne."),
@@ -401,7 +410,7 @@ async fn the_pwa_guide_is_in_the_docs_in_every_language() {
         assert_eq!(page.status(), StatusCode::OK);
         let html = text(page).await;
         assert!(
-            html.contains(&format!("<title>{title} — active docs</title>")),
+            html.contains(&format!("<title>{title} — Active docs</title>")),
             "{lang}"
         );
         assert!(html.contains(&format!(r#"<html lang="{lang}""#)));

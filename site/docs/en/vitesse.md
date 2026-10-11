@@ -1,6 +1,6 @@
 ---
 title: Vitesse
-description: Serve active pages with Vitesse: routes returning Html, islands, static files, 404 pages, a sitemap, async data, compression, tests, and why rendering per request is safe.
+description: Serve Active pages with Vitesse: routes returning Html, islands, static files, 404 pages, a sitemap, async data, compression, tests, and why rendering per request is safe.
 ---
 
 [Vitesse](https://maxlestage.github.io/Vitesse/) is a Rust web framework with the API of Express: `app.get`, `req.param`, middlewares, routers, its own HTTP/1.1 engine on tokio. Rendering an `active` page in a Vitesse handler is one line, `Html(Document::new(view).render())`; this page builds a complete small shop around it: pages with SEO tags, an island, static files, a 404 page, a sitemap, and data loaded asynchronously. This website itself is a Vitesse server, in `site/src/server`.

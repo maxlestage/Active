@@ -1,15 +1,15 @@
 ---
 title: Applications installables (PWA)
-description: Rendez un site active installable et utilisable hors ligne avec active::pwa : manifeste d'application web, service worker et sa stratégie de cache, méthodes de Document, service et export, icônes, tests hors ligne.
+description: Rendez un site Active installable et utilisable hors ligne avec active::pwa : manifeste d'application web, service worker et sa stratégie de cache, méthodes de Document, service et export, icônes, tests hors ligne.
 ---
 
-Une Progressive Web App est un site web que les téléphones et les ordinateurs peuvent installer : il obtient une icône sur l'écran d'accueil, s'ouvre en plein écran sans la barre du navigateur et continue de fonctionner quand le réseau est coupé. Pour faire d'un site active une PWA, il suffit de deux fichiers et de quelques balises, tous écrits en Rust par le module `active::pwa` :
+Une Progressive Web App est un site web que les téléphones et les ordinateurs peuvent installer : il obtient une icône sur l'écran d'accueil, s'ouvre en plein écran sans la barre du navigateur et continue de fonctionner quand le réseau est coupé. Pour faire d'un site Active une PWA, il suffit de deux fichiers et de quelques balises, tous écrits en Rust par le module `active::pwa` :
 
 - le **manifeste d'application web** (`manifest.webmanifest`) : le nom, les icônes et les couleurs de l'application installée, écrit par `Manifest` ;
 - le **service worker** (`sw.js`) : un petit script que le navigateur exécute à côté des pages, qui enregistre le site sur l'appareil et répond à sa place hors ligne, généré par `ServiceWorker` ;
 - dans chaque page, `Document::manifest` et `Document::service_worker` ajoutent le lien vers le manifeste, la couleur du thème, le titre et l'icône de l'écran d'accueil, et la ligne qui enregistre le worker.
 
-Aucun JavaScript à écrire : les navigateurs n'exécutent les service workers que sous forme de scripts, alors active génère le worker à partir de vos réglages en Rust. Ce site est une PWA construite ainsi : installez-le depuis le menu de votre navigateur, ou passez en mode avion et rechargez la page. L'application `hello` du dossier `examples` du dépôt est la plus petite : un îlot compteur sur une page, servie par la seule bibliothèque standard, installable et hors ligne en quarante lignes.
+Aucun JavaScript à écrire : les navigateurs n'exécutent les service workers que sous forme de scripts, alors Active génère le worker à partir de vos réglages en Rust. Ce site est une PWA construite ainsi : installez-le depuis le menu de votre navigateur, ou passez en mode avion et rechargez la page. L'application `hello` du dossier `examples` du dépôt est la plus petite : un îlot compteur sur une page, servie par la seule bibliothèque standard, installable et hors ligne en quarante lignes.
 
 Les service workers ne fonctionnent que dans un contexte sécurisé : HTTPS, ou `http://localhost` pendant le développement.
 

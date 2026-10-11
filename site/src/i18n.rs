@@ -105,7 +105,7 @@ pub struct NotFound {
 
 pub struct Footer {
     pub tagline: &'static str,
-    /// The call to action, followed by the project name: "Start building with *active*".
+    /// The call to action, followed by the project name: "Start building with *Active*".
     pub start: &'static str,
     /// Accessible name of the install command chip.
     pub install: &'static str,
@@ -159,11 +159,11 @@ static EN: Dict = Dict {
         menu: "Menu",
     },
     home: Home {
-        title: "active — a simple, fast front-end library for Rust",
-        description: "active is a simple, fast front-end library for Rust: components, state, routing and complete SEO tags, rendered on the server and run in the browser as WebAssembly. No JavaScript to write.",
+        title: "Active — a simple, fast front-end library for Rust",
+        description: "Active is a simple, fast front-end library for Rust: components, state, routing and complete SEO tags, rendered on the server and run in the browser as WebAssembly. No JavaScript to write.",
         eyebrow: "Rust · Front-end · SEO · WebAssembly",
         hero: ["Front end.", "Real SEO.", "*All Rust.*"],
-        lead: "active is a simple Rust library to build front ends: components and state, routing, complete SEO tags. Render on the server, wake up islands or run a whole app in the browser, as WebAssembly. No JavaScript to write.",
+        lead: "Active is a simple Rust library to build front ends: components and state, routing, complete SEO tags. Render on the server, wake up islands or run a whole app in the browser, as WebAssembly. No JavaScript to write.",
         cta: "Get started",
         dust: "This dust is simulated in Rust",
         particles: "particles",
@@ -180,7 +180,7 @@ static EN: Dict = Dict {
             "Routing",
             "Zero JavaScript",
         ],
-        manifesto: "The server already knows how to write HTML. Rust already knows how to be fast. *active* is the small piece in between — components, SEO and islands — and nothing you did not ask for.",
+        manifesto: "The server already knows how to write HTML. Rust already knows how to be fast. *Active* is the small piece in between — components, SEO and islands — and nothing you did not ask for.",
         features_title: "Everything a fast site needs. *Nothing else.*",
         features: [
             Item {
@@ -275,7 +275,7 @@ static EN: Dict = Dict {
     docs: Docs {
         title: "Documentation",
         description: "Everything about active: components, state, routing, SEO tags, WebAssembly islands and apps, servers, PWA, deployment and the full API.",
-        intro: "Learn active step by step, from your first component to an SEO-ready site with WebAssembly islands in production.",
+        intro: "Learn Active step by step, from your first component to an SEO-ready site with WebAssembly islands in production.",
         search: "Search the docs",
         search_hint: "Type to search…",
         no_results: "No results",
@@ -285,7 +285,7 @@ static EN: Dict = Dict {
         categories: [
             Item {
                 title: "Getting started",
-                text: "What active is, how to install it and your first page in five minutes.",
+                text: "What Active is, how to install it and your first page in five minutes.",
             },
             Item {
                 title: "Components & state",
@@ -356,7 +356,7 @@ static EN: Dict = Dict {
         crafted: "Crafted in Rust, in France",
         rights: "© 2026 Maxime Nathan Lestage. All rights reserved.",
         proprietary: "Proprietary software",
-        built: "This site is built with active, in Rust only.",
+        built: "This site is built with Active, in Rust only.",
         top: "Back to top",
     },
 };
@@ -374,11 +374,11 @@ static FR: Dict = Dict {
         menu: "Menu",
     },
     home: Home {
-        title: "active — une bibliothèque front-end simple et rapide pour Rust",
-        description: "active est une bibliothèque front-end simple et rapide pour Rust : composants, état, routage et balises SEO complètes, rendus sur le serveur et exécutés dans le navigateur en WebAssembly. Aucun JavaScript à écrire.",
+        title: "Active — une bibliothèque front-end simple et rapide pour Rust",
+        description: "Active est une bibliothèque front-end simple et rapide pour Rust : composants, état, routage et balises SEO complètes, rendus sur le serveur et exécutés dans le navigateur en WebAssembly. Aucun JavaScript à écrire.",
         eyebrow: "Rust · Front-end · SEO · WebAssembly",
         hero: ["Front-end.", "Vrai SEO.", "*Tout en Rust.*"],
-        lead: "active est une bibliothèque Rust simple pour faire du front-end : composants et état, routage, balises SEO complètes. Rendu sur le serveur, îlots ou application complète dans le navigateur, en WebAssembly. Aucun JavaScript à écrire.",
+        lead: "Active est une bibliothèque Rust simple pour faire du front-end : composants et état, routage, balises SEO complètes. Rendu sur le serveur, îlots ou application complète dans le navigateur, en WebAssembly. Aucun JavaScript à écrire.",
         cta: "Commencer",
         dust: "Cette poussière est simulée en Rust",
         particles: "particules",
@@ -395,7 +395,7 @@ static FR: Dict = Dict {
             "Routage",
             "Zéro JavaScript",
         ],
-        manifesto: "Le serveur sait déjà écrire du HTML. Rust sait déjà être rapide. *active*, c'est la petite pièce entre les deux — composants, SEO et îlots — et rien que vous n'ayez demandé.",
+        manifesto: "Le serveur sait déjà écrire du HTML. Rust sait déjà être rapide. *Active*, c'est la petite pièce entre les deux — composants, SEO et îlots — et rien que vous n'ayez demandé.",
         features_title: "Tout ce qu'un site rapide demande. *Rien d'autre.*",
         features: [
             Item {
@@ -489,8 +489,8 @@ static FR: Dict = Dict {
     },
     docs: Docs {
         title: "Documentation",
-        description: "Tout sur active : composants, état, routage, balises SEO, îlots et applications WebAssembly, serveurs, PWA, déploiement et API complète.",
-        intro: "Apprenez active pas à pas, de votre premier composant à un site prêt pour le SEO avec des îlots WebAssembly en production.",
+        description: "Tout sur Active : composants, état, routage, balises SEO, îlots et applications WebAssembly, serveurs, PWA, déploiement et API complète.",
+        intro: "Apprenez Active pas à pas, de votre premier composant à un site prêt pour le SEO avec des îlots WebAssembly en production.",
         search: "Rechercher dans la doc",
         search_hint: "Tapez pour chercher…",
         no_results: "Aucun résultat",
@@ -500,7 +500,7 @@ static FR: Dict = Dict {
         categories: [
             Item {
                 title: "Bien démarrer",
-                text: "Ce qu'est active, comment l'installer et votre première page en cinq minutes.",
+                text: "Ce qu'est Active, comment l'installer et votre première page en cinq minutes.",
             },
             Item {
                 title: "Composants et état",
@@ -571,7 +571,7 @@ static FR: Dict = Dict {
         crafted: "Fabriqué en Rust, en France",
         rights: "© 2026 Maxime Nathan Lestage. Tous droits réservés.",
         proprietary: "Logiciel propriétaire",
-        built: "Ce site est construit avec active, uniquement en Rust.",
+        built: "Ce site est construit avec Active, uniquement en Rust.",
         top: "Retour en haut",
     },
 };
@@ -589,11 +589,11 @@ static ES: Dict = Dict {
         menu: "Menú",
     },
     home: Home {
-        title: "active — una biblioteca front-end simple y rápida para Rust",
-        description: "active es una biblioteca front-end simple y rápida para Rust: componentes, estado, enrutamiento y etiquetas SEO completas, renderizados en el servidor y ejecutados en el navegador como WebAssembly. Sin escribir JavaScript.",
+        title: "Active — una biblioteca front-end simple y rápida para Rust",
+        description: "Active es una biblioteca front-end simple y rápida para Rust: componentes, estado, enrutamiento y etiquetas SEO completas, renderizados en el servidor y ejecutados en el navegador como WebAssembly. Sin escribir JavaScript.",
         eyebrow: "Rust · Front-end · SEO · WebAssembly",
         hero: ["Front-end.", "SEO real.", "*Todo en Rust.*"],
-        lead: "active es una biblioteca de Rust simple para hacer front-end: componentes y estado, enrutamiento, etiquetas SEO completas. Renderizado en el servidor, islas o una aplicación completa en el navegador, como WebAssembly. Sin escribir JavaScript.",
+        lead: "Active es una biblioteca de Rust simple para hacer front-end: componentes y estado, enrutamiento, etiquetas SEO completas. Renderizado en el servidor, islas o una aplicación completa en el navegador, como WebAssembly. Sin escribir JavaScript.",
         cta: "Empezar",
         dust: "Este polvo se simula en Rust",
         particles: "partículas",
@@ -610,7 +610,7 @@ static ES: Dict = Dict {
             "Enrutamiento",
             "Cero JavaScript",
         ],
-        manifesto: "El servidor ya sabe escribir HTML. Rust ya sabe ser rápido. *active* es la pequeña pieza entre ambos — componentes, SEO e islas — y nada que no hayas pedido.",
+        manifesto: "El servidor ya sabe escribir HTML. Rust ya sabe ser rápido. *Active* es la pequeña pieza entre ambos — componentes, SEO e islas — y nada que no hayas pedido.",
         features_title: "Todo lo que un sitio rápido necesita. *Nada más.*",
         features: [
             Item {
@@ -705,7 +705,7 @@ static ES: Dict = Dict {
     docs: Docs {
         title: "Documentación",
         description: "Todo sobre active: componentes, estado, enrutamiento, etiquetas SEO, islas y apps WebAssembly, servidores, PWA, despliegue y la API completa.",
-        intro: "Aprende active paso a paso, desde tu primer componente hasta un sitio listo para el SEO con islas WebAssembly en producción.",
+        intro: "Aprende Active paso a paso, desde tu primer componente hasta un sitio listo para el SEO con islas WebAssembly en producción.",
         search: "Buscar en la documentación",
         search_hint: "Escribe para buscar…",
         no_results: "Sin resultados",
@@ -715,7 +715,7 @@ static ES: Dict = Dict {
         categories: [
             Item {
                 title: "Primeros pasos",
-                text: "Qué es active, cómo instalarlo y tu primera página en cinco minutos.",
+                text: "Qué es Active, cómo instalarlo y tu primera página en cinco minutos.",
             },
             Item {
                 title: "Componentes y estado",
@@ -786,7 +786,7 @@ static ES: Dict = Dict {
         crafted: "Hecho en Rust, en Francia",
         rights: "© 2026 Maxime Nathan Lestage. Todos los derechos reservados.",
         proprietary: "Software propietario",
-        built: "Este sitio está hecho con active, solo en Rust.",
+        built: "Este sitio está hecho con Active, solo en Rust.",
         top: "Volver arriba",
     },
 };

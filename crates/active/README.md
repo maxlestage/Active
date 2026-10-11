@@ -1,4 +1,4 @@
-# active
+# Active
 
 [![crates.io](https://img.shields.io/crates/v/active.svg)](https://crates.io/crates/active)
 [![docs.rs](https://img.shields.io/docsrs/active)](https://docs.rs/active)

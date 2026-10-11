@@ -1,6 +1,6 @@
 ---
 title: FAQ
-description: Questions fréquentes sur active : autres frameworks Rust, JavaScript, SEO des applications monopages, hydratation, données asynchrones, routage, styles, taille.
+description: Questions fréquentes sur Active : autres frameworks Rust, JavaScript, SEO des applications monopages, hydratation, données asynchrones, routage, styles, taille.
 ---
 
 Des réponses courtes aux questions les plus fréquentes, avec des liens vers les pages qui vont plus loin.

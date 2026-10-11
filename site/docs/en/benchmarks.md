@@ -1,13 +1,13 @@
 ---
 title: Benchmarks
-description: active measured against Leptos, Dioxus, Yew, Sycamore, maud and hand-written HTML: server rendering, WebAssembly size and time to interactive.
+description: Active measured against Leptos, Dioxus, Yew, Sycamore, maud and hand-written HTML: server rendering, WebAssembly size and time to interactive.
 ---
 
 `active` was compared with the main Rust web frameworks on three questions: how fast does the server render a complete page, how much WebAssembly does the browser download for a small interactive component, and how soon is that component usable. Everything is Rust: the pages, the servers, and the harness that drives Chromium. The whole suite is in `bench/`.
 
 ## Summary
 
-| | active | Best of the others |
+| | Active | Best of the others |
 | --- | ---: | ---: |
 | Server render of a product page | 5.58 µs | 5.19 µs (Leptos, hand-written `<head>`), 13.44 µs with leptos_meta |
 | WebAssembly + glue for a counter (gzip) | **36.8 kB** | 45.8 kB (Sycamore) |

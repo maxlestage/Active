@@ -1,6 +1,6 @@
 ---
 title: Performances
-description: Pourquoi active rend vite sur le serveur et reste léger dans le navigateur : réglages de compilation utiles, tailles mesurées, et comment alléger votre bundle.
+description: Pourquoi Active rend vite sur le serveur et reste léger dans le navigateur : réglages de compilation utiles, tailles mesurées, et comment alléger votre bundle.
 ---
 
 `active` est conçu pour que le chemin rapide soit celui par défaut : les pages sont écrites directement dans une chaîne sur le serveur, le navigateur reçoit d'abord un HTML complet, et seules les parties interactives chargent du code. Cette page explique ce qui le rend rapide, présente des tailles mesurées et liste ce que vous pouvez ajuster. Pour des comparaisons avec d'autres frameworks Rust, voir [Benchmarks](../benchmarks/).

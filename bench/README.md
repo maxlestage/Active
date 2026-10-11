@@ -116,7 +116,7 @@ interactive. The runner reads these attributes with `DOM.querySelector` and
 `Input.dispatchMouseEvent`) and checks that the number went from 3 to 4.
 
 `data-ready` is recorded right after the hydration call returns for frameworks that hydrate
-synchronously (active, Leptos, Sycamore), and in the first effect after the render is applied
+synchronously (Active, Leptos, Sycamore), and in the first effect after the render is applied
 for those that render asynchronously (Yew `use_effect_with`, Dioxus `use_effect`).
 
 Every counter page loads its bundle the same way `active`'s `Document::client` does: the

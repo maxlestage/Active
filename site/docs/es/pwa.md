@@ -1,9 +1,9 @@
 ---
 title: Apps instalables (PWA)
-description: Haz que un sitio active se pueda instalar y usar sin conexión con active::pwa: el manifiesto de la app web, el service worker y su estrategia de caché, los métodos de Document, servir y exportar, iconos y pruebas sin conexión.
+description: Haz que un sitio Active se pueda instalar y usar sin conexión con active::pwa: el manifiesto de la app web, el service worker y su estrategia de caché, los métodos de Document, servir y exportar, iconos y pruebas sin conexión.
 ---
 
-Una Progressive Web App es un sitio web que los teléfonos y los ordenadores pueden instalar: tiene un icono en la pantalla de inicio, se abre a pantalla completa sin la barra del navegador y sigue funcionando cuando no hay red. Convertir un sitio active en una solo requiere dos archivos y unas pocas etiquetas, todo escrito en Rust por el módulo `active::pwa`:
+Una Progressive Web App es un sitio web que los teléfonos y los ordenadores pueden instalar: tiene un icono en la pantalla de inicio, se abre a pantalla completa sin la barra del navegador y sigue funcionando cuando no hay red. Convertir un sitio Active en una solo requiere dos archivos y unas pocas etiquetas, todo escrito en Rust por el módulo `active::pwa`:
 
 - el **manifiesto de la app web** (`manifest.webmanifest`): el nombre, los iconos y los colores de la app instalada, escrito por `Manifest`;
 - el **service worker** (`sw.js`): un pequeño script que el navegador ejecuta junto a las páginas, que guarda el sitio en el dispositivo y responde desde ahí cuando no hay conexión, generado por `ServiceWorker`;

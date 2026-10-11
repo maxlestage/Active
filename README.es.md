@@ -1,4 +1,4 @@
-# active
+# Active
 
 [English](README.md) · [Français](README.fr.md) · **Español**
 
