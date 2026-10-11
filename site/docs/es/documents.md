@@ -112,7 +112,7 @@ Las URL se escriben de forma segura dentro de una cadena JavaScript (las comilla
 
 ### Caché a largo plazo
 
-Los navegadores pueden guardar el bundle y las hojas de estilo para siempre si su URL cambia cada vez que cambia su contenido. Una forma habitual es un parámetro de versión calculado a partir del contenido del archivo, como hace este sitio en [`site/src/server/assets.rs`](https://github.com/maxlestage/Active/blob/master/site/src/server/assets.rs):
+Los navegadores pueden guardar el bundle y las hojas de estilo para siempre si su URL cambia cada vez que cambia su contenido. Una forma habitual es un parámetro de versión calculado a partir del contenido del archivo, como hace este sitio en `site/src/server/assets.rs`:
 
 ```rust
 /// Un hash corto del contenido (FNV-1a), suficiente para distinguir versiones de un archivo.

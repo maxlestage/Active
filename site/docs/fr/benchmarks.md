@@ -3,7 +3,7 @@ title: Benchmarks
 description: active comparé à Leptos, Dioxus, Yew, Sycamore, maud et à du HTML écrit à la main : rendu côté serveur, taille du WebAssembly et délai avant interactivité.
 ---
 
-`active` a été comparé aux principaux frameworks web Rust sur trois questions : à quelle vitesse le serveur rend-il une page complète, combien de WebAssembly le navigateur télécharge-t-il pour un petit composant interactif, et au bout de combien de temps ce composant est-il utilisable. Tout est en Rust : les pages, les serveurs et le harnais qui pilote Chromium. L'ensemble des benchmarks se trouve dans [`bench/`](https://github.com/maxlestage/Active/tree/master/bench).
+`active` a été comparé aux principaux frameworks web Rust sur trois questions : à quelle vitesse le serveur rend-il une page complète, combien de WebAssembly le navigateur télécharge-t-il pour un petit composant interactif, et au bout de combien de temps ce composant est-il utilisable. Tout est en Rust : les pages, les serveurs et le harnais qui pilote Chromium. L'ensemble des benchmarks se trouve dans `bench/`.
 
 ## Résumé
 
@@ -48,7 +48,7 @@ Le même compteur dans chaque framework : un bouton qui incrémente le nombre af
 | Yew | hydratation | 241,8 ko | 90,0 ko | 6,3 ko | 96,3 ko |
 | Dioxus | rendu côté client | 426,9 ko | 155,4 ko | 15,0 ko | 170,4 ko |
 
-> **Astuce :** le compteur du benchmark enregistre des durées avec un nombre à virgule flottante, ce qui ajoute le formatage des flottants de Rust à chaque bundle. Sans cela, l'[exemple `hello`](https://github.com/maxlestage/Active/tree/master/examples/hello) pèse environ 22 ko gzip. Voir [Performances](../performance/) pour la taille de chaque type d'application et les moyens de réduire encore un bundle.
+> **Astuce :** le compteur du benchmark enregistre des durées avec un nombre à virgule flottante, ce qui ajoute le formatage des flottants de Rust à chaque bundle. Sans cela, l'exemple `hello` pèse environ 22 ko gzip. Voir [Performances](../performance/) pour la taille de chaque type d'application et les moyens de réduire encore un bundle.
 
 ## Délai avant interactivité
 
@@ -75,4 +75,4 @@ cargo run --release -p runner -- ssr             # one part: ssr, wasm, browser 
 BENCH_PRINT=1 cargo run --release -p ssr-active  # print the page an implementation renders
 ```
 
-Le runner trouve Chromium dans le `PATH` (ou définissez `CHROME=/path/to/chrome`). Il écrit `bench/RESULTS.md` et les données brutes dans `bench/results/`. La méthode, la version de chaque framework et les choix faits pour chacun sont décrits dans [`bench/README.md`](https://github.com/maxlestage/Active/blob/master/bench/README.md).
+Le runner trouve Chromium dans le `PATH` (ou définissez `CHROME=/path/to/chrome`). Il écrit `bench/RESULTS.md` et les données brutes dans `bench/results/`. La méthode, la version de chaque framework et les choix faits pour chacun sont décrits dans `bench/README.md`.

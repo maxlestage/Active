@@ -112,7 +112,7 @@ Les URL sont écrites de façon sûre dans une chaîne JavaScript (les guillemet
 
 ### Mise en cache longue durée
 
-Les navigateurs peuvent conserver indéfiniment le bundle et les feuilles de style si leur URL change dès que leur contenu change. Une méthode courante consiste à ajouter un paramètre de version calculé à partir du contenu du fichier, comme le fait ce site dans [`site/src/server/assets.rs`](https://github.com/maxlestage/Active/blob/master/site/src/server/assets.rs) :
+Les navigateurs peuvent conserver indéfiniment le bundle et les feuilles de style si leur URL change dès que leur contenu change. Une méthode courante consiste à ajouter un paramètre de version calculé à partir du contenu du fichier, comme le fait ce site dans `site/src/server/assets.rs` :
 
 ```rust
 /// Un court hachage du contenu (FNV-1a), suffisant pour distinguer les versions d'un fichier.

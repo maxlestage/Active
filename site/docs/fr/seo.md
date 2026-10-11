@@ -114,7 +114,7 @@ fn contact_head() -> String {
 }
 ```
 
-Quand l'adresse du site n'est connue qu'à l'exécution (un réglage `SITE_URL`, l'en-tête `Host` de la requête), construisez les valeurs par défaut dans une fonction qui reçoit l'origine, comme le fait ce site dans [`site/src/server/pages.rs`](https://github.com/maxlestage/Active/blob/master/site/src/server/pages.rs).
+Quand l'adresse du site n'est connue qu'à l'exécution (un réglage `SITE_URL`, l'en-tête `Host` de la requête), construisez les valeurs par défaut dans une fonction qui reçoit l'origine, comme le fait ce site dans `site/src/server/pages.rs`.
 
 ## Le SEO dans les vues
 

@@ -114,7 +114,7 @@ fn contact_head() -> String {
 }
 ```
 
-Cuando la dirección del sitio solo se conoce en tiempo de ejecución (un ajuste `SITE_URL`, la cabecera `Host` de la petición), construye los valores por defecto en una función que reciba el origen, como hace este sitio en [`site/src/server/pages.rs`](https://github.com/maxlestage/Active/blob/master/site/src/server/pages.rs).
+Cuando la dirección del sitio solo se conoce en tiempo de ejecución (un ajuste `SITE_URL`, la cabecera `Host` de la petición), construye los valores por defecto en una función que reciba el origen, como hace este sitio en `site/src/server/pages.rs`.
 
 ## SEO en las vistas
 

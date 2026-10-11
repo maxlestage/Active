@@ -8,14 +8,11 @@ use super::pwa;
 use crate::i18n::t;
 use crate::routes::{Lang, Page, Route, base, link};
 
-pub const GITHUB: &str = "https://github.com/maxlestage/Active";
-/// The license, read online: proprietary, all rights reserved.
-pub const LICENSE: &str = "https://github.com/maxlestage/Active/blob/master/LICENSE";
+/// The license, served by the site itself (a copy of the repository's LICENSE): proprietary,
+/// all rights reserved.
+pub const LICENSE_PATH: &str = "/static/LICENSE.txt";
 /// Who designed and built active and its sister projects.
 pub const AUTHOR: &str = "Maxime Nathan Lestage";
-pub const AUTHOR_URL: &str = "https://github.com/maxlestage";
-pub const HEROKU_DEPLOY: &str =
-    "https://heroku.com/deploy?template=https://github.com/maxlestage/Active";
 
 /// What a request needs to render a page.
 pub struct Ctx<'a> {
@@ -111,13 +108,6 @@ fn logo() -> Element {
         .child(span().text("active"))
 }
 
-fn github_icon() -> Element {
-    svg().attr("viewBox", "0 0 24 24").attr("aria-hidden", "true").attr("width", "18").attr("height", "18").child(path().attr("fill", "currentColor").attr(
-        "d",
-        "M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.77.11 3.06.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.4-5.27 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z",
-    ))
-}
-
 fn alternates(seo: Seo, route: &Route) -> Seo {
     let seo = Lang::ALL.into_iter().fold(seo, |seo, l| {
         seo.alternate(l.code(), route.with_lang(l).path())
@@ -179,14 +169,6 @@ fn header(route: &Route) -> Element {
             div()
                 .class("actions")
                 .child(lang_switch(route))
-                .child(
-                    a().class("icon")
-                        .href(GITHUB)
-                        .attr("aria-label", "GitHub")
-                        .attr("target", "_blank")
-                        .attr("rel", "noopener noreferrer")
-                        .child(github_icon()),
-                )
                 .child(
                     a().class("btn small")
                         .href(link(&format!("/{}/docs/quick-start/", route.lang.code())))
@@ -254,7 +236,6 @@ fn footer(route: &Route) -> Element {
         (
             f.project,
             vec![
-                (GITHUB.to_string(), "GitHub", true),
                 (
                     "https://crates.io/crates/active".to_string(),
                     "crates.io",
@@ -262,7 +243,7 @@ fn footer(route: &Route) -> Element {
                 ),
                 ("https://docs.rs/active".to_string(), "docs.rs", true),
                 (doc("deploy-heroku"), f.deploy, false),
-                (LICENSE.to_string(), f.license, true),
+                (link(LICENSE_PATH), f.license, true),
             ],
         ),
     ];
@@ -357,17 +338,14 @@ fn footer(route: &Route) -> Element {
         .class("footer-credits")
         .attr("data-reveal", "")
         .child(p().class("credits-by").text(f.by))
-        .child(external(
-            a().class("credits-name")
-                .href(AUTHOR_URL)
-                .attr("data-cursor", "")
-                .children(
-                    AUTHOR
-                        .split(' ')
-                        .enumerate()
-                        .map(|(i, word)| span().style(format!("--i:{i}")).text(word.to_string())),
-                ),
-        ))
+        .child(
+            p().class("credits-name").children(
+                AUTHOR
+                    .split(' ')
+                    .enumerate()
+                    .map(|(i, word)| span().style(format!("--i:{i}")).text(word.to_string())),
+            ),
+        )
         .child(p().class("credits-note").text(f.crafted));
     let wordmark = div()
         .class("wordmark")
@@ -381,7 +359,7 @@ fn footer(route: &Route) -> Element {
     let legal = div()
         .class("footer-bottom")
         .child(span().text(f.rights))
-        .child(external(a().href(LICENSE).text(f.proprietary)))
+        .child(external(a().href(link(LICENSE_PATH)).text(f.proprietary)))
         .child(span().text(f.built))
         .child(a().href("#top").class("top").text(format!("{} ↑", f.top)));
     el("footer")
@@ -525,24 +503,13 @@ fn hero(lang: Lang) -> Element {
                         .class("hero-bottom")
                         .child(p().class("lead hero-in").style("--i:6").text(d.lead))
                         .child(
-                            div()
-                                .class("hero-actions hero-in")
-                                .style("--i:7")
-                                .child(
-                                    a().class("btn")
-                                        .href(link(&format!("/{}/docs/quick-start/", lang.code())))
-                                        .attr("data-magnetic", "")
-                                        .text(d.cta)
-                                        .child(arrow()),
-                                )
-                                .child(
-                                    a().class("btn ghost")
-                                        .href(GITHUB)
-                                        .attr("target", "_blank")
-                                        .attr("rel", "noopener noreferrer")
-                                        .attr("data-magnetic", "")
-                                        .text(d.github),
-                                ),
+                            div().class("hero-actions hero-in").style("--i:7").child(
+                                a().class("btn")
+                                    .href(link(&format!("/{}/docs/quick-start/", lang.code())))
+                                    .attr("data-magnetic", "")
+                                    .text(d.cta)
+                                    .child(arrow()),
+                            ),
                         ),
                 ),
         )
@@ -629,8 +596,9 @@ fn home(ctx: &Ctx<'_>) -> Node {
     let h = &d.home;
     let seo = alternates(Seo::new().title(h.title).title_template("%s").description(h.description).canonical(format!("/{}/", lang.code())), ctx.route)
         .json_ld(format!(
-            r#"{{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"active","description":"{}","codeRepository":"{GITHUB}","programmingLanguage":"Rust","license":"{LICENSE}","author":{{"@type":"Person","name":"{AUTHOR}","url":"{AUTHOR_URL}"}},"url":"{}/{}/"}}"#,
+            r#"{{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"active","description":"{}","programmingLanguage":"Rust","license":"{}{LICENSE_PATH}","author":{{"@type":"Person","name":"{AUTHOR}"}},"url":"{}/{}/"}}"#,
             json(h.description),
+            ctx.origin,
             ctx.origin,
             lang.code()
         ))
@@ -769,25 +737,14 @@ fn home(ctx: &Ctx<'_>) -> Node {
             .child(heading(h2, h.cta_title, "title huge"))
             .child(p().attr("data-reveal", "").text(h.cta_text))
             .child(
-                div()
-                    .class("cta-actions")
-                    .attr("data-reveal", "")
-                    .child(
-                        a().class("btn")
-                            .href(link(&format!("/{}/docs/", lang.code())))
-                            .attr("data-magnetic", "")
-                            .text(h.cta_docs)
-                            .text(" ")
-                            .child(arrow()),
-                    )
-                    .child(
-                        a().class("btn ghost")
-                            .href(HEROKU_DEPLOY)
-                            .attr("target", "_blank")
-                            .attr("rel", "noopener noreferrer")
-                            .attr("data-magnetic", "")
-                            .text(h.cta_deploy),
-                    ),
+                div().class("cta-actions").attr("data-reveal", "").child(
+                    a().class("btn")
+                        .href(link(&format!("/{}/docs/", lang.code())))
+                        .attr("data-magnetic", "")
+                        .text(h.cta_docs)
+                        .text(" ")
+                        .child(arrow()),
+                ),
             )
             .into(),
     ])
@@ -960,16 +917,6 @@ fn doc_page(ctx: &Ctx<'_>, slug: &str) -> Node {
                 .child(p().class("doc-lead").text(doc.description.clone()))
                 .child(div().class("prose").html(doc.html.clone()))
                 .child(
-                    a().class("edit")
-                        .href(link(&format!(
-                            "{GITHUB}/edit/master/site/docs/{}/{slug}.md",
-                            lang.code()
-                        )))
-                        .attr("target", "_blank")
-                        .attr("rel", "noopener noreferrer")
-                        .text(d.edit),
-                )
-                .child(
                     nav()
                         .class("pager")
                         .attr("aria-label", "Pagination")
@@ -1062,28 +1009,71 @@ fn offline() -> Node {
 
 /// The root page of a static export, where no server reads `Accept-Language`: it sends
 /// the visitor to the English home page at once and links the three languages.
-pub fn language_picker(origin: &str) -> String {
+/// A JavaScript string literal that cannot close a `<script>` element.
+fn js_string(s: &str) -> String {
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '<' => out.push_str("\\u003c"),
+            '\n' => out.push_str("\\n"),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// The script of the pages a static host serves without knowing the visitor's language:
+/// goes to `/{lang}/{target}` for the language of the address (`/fr/…` on a missing page),
+/// else of the browser, else English. Without JavaScript, a `<meta>` refresh goes to English.
+fn language_redirect(target: &str) -> String {
+    let codes: Vec<String> = Lang::ALL.iter().map(|l| js_string(l.code())).collect();
+    format!(
+        concat!(
+            "<script>(function(){{var b={base},L=[{codes}],c=null;",
+            "var s=location.pathname.slice(b.length).split('/').filter(Boolean)[0];",
+            "if(L.indexOf(s)>=0)c=s;",
+            "var l=navigator.languages||[navigator.language||''];",
+            "for(var i=0;i<l.length&&!c;i++){{var x=String(l[i]).slice(0,2).toLowerCase();",
+            "if(L.indexOf(x)>=0)c=x}}",
+            "location.replace(b+'/'+(c||'en')+'/'+{target}+location.search+location.hash)}})()</script>",
+            r#"<noscript><meta http-equiv="refresh" content="0; url={fallback}"/></noscript>"#,
+        ),
+        base = js_string(base()),
+        codes = codes.join(","),
+        target = js_string(target),
+        fallback = link(&format!("/en/{target}")),
+    )
+}
+
+/// The page a static host serves at `/` (`target` empty) and for a missing address
+/// (`target` = `404/`): it goes to the visitor's language by itself, and links the languages.
+pub fn language_picker(origin: &str, target: &str) -> String {
     let seo = Seo::new()
         .title("active")
         .description(t(Lang::En).home.description)
         .base_url(origin)
-        .canonical("/en/")
+        .canonical(format!("/en/{target}"))
         .noindex(true);
     let body = main()
         .class("doc-body")
         .child(h1().text("active"))
         .child(ul().children(Lang::ALL.map(|l| {
             li().child(
-                a().href(link(&format!("/{}/", l.code())))
+                a().href(link(&format!("/{}/{target}", l.code())))
                     .attr("hreflang", l.code())
                     .attr("lang", l.code())
                     .text(t(l).lang_name),
             )
         })));
-    installable(Document::new(body).lang("en").seo(seo).head(format!(
-        r#"<meta http-equiv="refresh" content="0; url={}/en/"/>"#,
-        base()
-    )))
+    installable(
+        Document::new(body)
+            .lang("en")
+            .seo(seo)
+            .head(language_redirect(target)),
+    )
     .render()
 }
 

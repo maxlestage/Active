@@ -9,7 +9,7 @@ C'est le bon choix pour les outils, les tableaux de bord et tout ce qui se trouv
 
 ## Ce que vous allez construire
 
-Le dépôt contient un exemple complet, [`examples/spa`](https://github.com/maxlestage/Active/tree/master/examples/spa) : une liste de tâches avec deux pages, un formulaire, des filtres conservés dans l'URL (`/?show=done`), une liste enregistrée dans `localStorage` et un titre de page par route. Lancez-le depuis la racine du dépôt :
+Le dépôt contient un exemple complet, `examples/spa` : une liste de tâches avec deux pages, un formulaire, des filtres conservés dans l'URL (`/?show=done`), une liste enregistrée dans `localStorage` et un titre de page par route. Lancez-le depuis la racine du dépôt :
 
 ```sh
 cargo build -p spa --lib --target wasm32-unknown-unknown --profile wasm-release

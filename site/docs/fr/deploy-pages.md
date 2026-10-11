@@ -3,7 +3,7 @@ title: Déployer sur GitHub Pages
 description: Publiez gratuitement le site d'active sur GitHub Pages depuis un téléphone : activez Pages une fois, chaque fusion dans master est en ligne peu après.
 ---
 
-[GitHub Pages](https://pages.github.com) héberge gratuitement des fichiers statiques, à l'adresse `https://<propriétaire>.github.io/<dépôt>/`. Ce dépôt y publie automatiquement son site : le workflow [`pages.yml`](https://github.com/maxlestage/Active/blob/master/.github/workflows/pages.yml) transforme les pages du serveur Rust en fichiers avec `active-site export`, puis les déploie. Tout ce qui suit se fait depuis un téléphone.
+GitHub Pages héberge gratuitement des fichiers statiques, à l'adresse `https://<propriétaire>.github.io/<dépôt>/`. Ce dépôt y publie automatiquement son site : le workflow `pages.yml` transforme les pages du serveur Rust en fichiers avec `active-site export`, puis les déploie. Tout ce qui suit se fait depuis un téléphone.
 
 Contrairement à [Heroku](../deploy-heroku/), Pages n'exécute aucun serveur : pas de coût, pas de machine à faire tourner, mais pas non plus de code côté serveur. L'export remplace les quelques choses que le serveur calculait à chaque requête (voir [Ce qui change sur un hébergeur statique](#ce-qui-change-sur-un-hebergeur-statique)).
 
@@ -20,7 +20,7 @@ C'est tout : il n'y a ni branche ni dossier à choisir, le workflow envoie le si
 ## Comment se passe la publication
 
 1. Vous poussez une branche, ou Claude le fait.
-2. Le workflow de [CI](https://github.com/maxlestage/Active/blob/master/.github/workflows/ci.yml) la vérifie (format, lints, tests, builds, export) et, quand tout est vert, la fusionne dans `master`. Les branches dont le nom commence par `wip/` sont vérifiées mais jamais fusionnées.
+2. Le workflow de CI la vérifie (format, lints, tests, builds, export) et, quand tout est vert, la fusionne dans `master`. Les branches dont le nom commence par `wip/` sont vérifiées mais jamais fusionnées.
 3. Quand la CI réussit, le workflow **Pages** démarre : il compile le bundle WebAssembly, exporte le site et le déploie. Quelques minutes plus tard, la nouvelle version est en ligne.
 
 Une CI rouge ne publie rien : le site en ligne vient toujours d'une version qui a passé toutes les vérifications. L'onglet Actions montre chaque exécution et, pour Pages, l'adresse du site publié.

@@ -9,7 +9,7 @@ It is the right choice for tools, dashboards and anything behind a login, where 
 
 ## What you build
 
-The repository contains a complete example, [`examples/spa`](https://github.com/maxlestage/Active/tree/master/examples/spa): a to-do list with two pages, a form, filters kept in the URL (`/?show=done`), a list saved in `localStorage` and a page title per route. Run it from the repository root:
+The repository contains a complete example, `examples/spa`: a to-do list with two pages, a form, filters kept in the URL (`/?show=done`), a list saved in `localStorage` and a page title per route. Run it from the repository root:
 
 ```sh
 cargo build -p spa --lib --target wasm32-unknown-unknown --profile wasm-release

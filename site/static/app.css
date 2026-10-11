@@ -2770,7 +2770,9 @@ dialog.search::backdrop {
     font-weight: 550;
   }
 
-  .sidebar:not(.open) .sidebar-nav nav {
+  /* The navigation folds behind the toggle only once the browser code runs: without it,
+     the documentation stays reachable. */
+  html.hydrated .sidebar:not(.open) .sidebar-nav nav {
     display: none;
   }
 

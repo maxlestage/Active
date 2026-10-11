@@ -112,7 +112,7 @@ The URLs are written into a JavaScript string safely (quotes, backslashes and `<
 
 ### Long-term caching
 
-Browsers can keep the bundle and stylesheets forever if their URL changes whenever their content does. A common way is a version query computed from the file's content, as this website does in [`site/src/server/assets.rs`](https://github.com/maxlestage/Active/blob/master/site/src/server/assets.rs):
+Browsers can keep the bundle and stylesheets forever if their URL changes whenever their content does. A common way is a version query computed from the file's content, as this website does in `site/src/server/assets.rs`:
 
 ```rust
 /// A short content hash (FNV-1a), enough to tell versions of a file apart.

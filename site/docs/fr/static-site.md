@@ -211,7 +211,7 @@ Un site sans îlots n'a pas besoin de bundle : supprimez `.client(...)`, la fonc
 
 Les moteurs de recherche découvrent les pages grâce à `sitemap.xml`, qui liste chaque URL avec son adresse absolue, et trouvent le sitemap grâce à `robots.txt`. Le générateur ci-dessus écrit les deux à partir de la même liste de pages : ils ne sont donc jamais désynchronisés. Soumettez l'adresse du sitemap dans [Google Search Console](https://search.google.com/search-console) et dans Bing Webmaster Tools pour accélérer l'indexation.
 
-Pour un site multilingue, ajoutez dans chaque `<url>` un élément `<xhtml:link rel="alternate" hreflang="…">` par langue, comme le fait le serveur de ce site dans [`site/src/server/mod.rs`](https://github.com/maxlestage/Active/blob/master/site/src/server/mod.rs).
+Pour un site multilingue, ajoutez dans chaque `<url>` un élément `<xhtml:link rel="alternate" hreflang="…">` par langue, comme le fait le serveur de ce site dans `site/src/server/mod.rs`.
 
 ## Hébergement
 

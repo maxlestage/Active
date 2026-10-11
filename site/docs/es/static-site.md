@@ -211,7 +211,7 @@ Un sitio sin islas no necesita bundle: elimina `.client(...)`, la función `star
 
 Los buscadores descubren las páginas a través de `sitemap.xml`, que enumera cada URL con su dirección absoluta, y encuentran el sitemap a través de `robots.txt`. El generador anterior escribe ambos a partir de la misma lista de páginas, así que nunca se desincronizan. Envía la dirección del sitemap en [Google Search Console](https://search.google.com/search-console) y en Bing Webmaster Tools para acelerar la indexación.
 
-Para un sitio multilingüe, añade un elemento `<xhtml:link rel="alternate" hreflang="…">` por idioma dentro de cada `<url>`, como hace el servidor de este sitio en [`site/src/server/mod.rs`](https://github.com/maxlestage/Active/blob/master/site/src/server/mod.rs).
+Para un sitio multilingüe, añade un elemento `<xhtml:link rel="alternate" hreflang="…">` por idioma dentro de cada `<url>`, como hace el servidor de este sitio en `site/src/server/mod.rs`.
 
 ## Alojamiento
 

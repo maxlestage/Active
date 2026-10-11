@@ -100,7 +100,7 @@ La page précharge les deux fichiers et démarre le module. Votre fonction `#[wa
 
 ## En intégration continue
 
-Ce dépôt compile son site à chaque push avec GitHub Actions ([`.github/workflows/ci.yml`](https://github.com/maxlestage/Active/blob/master/.github/workflows/ci.yml)). Les étapes concernées :
+Ce dépôt compile son site à chaque push avec GitHub Actions (`.github/workflows/ci.yml`). Les étapes concernées :
 
 ```yaml
 - uses: dtolnay/rust-toolchain@stable
@@ -122,7 +122,7 @@ Il analyse aussi le code du navigateur avec le linter, ce que la compilation nor
 cargo clippy --lib --target wasm32-unknown-unknown -- -D warnings
 ```
 
-Pour Docker, le [`Dockerfile`](https://github.com/maxlestage/Active/blob/master/Dockerfile) exécute les mêmes commandes dans une étape de build ; voir [Déployer sur Heroku](../deploy-heroku/#comment-le-depot-est-deploye).
+Pour Docker, le `Dockerfile` exécute les mêmes commandes dans une étape de build ; voir [Déployer sur Heroku](../deploy-heroku/#comment-le-depot-est-deploye).
 
 ## Dépannage
 

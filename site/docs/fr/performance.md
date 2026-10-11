@@ -79,7 +79,7 @@ brotli -c -q 11 pkg/my_site_bg.wasm | wc -c   # Brotli, if the brotli tool is in
 
 Mesurez toujours le fichier `_bg.wasm` produit par `wasm-bindgen` : le fichier présent dans `target/` contient encore des métadonnées que `wasm-bindgen` supprime, et il est plusieurs fois plus volumineux.
 
-Pour voir ce qui prend de la place, compilez une fois sans supprimer les symboles et inspectez le résultat avec [twiggy](https://github.com/rustwasm/twiggy) :
+Pour voir ce qui prend de la place, compilez une fois sans supprimer les symboles et inspectez le résultat avec twiggy :
 
 ```sh
 cargo install twiggy
@@ -95,7 +95,7 @@ twiggy top -n 20 pkg-debug/my_site_bg.wasm
 - **Gardez le travail lourd sur le serveur.** L'analyse du Markdown, la coloration du code ou le formatage des dates peuvent s'exécuter sur le serveur et parvenir à l'îlot sous forme de HTML ou de props. Ce site colore ses exemples de code sur le serveur et transmet le résultat sous forme de HTML brut : le bundle ne contient donc aucun outil de coloration syntaxique.
 - **Surveillez les dépendances.** Chaque crate utilisé par le code du navigateur se retrouve dans le bundle. Vérifiez la taille après en avoir ajouté un, et n'activez que les fonctionnalités de `web-sys` que vous utilisez réellement.
 - **Essayez `opt-level = "z"`** et gardez-le s'il donne un résultat plus petit pour votre code.
-- **Lancez éventuellement `wasm-opt`** de [Binaryen](https://github.com/WebAssembly/binaryen) après `wasm-bindgen` : `wasm-opt -Oz -o out.wasm pkg/my_site_bg.wasm`. Il retire généralement quelques pour cent de plus. S'il rejette le module à cause d'une fonctionnalité WebAssembly, activez celle-ci avec l'option `--enable-…` correspondante. Ce dépôt ne l'utilise pas : les chiffres ci-dessus sont donc obtenus sans lui.
+- **Lancez éventuellement `wasm-opt`** de Binaryen après `wasm-bindgen` : `wasm-opt -Oz -o out.wasm pkg/my_site_bg.wasm`. Il retire généralement quelques pour cent de plus. S'il rejette le module à cause d'une fonctionnalité WebAssembly, activez celle-ci avec l'option `--enable-…` correspondante. Ce dépôt ne l'utilise pas : les chiffres ci-dessus sont donc obtenus sans lui.
 
 ## Rendu côté serveur
 

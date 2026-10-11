@@ -69,7 +69,7 @@ Heroku n'a pas d'offre gratuite. Au moment de la rédaction, l'option la moins c
 
 ## Comment s'appelle le crate ?
 
-`active`, sur [crates.io](https://crates.io/crates/active), avec la documentation sur [docs.rs/active](https://docs.rs/active). Tant que la première version n'y est pas publiée, dépendez du dépôt : `active = { git = "https://github.com/maxlestage/Active" }`. La page [Publier le crate](../publishing/) explique comment se font les publications.
+`active`, sur [crates.io](https://crates.io/crates/active), avec la documentation sur [docs.rs/active](https://docs.rs/active). Tant que la première version n'y est pas publiée, dépendez du dépôt : `active = { git = "https://maxlestage.github.io/Active/" }`. La page [Publier le crate](../publishing/) explique comment se font les publications.
 
 ## Quelle version de Rust faut-il ?
 
@@ -85,8 +85,8 @@ Avec le profil `wasm-release`, une panique arrête le module et la console n'aff
 
 ## Est-ce prêt pour la production ?
 
-`active` est jeune (version 0.1). L'API est petite et testée, et ce site web tourne avec, mais elle peut changer avant la 1.0. Épinglez la version dans `Cargo.toml` et lisez les notes de version lors des mises à jour. Les tickets et les contributions sont les bienvenus sur [GitHub](https://github.com/maxlestage/Active).
+`active` est jeune (version 0.1). L'API est petite et testée, et ce site web tourne avec, mais elle peut changer avant la 1.0. Épinglez la version dans `Cargo.toml` et lisez les notes de version lors des mises à jour. Les tickets et les contributions sont les bienvenus sur [GitHub](https://maxlestage.github.io/Active/).
 
 ## Sous quelle licence est-il distribué ?
 
-`active` est un logiciel propriétaire : © Maxime Nathan Lestage, tous droits réservés. Son code source est publié sur crates.io et GitHub pour que vous puissiez le lire, l'auditer et le compiler, et vous pouvez l'utiliser librement comme dépendance de vos propres programmes, y compris commerciaux. Le modifier ou redistribuer son code source demande l'accord écrit de l'auteur. Les conditions complètes sont dans le fichier [LICENSE](https://github.com/maxlestage/Active/blob/master/LICENSE) du dépôt.
+`active` est un logiciel propriétaire : © Maxime Nathan Lestage, tous droits réservés. Son code source est publié sur crates.io et GitHub pour que vous puissiez le lire, l'auditer et le compiler, et vous pouvez l'utiliser librement comme dépendance de vos propres programmes, y compris commerciaux. Le modifier ou redistribuer son code source demande l'accord écrit de l'auteur. Les conditions complètes sont dans le fichier [LICENSE](https://maxlestage.github.io/Active/LICENSE.txt) du dépôt.

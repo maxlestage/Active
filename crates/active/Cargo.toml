@@ -6,7 +6,6 @@ rust-version = "1.85"
 description = "A simple, fast front-end library for Rust: components, state, routing, complete SEO tags, server rendering and WebAssembly islands."
 authors = ["Maxime Nathan Lestage"]
 license-file = "LICENSE"
-repository = "https://github.com/maxlestage/Active"
 homepage = "https://maxlestage.github.io/Active/"
 documentation = "https://docs.rs/active"
 readme = "README.md"

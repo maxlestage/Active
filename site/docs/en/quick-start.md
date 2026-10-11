@@ -7,10 +7,10 @@ This page gets a real page on your screen: HTML rendered by a Rust server, with 
 
 ## Run the example
 
-The repository contains a minimal app, [`examples/hello`](https://github.com/maxlestage/Active/tree/master/examples/hello). Clone it, build the browser bundle, start the server:
+The repository contains a minimal app, `examples/hello`. Clone it, build the browser bundle, start the server:
 
 ```sh
-git clone https://github.com/maxlestage/Active
+git clone https://maxlestage.github.io/Active/
 cd Active
 cargo build -p hello --lib --target wasm32-unknown-unknown --profile wasm-release
 wasm-bindgen --target web --no-typescript --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
@@ -67,7 +67,7 @@ opt-level = "s"
 panic = "abort"
 ```
 
-> **Note:** Before the crate is published on crates.io, replace both `active = …` values with `{ git = "https://github.com/maxlestage/Active" }` (adding `features = ["client"]` to the second one).
+> **Note:** Before the crate is published on crates.io, replace both `active = …` values with `{ git = "https://maxlestage.github.io/Active/" }` (adding `features = ["client"]` to the second one).
 
 ### 3. Write the page
 

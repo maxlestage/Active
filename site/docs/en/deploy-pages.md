@@ -3,7 +3,7 @@ title: Deploy on GitHub Pages
 description: Publish the active website for free on GitHub Pages from a phone: switch Pages on once, then every merge into master is online a few minutes later.
 ---
 
-[GitHub Pages](https://pages.github.com) hosts static files for free, at `https://<owner>.github.io/<repository>/`. This repository publishes its website there automatically: the [`pages.yml`](https://github.com/maxlestage/Active/blob/master/.github/workflows/pages.yml) workflow turns the Rust server's pages into files with `active-site export`, then deploys them. Everything below can be done from a phone.
+GitHub Pages hosts static files for free, at `https://<owner>.github.io/<repository>/`. This repository publishes its website there automatically: the `pages.yml` workflow turns the Rust server's pages into files with `active-site export`, then deploys them. Everything below can be done from a phone.
 
 Unlike [Heroku](../deploy-heroku/), Pages runs no server: no cost, no machine to keep running, but also no code on the server side. The export replaces the few things the server computed for each request (see [What changes on a static host](#what-changes-on-a-static-host)).
 
@@ -20,7 +20,7 @@ That's all: there is no branch or folder to choose, the workflow uploads the sit
 ## How publishing works
 
 1. You push a branch, or Claude does.
-2. The [CI](https://github.com/maxlestage/Active/blob/master/.github/workflows/ci.yml) workflow checks it (format, lints, tests, builds, export) and, when everything is green, merges it into `master`. Branches whose name starts with `wip/` are checked but never merged.
+2. The CI workflow checks it (format, lints, tests, builds, export) and, when everything is green, merges it into `master`. Branches whose name starts with `wip/` are checked but never merged.
 3. When CI succeeds, the **Pages** workflow starts: it builds the WebAssembly bundle, exports the site and deploys it. A few minutes later, the new version is online.
 
 A red CI publishes nothing: the site online always comes from a version that passed every check. The Actions tab shows each run and, for Pages, the address of the published site.

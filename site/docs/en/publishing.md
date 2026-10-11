@@ -30,7 +30,7 @@ Because the version comes from the tag, the published crate always matches the r
 
 The GitHub mobile app does not show repository settings, so use the website in your phone's browser.
 
-1. Open the repository on [github.com](https://github.com), then **Settings**.
+1. Open the repository on github.com, then **Settings**.
 2. Open **Secrets and variables**, then **Actions**.
 3. Tap **New repository secret**. Name: `CARGO_REGISTRY_TOKEN`. Secret: paste the token. Tap **Add secret**.
 

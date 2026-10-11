@@ -3,7 +3,7 @@ title: Axum
 description: Serve active pages with Axum 0.8: routes returning Html, islands, static files, 404 pages, a sitemap, async data, and why rendering per request is safe.
 ---
 
-[Axum](https://docs.rs/axum) is a popular Rust web framework built on Tokio. Rendering an `active` page in an Axum handler is one line, `Html(Document::new(view).render())`; this page builds a complete small shop around it: pages with SEO tags, an island, static files, a 404 page, a sitemap, and data loaded asynchronously. This website itself is an Axum server, in [`site/src/server`](https://github.com/maxlestage/Active/tree/master/site/src/server).
+[Axum](https://docs.rs/axum) is a popular Rust web framework built on Tokio. Rendering an `active` page in an Axum handler is one line, `Html(Document::new(view).render())`; this page builds a complete small shop around it: pages with SEO tags, an island, static files, a 404 page, a sitemap, and data loaded asynchronously. This website itself is an Axum server, in `site/src/server`.
 
 ## Dependencies
 
@@ -287,8 +287,8 @@ async fn home_has_a_title() {
 }
 ```
 
-This needs `tower = { version = "0.5", features = ["util"] }` in `[dev-dependencies]`. This website's tests, in [`site/tests/server.rs`](https://github.com/maxlestage/Active/blob/master/site/tests/server.rs), check its SEO tags, redirects and caching this way.
+This needs `tower = { version = "0.5", features = ["util"] }` in `[dev-dependencies]`. This website's tests, in `site/tests/server.rs`, check its SEO tags, redirects and caching this way.
 
 ## Other servers
 
-Nothing in `active` is specific to Axum: `Document::render()` returns a `String`. In Actix Web, Rocket, Warp, Hyper or a hand-written server, send that string with the `text/html; charset=utf-8` content type. [`examples/hello`](https://github.com/maxlestage/Active/tree/master/examples/hello) does it with the standard library alone.
+Nothing in `active` is specific to Axum: `Document::render()` returns a `String`. In Actix Web, Rocket, Warp, Hyper or a hand-written server, send that string with the `text/html; charset=utf-8` content type. `examples/hello` does it with the standard library alone.

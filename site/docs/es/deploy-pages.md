@@ -3,7 +3,7 @@ title: Desplegar en GitHub Pages
 description: Publica gratis el sitio de active en GitHub Pages desde un teléfono: activa Pages una vez y cada fusión en master estará en línea unos minutos después.
 ---
 
-[GitHub Pages](https://pages.github.com) aloja archivos estáticos gratis, en `https://<propietario>.github.io/<repositorio>/`. Este repositorio publica allí su sitio automáticamente: el workflow [`pages.yml`](https://github.com/maxlestage/Active/blob/master/.github/workflows/pages.yml) convierte las páginas del servidor Rust en archivos con `active-site export` y luego las despliega. Todo lo que sigue se puede hacer desde un teléfono.
+GitHub Pages aloja archivos estáticos gratis, en `https://<propietario>.github.io/<repositorio>/`. Este repositorio publica allí su sitio automáticamente: el workflow `pages.yml` convierte las páginas del servidor Rust en archivos con `active-site export` y luego las despliega. Todo lo que sigue se puede hacer desde un teléfono.
 
 A diferencia de [Heroku](../deploy-heroku/), Pages no ejecuta ningún servidor: sin costo y sin máquina que mantener, pero también sin código en el lado del servidor. La exportación sustituye las pocas cosas que el servidor calculaba en cada petición (consulta [Qué cambia en un alojamiento estático](#que-cambia-en-un-alojamiento-estatico)).
 
@@ -20,7 +20,7 @@ Eso es todo: no hay que elegir rama ni carpeta, el workflow sube el sitio por s�
 ## Cómo funciona la publicación
 
 1. Haces push de una rama, o lo hace Claude.
-2. El workflow de [CI](https://github.com/maxlestage/Active/blob/master/.github/workflows/ci.yml) la comprueba (formato, lints, tests, compilaciones, exportación) y, cuando todo está en verde, la fusiona en `master`. Las ramas cuyo nombre empieza por `wip/` se comprueban pero nunca se fusionan.
+2. El workflow de CI la comprueba (formato, lints, tests, compilaciones, exportación) y, cuando todo está en verde, la fusiona en `master`. Las ramas cuyo nombre empieza por `wip/` se comprueban pero nunca se fusionan.
 3. Cuando la CI termina bien, arranca el workflow **Pages**: compila el bundle WebAssembly, exporta el sitio y lo despliega. Unos minutos después, la nueva versión está en línea.
 
 Una CI en rojo no publica nada: el sitio en línea siempre viene de una versión que pasó todas las comprobaciones. La pestaña Actions muestra cada ejecución y, para Pages, la dirección del sitio publicado.

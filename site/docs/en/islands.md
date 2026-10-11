@@ -144,7 +144,7 @@ and rebuilds that island from scratch. The page still works, but the island flic
 - **Code that differs by target.** A `#[cfg(target_arch = "wasm32")]` that changes the markup. Use it only for behaviour (handlers, effects), never for what is rendered.
 - **HTML changed after rendering.** A proxy, a browser extension or a script that rewrites the page.
 
-Text content is not compared, only the structure. Raw HTML set with `.html(...)` is never touched by hydration, which is useful for content only the server can produce, such as syntax-highlighted code: render it on the server, pass an empty string in the browser. This website's home page tabs work this way (see [`site/src/islands.rs`](https://github.com/maxlestage/Active/blob/master/site/src/islands.rs)).
+Text content is not compared, only the structure. Raw HTML set with `.html(...)` is never touched by hydration, which is useful for content only the server can produce, such as syntax-highlighted code: render it on the server, pass an empty string in the browser. This website's home page tabs work this way (see `site/src/islands.rs`).
 
 ## Islands inside islands
 

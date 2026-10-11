@@ -257,7 +257,7 @@ assert!(js.contains(r#"const PRECACHE = ["/","/static/app.css?v=3f2a","/offline/
 
 ## This website
 
-The website you are reading does all of the above, in [`site/src/server/pwa.rs`](https://github.com/maxlestage/Active/blob/master/site/src/server/pwa.rs):
+The website you are reading does all of the above, in `site/src/server/pwa.rs`:
 
 - `/manifest.webmanifest` opens the app on `/en/`, with the 192, 512 and maskable PNG icons and the SVG logo;
 - `/sw.js` precaches the three home pages, the stylesheet and the WebAssembly bundle with their `?v=` URLs, the fonts and the icons; its version is a hash of all of them;

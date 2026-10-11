@@ -69,7 +69,7 @@ Heroku has no free tier. At the time of writing, the cheapest option, Eco dynos,
 
 ## What is the crate called?
 
-`active`, on [crates.io](https://crates.io/crates/active), with the documentation on [docs.rs/active](https://docs.rs/active). Until the first version is published there, depend on the repository: `active = { git = "https://github.com/maxlestage/Active" }`. The [Publishing](../publishing/) page explains how releases are made.
+`active`, on [crates.io](https://crates.io/crates/active), with the documentation on [docs.rs/active](https://docs.rs/active). Until the first version is published there, depend on the repository: `active = { git = "https://maxlestage.github.io/Active/" }`. The [Publishing](../publishing/) page explains how releases are made.
 
 ## Which Rust version do I need?
 
@@ -85,8 +85,8 @@ With the `wasm-release` profile, a panic stops the module and the console shows 
 
 ## Is it ready for production?
 
-`active` is young (version 0.1). The API is small and tested, and this website runs on it, but it may change before 1.0. Pin the version in `Cargo.toml` and read the release notes when you upgrade. Issues and contributions are welcome on [GitHub](https://github.com/maxlestage/Active).
+`active` is young (version 0.1). The API is small and tested, and this website runs on it, but it may change before 1.0. Pin the version in `Cargo.toml` and read the release notes when you upgrade. Issues and contributions are welcome on [GitHub](https://maxlestage.github.io/Active/).
 
 ## What license is it under?
 
-`active` is proprietary software: © Maxime Nathan Lestage, all rights reserved. Its source is published on crates.io and GitHub so that you can read, audit and build it, and you may use it freely as a dependency of your own programs, commercial ones included. Modifying it or redistributing its source needs the author's written permission. The full terms are in the repository's [LICENSE](https://github.com/maxlestage/Active/blob/master/LICENSE).
+`active` is proprietary software: © Maxime Nathan Lestage, all rights reserved. Its source is published on crates.io and GitHub so that you can read, audit and build it, and you may use it freely as a dependency of your own programs, commercial ones included. Modifying it or redistributing its source needs the author's written permission. The full terms are in the repository's [LICENSE](https://maxlestage.github.io/Active/LICENSE.txt).

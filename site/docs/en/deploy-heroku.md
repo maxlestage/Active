@@ -11,14 +11,14 @@ Heroku builds the repository's `Dockerfile` (Rust server and WebAssembly bundle)
 
 You need two accounts:
 
-- **GitHub.** A fork of the repository lets you change the site and deploy your changes. The GitHub app and [github.com](https://github.com) in a mobile browser both work.
+- **GitHub.** A fork of the repository lets you change the site and deploy your changes. The GitHub app and github.com in a mobile browser both work.
 - **Heroku**, at [signup.heroku.com](https://signup.heroku.com), with a **payment method** added under Account settings, Billing. Heroku has no free plan: see [Costs](#costs) below.
 
 > **Tip:** Heroku's dashboard works in a mobile browser. If a page looks cramped, switch the browser to "Desktop site" mode.
 
 ## 1. Fork the repository
 
-1. Open [github.com/maxlestage/Active](https://github.com/maxlestage/Active).
+1. Open [maxlestage.github.io/Active](https://maxlestage.github.io/Active/).
 2. Tap **Fork**, keep the default name `Active`, and confirm with **Create fork**.
 
 You now have `https://github.com/<you>/Active`, which you can edit from the GitHub app or website. To deploy the original repository without changes, you can skip this step.
@@ -27,7 +27,7 @@ You now have `https://github.com/<you>/Active`, which you can edit from the GitH
 
 The button reads `app.json` and creates a Heroku app that builds the repository with Docker.
 
-1. Open the deploy link. For the original repository it is [heroku.com/deploy?template=https://github.com/maxlestage/Active](https://heroku.com/deploy?template=https://github.com/maxlestage/Active). For your fork, use `https://heroku.com/deploy?template=https://github.com/<you>/Active`.
+1. Open the deploy link. For the original repository it is heroku.com/deploy?template=https://maxlestage.github.io/Active/. For your fork, use `https://heroku.com/deploy?template=https://github.com/<you>/Active`.
 2. Log in to Heroku if asked.
 3. **App name:** choose a lowercase name such as `my-active-site`. Your address becomes `my-active-site-<random>.herokuapp.com` or similar, shown at the end.
 4. **Region:** United States or Europe, whichever is closer to your visitors.

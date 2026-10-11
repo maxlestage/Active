@@ -3,7 +3,7 @@ title: Axum
 description: Sirve páginas de active con Axum 0.8: rutas que devuelven Html, islas, archivos estáticos, 404, sitemap, datos asíncronos y renderizado seguro por petición.
 ---
 
-[Axum](https://docs.rs/axum) es un framework web de Rust muy popular, construido sobre Tokio. Renderizar una página de `active` en un manejador de Axum ocupa una línea, `Html(Document::new(view).render())`; esta página construye a su alrededor una pequeña tienda completa: páginas con etiquetas SEO, una isla, archivos estáticos, una página 404, un sitemap y datos cargados de forma asíncrona. Este mismo sitio web es un servidor Axum, en [`site/src/server`](https://github.com/maxlestage/Active/tree/master/site/src/server).
+[Axum](https://docs.rs/axum) es un framework web de Rust muy popular, construido sobre Tokio. Renderizar una página de `active` en un manejador de Axum ocupa una línea, `Html(Document::new(view).render())`; esta página construye a su alrededor una pequeña tienda completa: páginas con etiquetas SEO, una isla, archivos estáticos, una página 404, un sitemap y datos cargados de forma asíncrona. Este mismo sitio web es un servidor Axum, en `site/src/server`.
 
 ## Dependencias
 
@@ -287,8 +287,8 @@ async fn home_has_a_title() {
 }
 ```
 
-Esto requiere `tower = { version = "0.5", features = ["util"] }` en `[dev-dependencies]`. Las pruebas de este sitio, en [`site/tests/server.rs`](https://github.com/maxlestage/Active/blob/master/site/tests/server.rs), comprueban así sus etiquetas SEO, sus redirecciones y su caché.
+Esto requiere `tower = { version = "0.5", features = ["util"] }` en `[dev-dependencies]`. Las pruebas de este sitio, en `site/tests/server.rs`, comprueban así sus etiquetas SEO, sus redirecciones y su caché.
 
 ## Otros servidores
 
-Nada en `active` es específico de Axum: `Document::render()` devuelve un `String`. En Actix Web, Rocket, Warp, Hyper o un servidor escrito a mano, envía esa cadena con el tipo de contenido `text/html; charset=utf-8`. [`examples/hello`](https://github.com/maxlestage/Active/tree/master/examples/hello) lo hace solo con la biblioteca estándar.
+Nada en `active` es específico de Axum: `Document::render()` devuelve un `String`. En Actix Web, Rocket, Warp, Hyper o un servidor escrito a mano, envía esa cadena con el tipo de contenido `text/html; charset=utf-8`. `examples/hello` lo hace solo con la biblioteca estándar.

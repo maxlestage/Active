@@ -114,7 +114,7 @@ fn contact_head() -> String {
 }
 ```
 
-When the address of the site is only known at runtime (a `SITE_URL` setting, the `Host` header of the request), build the defaults in a function that takes the origin, as this website does in [`site/src/server/pages.rs`](https://github.com/maxlestage/Active/blob/master/site/src/server/pages.rs).
+When the address of the site is only known at runtime (a `SITE_URL` setting, the `Host` header of the request), build the defaults in a function that takes the origin, as this website does in `site/src/server/pages.rs`.
 
 ## SEO in views
 

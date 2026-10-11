@@ -79,7 +79,7 @@ brotli -c -q 11 pkg/my_site_bg.wasm | wc -c   # Brotli, if the brotli tool is in
 
 Mide siempre el archivo `_bg.wasm` que produce `wasm-bindgen`: el archivo de `target/` todavía contiene metadatos que `wasm-bindgen` elimina y es varias veces más grande.
 
-Para ver qué ocupa espacio, compila una vez sin eliminar los símbolos e inspecciona el resultado con [twiggy](https://github.com/rustwasm/twiggy):
+Para ver qué ocupa espacio, compila una vez sin eliminar los símbolos e inspecciona el resultado con twiggy:
 
 ```sh
 cargo install twiggy
@@ -95,7 +95,7 @@ twiggy top -n 20 pkg-debug/my_site_bg.wasm
 - **Deja el trabajo pesado en el servidor.** Analizar Markdown, resaltar código o formatear fechas puede hacerse en el servidor y llegar a la isla como HTML o como props. Este sitio resalta sus ejemplos de código en el servidor y pasa el resultado como HTML sin escapar, así que el bundle no contiene ningún resaltador.
 - **Vigila las dependencias.** Cada crate que usa el código del navegador acaba en el bundle. Comprueba el tamaño después de añadir uno, y activa solo las features de `web-sys` que realmente uses.
 - **Prueba `opt-level = "z"`** y quédate con él si resulta más pequeño para tu código.
-- **Opcionalmente, ejecuta `wasm-opt`** de [Binaryen](https://github.com/WebAssembly/binaryen) después de `wasm-bindgen`: `wasm-opt -Oz -o out.wasm pkg/my_site_bg.wasm`. Suele recortar unos cuantos puntos porcentuales más. Si rechaza el módulo por una característica de WebAssembly, activa esa característica con la opción `--enable-…` correspondiente. Este repositorio no lo usa, así que las cifras de arriba son sin él.
+- **Opcionalmente, ejecuta `wasm-opt`** de Binaryen después de `wasm-bindgen`: `wasm-opt -Oz -o out.wasm pkg/my_site_bg.wasm`. Suele recortar unos cuantos puntos porcentuales más. Si rechaza el módulo por una característica de WebAssembly, activa esa característica con la opción `--enable-…` correspondiente. Este repositorio no lo usa, así que las cifras de arriba son sin él.
 
 ## Renderizado en el servidor
 
