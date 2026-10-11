@@ -248,7 +248,7 @@ app.get("/", home);
 app.run(3000)?;
 ```
 
-Any server works the same way (Axum, Actix Web, Rocket, Hyper, a static site generator):
+Any server works the same way (Actix Web, Rocket, Hyper, a static site generator):
 `Document::render()` returns a `String`.
 
 ## Links
