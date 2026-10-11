@@ -21,7 +21,7 @@ El crate usa la edición 2024 y necesita Rust 1.85 o posterior. No contiene cód
 | --- | --- |
 | `active::*` | todos los elementos de abajo |
 | `active::html` | una función por etiqueta HTML y SVG |
-| `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) y [`register_script`](#register-script): sitios instalables y sin conexión |
+| `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) y [`register_script`](#register-script) y [`version`](#version): sitios instalables y sin conexión |
 | `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state`; con `client`, también `location`, `navigate` y `query_param` |
 
 No están en el prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Úsalos como `active::hydrate`, etc.
@@ -353,6 +353,17 @@ pub fn register_script(url: &str) -> String
 ```
 
 El script en línea que escribe `Document::service_worker`: registra el worker de `url` en el evento `load`. Calcula su hash para autorizarlo en una Content-Security-Policy.
+
+### version
+
+```rust
+pub fn version<I, B>(parts: I) -> String
+where
+    I: IntoIterator<Item = B>,
+    B: AsRef<[u8]>,
+```
+
+Un hash corto de `parts` (10 caracteres hexadecimales, FNV-1a), para `ServiceWorker::new`: calcula el hash de lo que guarda el worker, y cada despliegue que lo cambie instala un worker nuevo.
 
 ## Islas
 

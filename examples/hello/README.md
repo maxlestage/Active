@@ -21,3 +21,20 @@ cargo run -p hello
 
 Open http://localhost:3000. View the page source: the counter is already there, in the
 HTML, at `3`. Click it: the WebAssembly module now drives it.
+
+## Installable
+
+The page is also a Progressive Web App, with `active::pwa` (see the
+[guide](https://maxlestage.github.io/Active/en/docs/pwa/)):
+
+- `manifest()` in `lib.rs` is the web app manifest, served at `/manifest.webmanifest`: the
+  name, the colors and the icons of `static/` (drawn from `icon.svg`);
+- `worker()` in `main.rs` is the service worker, served at `/sw.js`: at installation it
+  saves the page, the bundle and the icons, and its version is a hash of them
+  (`active::pwa::version`), so a change deploys a new worker;
+- `offline()` is the page shown without network for anything not saved;
+- the page calls `.manifest(...)` and `.service_worker(...)`, which write the tags and
+  register the worker.
+
+Install it from the browser's menu, or stop the server and reload: the counter is still
+there, and still works.

@@ -9,7 +9,7 @@ Una Progressive Web App es un sitio web que los teléfonos y los ordenadores pue
 - el **service worker** (`sw.js`): un pequeño script que el navegador ejecuta junto a las páginas, que guarda el sitio en el dispositivo y responde desde ahí cuando no hay conexión, generado por `ServiceWorker`;
 - en cada página, `Document::manifest` y `Document::service_worker` añaden el enlace al manifiesto, el color del tema, el título y el icono de la pantalla de inicio, y la línea que registra el worker.
 
-No hay que escribir JavaScript: los navegadores solo ejecutan service workers en forma de script, así que active genera el worker a partir de tu configuración en Rust. Este sitio es una PWA hecha así: instálalo desde el menú de tu navegador, o activa el modo avión y recarga la página.
+No hay que escribir JavaScript: los navegadores solo ejecutan service workers en forma de script, así que active genera el worker a partir de tu configuración en Rust. Este sitio es una PWA hecha así: instálalo desde el menú de tu navegador, o activa el modo avión y recarga la página. La app `hello` de la carpeta `examples` del repositorio es la más pequeña: una isla contador en una página, servida solo con la biblioteca estándar, instalable y sin conexión en cuarenta líneas.
 
 Los service workers solo funcionan en un contexto seguro: HTTPS, o `http://localhost` mientras desarrollas.
 
@@ -107,26 +107,21 @@ El worker generado atiende las peticiones `GET` de su propio sitio y deja todo l
 
 ### Qué guardar de antemano
 
-Guarda lo que un visitante necesita para abrir la app sin conexión: la página de inicio y las páginas principales, la hoja de estilos, el bundle de WebAssembly (el cargador JavaScript y el archivo `.wasm`), las fuentes y los iconos. Usa **exactamente las URL que usan las páginas**: la caché tiene en cuenta la query string, así que si una página carga `/static/app.css?v=3f2a…`, guarda esa URL y no `/static/app.css`. Deja fuera los archivos que no existen: una sola descarga fallida cancela la instalación.
+Guarda lo que un visitante necesita para abrir la app sin conexión: la página de inicio y las páginas principales, la hoja de estilos, el bundle de WebAssembly (el cargador JavaScript y el archivo `.wasm`), las fuentes y los iconos. Usa **exactamente las URL que usan las páginas**: la caché tiene en cuenta la query string, así que si una página carga `/static/app.css?v=3f2a…`, guarda esa URL y no `/static/app.css`. Deja fuera los archivos que no existen: una sola descarga fallida cancela la instalación. Una URL dada dos veces se guarda una sola vez.
 
 ### Elegir la versión
 
-Cambia `version` en cada despliegue que modifique algo que el worker guarda; si no, los navegadores conservan el worker antiguo y sus archivos antiguos. Un hash de esos archivos lo hace automáticamente, el mismo hash FNV-1a que este sitio usa para sus URL con `?v=` (ver [Documentos, Caché a largo plazo](../documents/#cache-a-largo-plazo)):
+Cambia `version` en cada despliegue que modifique algo que el worker guarda; si no, los navegadores conservan el worker antiguo y sus archivos antiguos. `active::pwa::version` lo hace automáticamente: un hash FNV-1a corto de lo que le des, el mismo que este sitio usa para sus URL con `?v=` (ver [Documentos, Caché a largo plazo](../documents/#cache-a-largo-plazo)):
 
 ```rust
-/// Un hash corto de todo lo que guarda el worker: archivos nuevos, worker nuevo.
-fn version(files: &[&[u8]]) -> String {
-    let hash = files.iter().flat_map(|f| f.iter()).fold(0xcbf2_9ce4_8422_2325_u64, |h, b| {
-        (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3)
-    });
-    format!("{hash:016x}")[..10].to_string()
-}
+use active::pwa::version;
 
-let v1 = version(&[b"body{color:red}", b"\0asm"]);
-assert_ne!(v1, version(&[b"body{color:blue}", b"\0asm"]));
+let v1 = version([b"body{color:red}".as_slice(), b"\0asm".as_slice()]);
+assert_eq!(v1.len(), 10);
+assert_ne!(v1, version([b"body{color:blue}".as_slice(), b"\0asm".as_slice()]));
 ```
 
-Este sitio calcula el hash de las páginas guardadas tal como se renderizan, del manifiesto y de todos los archivos estáticos, así que cualquier cambio publica un worker nuevo.
+Calcula el hash de lo que guarda el worker: las páginas guardadas tal como se renderizan, el manifiesto y los archivos estáticos. Es exactamente lo que hace este sitio: cualquier cambio publica un worker nuevo.
 
 ## Las etiquetas de cada página
 

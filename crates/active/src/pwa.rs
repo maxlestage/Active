@@ -43,7 +43,8 @@
 //! - **other files** of the site (styles, the WebAssembly bundle, images, fonts): the
 //!   cached copy at once, refreshed in the background;
 //! - **`network_only` prefixes** (an API…) and other sites: never cached;
-//! - a new version (another `version` string) replaces the old caches when it activates.
+//! - a new version (another `version` string) replaces the old caches when it activates;
+//!   [`version`] names it after a hash of what the worker saves.
 
 use crate::escape::escape_into;
 
@@ -295,13 +296,19 @@ impl ServiceWorker {
     }
 
     /// URLs downloaded when the app is installed, available offline from the first
-    /// visit: the start page, the stylesheet, the WebAssembly bundle, the icons…
+    /// visit: the start page, the stylesheet, the WebAssembly bundle, the icons… A URL
+    /// given twice is saved once (a duplicate would cancel the installation).
     pub fn precache<I, S>(mut self, urls: I) -> Self
     where
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
-        self.precache.extend(urls.into_iter().map(Into::into));
+        for url in urls {
+            let url = url.into();
+            if !self.precache.contains(&url) {
+                self.precache.push(url);
+            }
+        }
         self
     }
 
@@ -414,6 +421,34 @@ self.addEventListener("fetch", (event) => {
   );
 });
 "#;
+
+/// A short hash of `parts` (10 hexadecimal characters, FNV-1a), to name the version of a
+/// [`ServiceWorker`]: hash what the worker saves (the pages as rendered, the manifest, the
+/// stylesheet, the bundle…) and every deployment that changes one of them installs a new
+/// worker, which replaces the old caches.
+///
+/// ```
+/// use active::pwa::version;
+///
+/// let v1 = version([b"body{color:red}".as_slice(), b"\0asm".as_slice()]);
+/// assert_eq!(v1.len(), 10);
+/// assert_ne!(v1, version([b"body{color:blue}".as_slice(), b"\0asm".as_slice()]));
+/// ```
+pub fn version<I, B>(parts: I) -> String
+where
+    I: IntoIterator<Item = B>,
+    B: AsRef<[u8]>,
+{
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for part in parts {
+        for byte in part.as_ref() {
+            hash = (hash ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01b3);
+        }
+        // A separator, so that moving bytes between parts changes the hash too.
+        hash = (hash ^ 0xff).wrapping_mul(0x0100_0000_01b3);
+    }
+    format!("{hash:016x}")[..10].to_string()
+}
 
 /// The inline script that registers the service worker at `url`, once the page has
 /// loaded (written by [`Document::service_worker`](crate::Document::service_worker); with
@@ -538,6 +573,30 @@ mod tests {
         let bare = ServiceWorker::new("site", "1").to_js();
         assert!(bare.contains("const OFFLINE = null;"));
         assert!(bare.contains("const PRECACHE = [];"));
+    }
+
+    #[test]
+    fn precache_ignores_duplicates() {
+        let worker = ServiceWorker::new("site", "1")
+            .precache(["/", "/app.css", "/"])
+            .precache(["/app.css", "/offline/"])
+            .offline_page("/offline/");
+        assert!(
+            worker
+                .to_js()
+                .contains(r#"const PRECACHE = ["/","/app.css","/offline/"];"#)
+        );
+    }
+
+    #[test]
+    fn version_is_a_short_hash_of_its_parts() {
+        let v = version([b"a".as_slice(), b"b".as_slice()]);
+        assert_eq!(v.len(), 10);
+        assert!(v.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_eq!(v, version([b"a".as_slice(), b"b".as_slice()]));
+        assert_ne!(v, version([b"ab".as_slice()]));
+        assert_ne!(v, version([b"b".as_slice(), b"a".as_slice()]));
+        assert_ne!(version(Vec::<Vec<u8>>::new()), version([b"".as_slice()]));
     }
 
     #[test]

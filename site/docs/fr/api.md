@@ -21,7 +21,7 @@ Le crate utilise l'édition 2024 et nécessite Rust 1.85 ou plus récent. Il ne 
 | --- | --- |
 | `active::*` | tous les éléments ci-dessous |
 | `active::html` | une fonction par balise HTML et SVG |
-| `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) et [`register_script`](#register-script) : sites installables et hors ligne |
+| `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) et [`register_script`](#register-script) et [`version`](#version) : sites installables et hors ligne |
 | `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state` ; avec `client`, aussi `location`, `navigate` et `query_param` |
 
 Absents du prélude : `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Utilisez-les sous la forme `active::hydrate`, etc.
@@ -353,6 +353,17 @@ pub fn register_script(url: &str) -> String
 ```
 
 Le script en ligne écrit par `Document::service_worker` : enregistre le worker de `url` à l'événement `load`. Calculez son hash pour l'autoriser dans une Content-Security-Policy.
+
+### version
+
+```rust
+pub fn version<I, B>(parts: I) -> String
+where
+    I: IntoIterator<Item = B>,
+    B: AsRef<[u8]>,
+```
+
+Un hash court de `parts` (10 caractères hexadécimaux, FNV-1a), pour `ServiceWorker::new` : hachez ce que le worker enregistre, et chaque déploiement qui le modifie installe un nouveau worker.
 
 ## Îlots
 
