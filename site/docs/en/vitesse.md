@@ -19,13 +19,13 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-active = "0.1"
+active = { git = "https://github.com/maxlestage/Active" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-vitesse = { version = "0.1", features = ["compress"] }
+vitesse = { git = "https://github.com/maxlestage/Vitesse", features = ["compress"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-active = { version = "0.1", features = ["client"] }
+active = { git = "https://github.com/maxlestage/Active", features = ["client"] }
 wasm-bindgen = "=0.2.129"
 ```
 

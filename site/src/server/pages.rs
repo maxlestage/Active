@@ -237,8 +237,8 @@ fn footer(route: &Route) -> Element {
             f.project,
             vec![
                 (
-                    "https://crates.io/crates/active".to_string(),
-                    "crates.io",
+                    "https://github.com/maxlestage/Active".to_string(),
+                    "GitHub",
                     true,
                 ),
                 ("https://docs.rs/active".to_string(), "docs.rs", true),
@@ -266,9 +266,15 @@ fn footer(route: &Route) -> Element {
         .child(
             el("code")
                 .class("install")
-                .attr("aria-label", format!("{}: cargo add active", f.install))
+                .attr(
+                    "aria-label",
+                    format!(
+                        "{}: cargo add active --git https://github.com/maxlestage/Active",
+                        f.install
+                    ),
+                )
                 .attr("title", f.install)
-                .text("cargo add active"),
+                .text("cargo add active --git https://github.com/maxlestage/Active"),
         );
     let brand = div()
         .class("footer-brand")
@@ -282,8 +288,8 @@ fn footer(route: &Route) -> Element {
                 .child(li().text(f.rust_only))
                 .child(
                     li().child(external(
-                        a().href("https://crates.io/crates/active")
-                            .text("crates.io"),
+                        a().href("https://github.com/maxlestage/Active")
+                            .text("GitHub"),
                     )),
                 ),
         );
@@ -720,7 +726,7 @@ fn home(ctx: &Ctx<'_>) -> Node {
                     h.steps
                         .iter()
                         .zip([
-                            "cargo add active",
+                            "cargo add active --git https://github.com/maxlestage/Active",
                             "fn page() -> Node",
                             "active::hydrate(&ISLANDS)",
                         ])
