@@ -1812,6 +1812,15 @@ html.intro {
   min-width: 0;
 }
 
+/* The last project fills the rest of its row: no empty cell shows the lines' color. */
+.footer .eco-grid li:last-child:nth-child(3n + 1) {
+  grid-column: 1 / -1;
+}
+
+.footer .eco-grid li:last-child:nth-child(3n + 2) {
+  grid-column: span 2;
+}
+
 .footer .eco {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2665,6 +2674,15 @@ dialog.search::backdrop {
 
   .footer .eco-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .footer .eco-grid li:last-child:nth-child(3n + 1),
+  .footer .eco-grid li:last-child:nth-child(3n + 2) {
+    grid-column: auto;
+  }
+
+  .footer .eco-grid li:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 }
 

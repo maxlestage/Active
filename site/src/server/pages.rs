@@ -189,13 +189,14 @@ fn header(route: &Route) -> Element {
 
 /// The sister projects of active, by the same author: (name, website). The footer links
 /// them in this order; `i18n::Footer::projects` describes each one in the same order.
-pub const ECOSYSTEM: [(&str, &str); 6] = [
+pub const ECOSYSTEM: [(&str, &str); 7] = [
     ("Active", "https://maxlestage.github.io/Active/"),
     ("Vitesse", "https://maxlestage.github.io/Vitesse/"),
     ("Securite", "https://maxlestage.github.io/Securite/"),
     ("Memoire", "https://maxlestage.github.io/Memoire/"),
     ("Paquets", "https://maxlestage.github.io/Paquets/"),
     ("FerroSwift", "https://maxlestage.github.io/FerroSwift/"),
+    ("Solidify", "https://maxlestage.github.io/Solidify/"),
 ];
 
 /// (href, label, opens a new tab)
