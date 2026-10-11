@@ -282,4 +282,4 @@ Il faut pour cela `tokio = { version = "1", features = ["macros", "rt"] }` dans 
 
 ## Autres serveurs
 
-Rien dans `active` n'est propre à Vitesse : `Document::render()` renvoie une `String`. Avec Axum, Actix Web, Rocket, Warp, Hyper ou un serveur écrit à la main, envoyez cette chaîne avec le type de contenu `text/html; charset=utf-8`. `examples/hello` le fait avec la seule bibliothèque standard.
+Rien dans `active` n'est propre à Vitesse : `Document::render()` renvoie une `String`. Avec Actix Web, Rocket, Warp, Hyper ou un serveur écrit à la main, envoyez cette chaîne avec le type de contenu `text/html; charset=utf-8`. `examples/hello` le fait avec la seule bibliothèque standard.

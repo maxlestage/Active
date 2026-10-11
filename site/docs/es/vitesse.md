@@ -282,4 +282,4 @@ Esto requiere `tokio = { version = "1", features = ["macros", "rt"] }` en `[dev-
 
 ## Otros servidores
 
-Nada en `active` es específico de Vitesse: `Document::render()` devuelve un `String`. En Axum, Actix Web, Rocket, Warp, Hyper o un servidor escrito a mano, envía esa cadena con el tipo de contenido `text/html; charset=utf-8`. `examples/hello` lo hace solo con la biblioteca estándar.
+Nada en `active` es específico de Vitesse: `Document::render()` devuelve un `String`. En Actix Web, Rocket, Warp, Hyper o un servidor escrito a mano, envía esa cadena con el tipo de contenido `text/html; charset=utf-8`. `examples/hello` lo hace solo con la biblioteca estándar.
