@@ -342,7 +342,7 @@ En el servidor, nada cambia una vez renderizada la página, y los efectos y mane
 
 Los estados de la página que se está renderizando siguen disponibles: puedes renderizar la misma vista varias veces, leer sus estados después de renderizar o imprimir un `Node` con `{:?}`. Los estados de las peticiones terminadas se liberan tras los siguientes renderizados en el mismo hilo, así que un servidor que renderiza millones de páginas solo mantiene un puñado de estados vivos.
 
-De ahí se deriva una regla: **construye y renderiza la vista sin ningún `.await` entre medias.** En un manejador asíncrono, carga primero tus datos y después construye la vista y renderízala en un solo paso síncrono. Un `State` pertenece al hilo que lo creó, así que no es `Send`: en un servidor multihilo como Axum, conservar uno a través de un `.await` es un error de compilación, no una sorpresa en tiempo de ejecución. Consulta [Axum, Datos asíncronos](../axum/#datos-asincronos).
+De ahí se deriva una regla: **construye y renderiza la vista sin ningún `.await` entre medias.** En un manejador asíncrono, carga primero tus datos y después construye la vista y renderízala en un solo paso síncrono. Un `State` pertenece al hilo que lo creó, así que no es `Send`: en un servidor multihilo como Vitesse, conservar uno a través de un `.await` es un error de compilación, no una sorpresa en tiempo de ejecución. Consulta [Vitesse, Datos asíncronos](../vitesse/#datos-asincronos).
 
 ## Ámbitos
 

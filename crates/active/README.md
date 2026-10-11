@@ -232,21 +232,23 @@ assert!(html.contains("<title>Chairs · Acme</title>"));
 assert!(html.contains(r#"content="Furniture.""#));
 ```
 
-## Axum
+## Vitesse
 
 ```rust,ignore
 use active::prelude::*;
-use axum::{Router, response::Html, routing::get};
+use vitesse::prelude::*;
 
-async fn home() -> Html<String> {
+async fn home(_: Request) -> Html<String> {
     let page = main().child(Seo::new().title("Home")).child(h1().text("Hello"));
     Html(Document::new(page).lang("en").render())
 }
 
-let app = Router::new().route("/", get(home));
+let mut app = App::new();
+app.get("/", home);
+app.run(3000)?;
 ```
 
-Any server works the same way (Actix Web, Rocket, Hyper, a static site generator):
+Any server works the same way (Axum, Actix Web, Rocket, Hyper, a static site generator):
 `Document::render()` returns a `String`.
 
 ## Links

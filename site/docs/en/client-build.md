@@ -78,7 +78,7 @@ Serve the `pkg/` folder at a URL, usually `/pkg/`, with these content types:
 | `.js` | `text/javascript` |
 | `.wasm` | `application/wasm` |
 
-With the right type, the browser compiles the module while it downloads. With a wrong one, the loader prints a warning in the console and falls back to a slower path. [Axum](../axum/)'s `ServeDir` and most static hosts set both types automatically.
+With the right type, the browser compiles the module while it downloads. With a wrong one, the loader prints a warning in the console and falls back to a slower path. [Vitesse](../vitesse/)'s `static_dir` and most static hosts set both types automatically.
 
 Compress both files: WebAssembly compresses well with Brotli or gzip (see [Performance](../performance/#sizes)).
 

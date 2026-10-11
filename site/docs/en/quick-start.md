@@ -21,7 +21,7 @@ Open [http://localhost:3000](http://localhost:3000) and click the buttons. The e
 
 ## Create your own project
 
-The same app, in a new crate, with an [Axum](../axum/) server.
+The same app, in a new crate, with a [Vitesse](../vitesse/) server.
 
 ### 1. Create the crate
 
@@ -47,9 +47,7 @@ crate-type = ["cdylib", "rlib"]
 active = "0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-axum = "0.8"
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
-tower-http = { version = "0.7", features = ["fs"] }
+vitesse = "0.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 active = { version = "0.1", features = ["client"] }
@@ -112,17 +110,14 @@ pub fn start() {
 Replace `src/main.rs`:
 
 ```rust
-use axum::{Router, response::Html, routing::get};
-use tower_http::services::ServeDir;
+use vitesse::prelude::*;
 
-#[tokio::main]
-async fn main() {
-    let app = Router::new()
-        .route("/", get(|| async { Html(my_site::page()) }))
-        .nest_service("/pkg", ServeDir::new("pkg"));
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+fn main() -> std::io::Result<()> {
+    let mut app = App::new();
+    app.get("/", |_| async { Html(my_site::page()) })
+        .static_dir("/pkg", "pkg");
     println!("http://localhost:3000");
-    axum::serve(listener, app).await.unwrap();
+    app.run(3000)
 }
 ```
 

@@ -46,11 +46,11 @@ Les mêmes composants fonctionnent dans trois types de projets. Choisissez celui
 
 | Mode | Fonctionnement | Idéal pour |
 | --- | --- | --- |
-| Pages rendues côté serveur avec des îlots | Un serveur Rust (Axum ou un autre) rend chaque requête avec `Document::render()`. Le navigateur n'hydrate que les îlots. | Sites avec des données dynamiques, une connexion, une recherche, de l'e-commerce |
+| Pages rendues côté serveur avec des îlots | Un serveur Rust (Vitesse ou un autre) rend chaque requête avec `Document::render()`. Le navigateur n'hydrate que les îlots. | Sites avec des données dynamiques, une connexion, une recherche, de l'e-commerce |
 | Site statique | Un petit programme rend chaque page dans un fichier HTML au moment de la compilation. Les îlots sont toujours hydratés. | Documentation, blogs, pages de présentation, portfolios |
 | Application côté client | Toute l'interface est montée dans le navigateur depuis le WebAssembly. | Tableaux de bord et outils derrière une connexion, là où le SEO ne compte pas |
 
-Consultez [Axum](../axum/), [Sites statiques](../static-site/) et [Applications côté client](../client-app/) pour chacun d'eux.
+Consultez [Vitesse](../vitesse/), [Sites statiques](../static-site/) et [Applications côté client](../client-app/) pour chacun d'eux.
 
 ## Pourquoi le rendu côté serveur passe en premier
 
@@ -86,7 +86,7 @@ Un seul crate contient vos composants. Il est compilé deux fois : une fois pour
 
 ## Ce que `active` ne fait pas
 
-`active` reste volontairement minimaliste : pas de serveur web, pas de couche d'accès aux bases de données, pas de bundler, pas de solution CSS. Utilisez le serveur Rust de votre choix ([Axum](../axum/) est présenté dans cette documentation), de simples fichiers CSS, et `cargo` avec `wasm-bindgen` pour compiler.
+`active` reste volontairement minimaliste : pas de serveur web, pas de couche d'accès aux bases de données, pas de bundler, pas de solution CSS. Utilisez le serveur Rust de votre choix ([Vitesse](../vitesse/) est présenté dans cette documentation), de simples fichiers CSS, et `cargo` avec `wasm-bindgen` pour compiler.
 
 ## Prochaines étapes
 

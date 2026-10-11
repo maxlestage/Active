@@ -46,14 +46,14 @@ Quand le navigateur hydrate un îlot, il s'attend à ce que le HTML du serveur c
 
 ## Comment charger des données de manière asynchrone ?
 
-- **Sur le serveur :** attendez d'abord vos appels à la base de données ou à l'API, puis construisez et rendez la vue en un seul appel synchrone, sans aucun `.await` entre les deux (le compilateur refuse un `State` conservé au-delà d'un `.await` dans un serveur multithread). Voir [Axum, Données asynchrones](../axum/#donnees-asynchrones).
+- **Sur le serveur :** attendez d'abord vos appels à la base de données ou à l'API, puis construisez et rendez la vue en un seul appel synchrone, sans aucun `.await` entre les deux (le compilateur refuse un `State` conservé au-delà d'un `.await` dans un serveur multithread). Voir [Vitesse, Données asynchrones](../vitesse/#donnees-asynchrones).
 - **Dans le navigateur :** lancez une future avec `wasm_bindgen_futures::spawn_local` depuis un gestionnaire ou un effet, et écrivez le résultat dans un état ; la vue se met à jour. Voir [Événements, Travail asynchrone dans les gestionnaires](../events/#travail-asynchrone-dans-les-gestionnaires).
 
 Les composants eux-mêmes sont des fonctions synchrones.
 
 ## Y a-t-il un routeur ?
 
-Sur le serveur, utilisez le routeur de votre framework web (les routes Axum dans le guide [Axum](../axum/)), avec une fonction de page par route. Dans une application côté client, `active::location()` donne le chemin courant sous forme d'état et gère les liens et le bouton Précédent, `active::query()` et `active::query_param("q")` donnent la chaîne de requête, et `active::navigate()` change de page depuis le code. Voir [Applications côté client, Routage](../client-app/#routage).
+Sur le serveur, utilisez le routeur de votre framework web (les routes Vitesse dans le guide [Vitesse](../vitesse/)), avec une fonction de page par route. Dans une application côté client, `active::location()` donne le chemin courant sous forme d'état et gère les liens et le bouton Précédent, `active::query()` et `active::query_param("q")` donnent la chaîne de requête, et `active::navigate()` change de page depuis le code. Voir [Applications côté client, Routage](../client-app/#routage).
 
 ## Comment styliser les composants ?
 
@@ -77,7 +77,7 @@ Rust 1.85 ou plus récent : le crate utilise l'édition 2024, déclarée avec `r
 
 ## Puis-je l'utiliser avec Actix Web, Rocket ou un autre serveur ?
 
-Oui. `Document::render()` renvoie une `String` : envoyez-la avec le type de contenu `text/html; charset=utf-8` depuis n'importe quel framework. Le guide [Axum](../axum/) montre une intégration, et `examples/hello` n'utilise que la bibliothèque standard. Un `Seo` peut aussi s'utiliser seul dans n'importe quel template.
+Oui. `Document::render()` renvoie une `String` : envoyez-la avec le type de contenu `text/html; charset=utf-8` depuis n'importe quel framework. Le guide [Vitesse](../vitesse/) montre une intégration, et `examples/hello` n'utilise que la bibliothèque standard. Un `Seo` peut aussi s'utiliser seul dans n'importe quel template.
 
 ## Comment voir les messages de panique dans le navigateur ?
 

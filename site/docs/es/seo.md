@@ -227,7 +227,7 @@ fn not_found() -> Element {
 }
 ```
 
-Devuelve además el código de estado HTTP correcto (404) desde tu servidor; consulta [Axum](../axum/#errores-y-404).
+Devuelve además el código de estado HTTP correcto (404) desde tu servidor; consulta [Vitesse](../vitesse/#errores-y-404).
 
 ## Usar Seo sin vistas
 
@@ -250,5 +250,5 @@ assert!(page.contains("<title>Hello</title>"));
 - Una imagen para compartir (`image`) de 1200 × 630 píxeles, para que las vistas previas de enlaces se vean bien.
 - Alternativas `hreflang` en cada versión de idioma, incluida `x-default`.
 - `noindex` en las páginas de error, de búsqueda y privadas.
-- Un `sitemap.xml` y un `robots.txt` (consulta [Axum](../axum/) y [Sitios estáticos](../static-site/#sitemap-y-robots-txt)).
+- Un `sitemap.xml` y un `robots.txt` (consulta [Vitesse](../vitesse/) y [Sitios estáticos](../static-site/#sitemap-y-robots-txt)).
 - [Datos estructurados](../structured-data/) donde ayuden: organización, migas de pan, artículos, productos.

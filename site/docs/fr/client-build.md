@@ -78,7 +78,7 @@ Servez le dossier `pkg/` à une URL, généralement `/pkg/`, avec ces types de c
 | `.js` | `text/javascript` |
 | `.wasm` | `application/wasm` |
 
-Avec le bon type, le navigateur compile le module pendant son téléchargement. Avec un mauvais type, le chargeur affiche un avertissement dans la console et se rabat sur une méthode plus lente. Le `ServeDir` d'[Axum](../axum/) et la plupart des hébergeurs statiques définissent automatiquement ces deux types.
+Avec le bon type, le navigateur compile le module pendant son téléchargement. Avec un mauvais type, le chargeur affiche un avertissement dans la console et se rabat sur une méthode plus lente. Le `static_dir` de [Vitesse](../vitesse/) et la plupart des hébergeurs statiques définissent automatiquement ces deux types.
 
 Compressez les deux fichiers : le WebAssembly se compresse bien avec Brotli ou gzip (voir [Performances](../performance/#tailles)).
 

@@ -46,11 +46,11 @@ Los mismos componentes funcionan en tres tipos de proyecto. Elige el que mejor e
 
 | Modo | Cómo funciona | Ideal para |
 | --- | --- | --- |
-| Páginas renderizadas en el servidor con islas | Un servidor Rust (Axum o cualquier otro) renderiza cada petición con `Document::render()`. El navegador solo hidrata las islas. | Sitios con datos dinámicos, inicio de sesión, búsqueda, comercio electrónico |
+| Páginas renderizadas en el servidor con islas | Un servidor Rust (Vitesse o cualquier otro) renderiza cada petición con `Document::render()`. El navegador solo hidrata las islas. | Sitios con datos dinámicos, inicio de sesión, búsqueda, comercio electrónico |
 | Sitio estático | Un pequeño programa renderiza cada página como archivo HTML en tiempo de compilación. Las islas se siguen hidratando. | Documentación, blogs, landing pages, portafolios |
 | Aplicación del lado del cliente | Toda la interfaz se monta en el navegador desde WebAssembly. | Paneles y herramientas detrás de un inicio de sesión, donde el SEO no importa |
 
-Consulta [Axum](../axum/), [Sitios estáticos](../static-site/) y [Aplicaciones del lado del cliente](../client-app/) para cada uno.
+Consulta [Vitesse](../vitesse/), [Sitios estáticos](../static-site/) y [Aplicaciones del lado del cliente](../client-app/) para cada uno.
 
 ## Por qué el renderizado en el servidor va primero
 
@@ -86,7 +86,7 @@ Un solo crate contiene tus componentes. Se compila dos veces: una para el servid
 
 ## Lo que `active` no hace
 
-`active` es pequeño a propósito. No incluye un servidor web, una capa de base de datos, un bundler ni una solución de CSS. Usa el servidor Rust que prefieras (esta documentación muestra [Axum](../axum/)), archivos CSS normales, y `cargo` junto con `wasm-bindgen` para compilar.
+`active` es pequeño a propósito. No incluye un servidor web, una capa de base de datos, un bundler ni una solución de CSS. Usa el servidor Rust que prefieras (esta documentación muestra [Vitesse](../vitesse/)), archivos CSS normales, y `cargo` junto con `wasm-bindgen` para compilar.
 
 ## Próximos pasos
 

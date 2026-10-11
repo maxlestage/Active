@@ -275,4 +275,4 @@ A static site can also be installed on the home screen and keep working offline:
 
 ## Updating the content
 
-The site changes only when you rebuild it. Content usually lives in the repository (Rust data as above, or Markdown files read by the generator with a crate such as [`pulldown-cmark`](https://docs.rs/pulldown-cmark) and inserted with `.html(...)`), so a commit triggers a rebuild through CI. When pages must change per request or per visitor, use a server instead: see [Axum](../axum/).
+The site changes only when you rebuild it. Content usually lives in the repository (Rust data as above, or Markdown files read by the generator with a crate such as [`pulldown-cmark`](https://docs.rs/pulldown-cmark) and inserted with `.html(...)`), so a commit triggers a rebuild through CI. When pages must change per request or per visitor, use a server instead: see [Vitesse](../vitesse/).

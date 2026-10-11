@@ -67,8 +67,7 @@ active = "0.1"
 
 # Server-only dependencies: they do not compile for wasm32.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-axum = "0.8"
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
+vitesse = "0.1"
 
 # Browser-only: the client runtime and the bindings generator.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -98,7 +97,7 @@ pub fn start() {
 }
 ```
 
-> **Warning:** Keep server crates such as `tokio` and `axum` under the `cfg(not(target_arch = "wasm32"))` table. Cargo compiles every dependency of the package for the target you build, even ones only `main.rs` uses, and networking crates do not build for `wasm32-unknown-unknown`.
+> **Warning:** Keep server crates such as `vitesse` under the `cfg(not(target_arch = "wasm32"))` table. Cargo compiles every dependency of the package for the target you build, even ones only `main.rs` uses, and networking crates do not build for `wasm32-unknown-unknown`.
 
 ## Install the WebAssembly tools
 

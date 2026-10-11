@@ -46,11 +46,11 @@ The same components work in three kinds of projects. Pick the one that fits, or 
 
 | Mode | How it works | Good for |
 | --- | --- | --- |
-| Server-rendered pages with islands | A Rust server (Axum or any other) renders each request with `Document::render()`. The browser hydrates only the islands. | Sites with dynamic data, logins, search, e-commerce |
+| Server-rendered pages with islands | A Rust server (Vitesse or any other) renders each request with `Document::render()`. The browser hydrates only the islands. | Sites with dynamic data, logins, search, e-commerce |
 | Static site | A small program renders every page to HTML files at build time. Islands still hydrate. | Documentation, blogs, landing pages, portfolios |
 | Client-side app | The whole interface is mounted in the browser from WebAssembly. | Dashboards and tools behind a login, where SEO does not matter |
 
-Read [Axum](../axum/), [Static sites](../static-site/) and [Client-side apps](../client-app/) for each one.
+Read [Vitesse](../vitesse/), [Static sites](../static-site/) and [Client-side apps](../client-app/) for each one.
 
 ## Why server rendering comes first
 
@@ -86,7 +86,7 @@ One crate holds your components. It is compiled twice: once for the server (or t
 
 ## What `active` does not do
 
-`active` stays small on purpose. It does not include a web server, a database layer, a bundler or a CSS solution. Use the Rust server you like ([Axum](../axum/) is shown in these docs), plain CSS files, and `cargo` plus `wasm-bindgen` to build.
+`active` stays small on purpose. It does not include a web server, a database layer, a bundler or a CSS solution. Use the Rust server you like ([Vitesse](../vitesse/) is shown in these docs), plain CSS files, and `cargo` plus `wasm-bindgen` to build.
 
 ## Next steps
 

@@ -275,4 +275,4 @@ Un site statique peut aussi s'installer sur l'écran d'accueil et continuer de f
 
 ## Mettre à jour le contenu
 
-Le site ne change que lorsque vous le recompilez. Le contenu se trouve généralement dans le dépôt (des données Rust comme ci-dessus, ou des fichiers Markdown lus par le générateur avec un crate comme [`pulldown-cmark`](https://docs.rs/pulldown-cmark) et insérés avec `.html(...)`) : un commit déclenche donc une recompilation via la CI. Quand les pages doivent changer à chaque requête ou pour chaque visiteur, utilisez plutôt un serveur : voir [Axum](../axum/).
+Le site ne change que lorsque vous le recompilez. Le contenu se trouve généralement dans le dépôt (des données Rust comme ci-dessus, ou des fichiers Markdown lus par le générateur avec un crate comme [`pulldown-cmark`](https://docs.rs/pulldown-cmark) et insérés avec `.html(...)`) : un commit déclenche donc une recompilation via la CI. Quand les pages doivent changer à chaque requête ou pour chaque visiteur, utilisez plutôt un serveur : voir [Vitesse](../vitesse/).

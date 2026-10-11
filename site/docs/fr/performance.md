@@ -90,7 +90,7 @@ twiggy top -n 20 pkg-debug/my_site_bg.wasm
 
 ## Réduire la taille
 
-- **Servez des fichiers compressés.** Brotli économise environ 15 % par rapport à gzip sur ces bundles. Avec Axum, `tower_http::compression::CompressionLayer` compresse les réponses à la volée ; les hébergeurs statiques et les CDN le font généralement pour vous.
+- **Servez des fichiers compressés.** Brotli économise environ 15 % par rapport à gzip sur ces bundles. Avec Vitesse, `middleware::compress()` compresse les réponses à la volée ; les hébergeurs statiques et les CDN le font généralement pour vous.
 - **Mettez en cache pour toujours.** Placez un hachage du contenu dans l'URL du bundle et servez-le comme `immutable` (voir [Documents, Mise en cache longue durée](../documents/#mise-en-cache-longue-duree)). Les visiteurs qui reviennent ne téléchargent alors plus rien.
 - **Gardez le travail lourd sur le serveur.** L'analyse du Markdown, la coloration du code ou le formatage des dates peuvent s'exécuter sur le serveur et parvenir à l'îlot sous forme de HTML ou de props. Ce site colore ses exemples de code sur le serveur et transmet le résultat sous forme de HTML brut : le bundle ne contient donc aucun outil de coloration syntaxique.
 - **Surveillez les dépendances.** Chaque crate utilisé par le code du navigateur se retrouve dans le bundle. Vérifiez la taille après en avoir ajouté un, et n'activez que les fonctionnalités de `web-sys` que vous utilisez réellement.

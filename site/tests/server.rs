@@ -1,41 +1,35 @@
-//! The production server, end to end (without the network): routes, SEO tags, caching.
+//! The production server, end to end (without the network, through Vitesse's test
+//! client): routes, SEO tags, caching.
 #![cfg(not(target_arch = "wasm32"))]
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use active_site::server::{Site, app, site_dir};
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, Response, StatusCode, header};
-use tower::ServiceExt;
+use vitesse::test::{TestClient, TestResponse};
+use vitesse::{StatusCode, header};
 
-async fn get(path: &str, headers: &[(&str, &str)]) -> Response<Body> {
-    let mut request = Request::get(path).header("host", "example.test");
+/// The site, loaded once for every test.
+fn site() -> Arc<Site> {
+    static SITE: OnceLock<Arc<Site>> = OnceLock::new();
+    SITE.get_or_init(|| Arc::new(Site::load(&site_dir())))
+        .clone()
+}
+
+async fn get(path: &str, headers: &[(&str, &str)]) -> TestResponse {
+    let client = TestClient::new(app(site()));
+    let mut request = client.get(path).header("host", "example.test");
     for (name, value) in headers {
-        request = request.header(*name, *value);
+        request = request.header(name, value);
     }
-    let site = Arc::new(Site::load(&site_dir()));
-    app(site)
-        .oneshot(request.body(Body::empty()).unwrap())
-        .await
-        .unwrap()
+    request.await
 }
 
-async fn text(response: Response<Body>) -> String {
-    String::from_utf8(
-        to_bytes(response.into_body(), 10_000_000)
-            .await
-            .unwrap()
-            .to_vec(),
-    )
-    .unwrap()
+async fn text(response: TestResponse) -> String {
+    response.text()
 }
 
-fn header_of(response: &Response<Body>, name: header::HeaderName) -> &str {
-    response
-        .headers()
-        .get(name)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("")
+fn header_of(response: &TestResponse, name: impl AsRef<str>) -> &str {
+    response.header(name.as_ref()).unwrap_or("")
 }
 
 #[tokio::test]
@@ -52,9 +46,7 @@ async fn home_pages_have_complete_seo_tags_in_every_language() {
     for lang in ["en", "fr", "es"] {
         let response = get(&format!("/{lang}/"), &[("x-forwarded-proto", "https")]).await;
         assert_eq!(response.status(), StatusCode::OK);
-        assert!(
-            header_of(&response, "strict-transport-security".parse().unwrap()).contains("max-age")
-        );
+        assert!(header_of(&response, "strict-transport-security").contains("max-age"));
         let html = text(response).await;
         assert!(
             html.starts_with(&format!(r#"<!DOCTYPE html><html lang="{lang}""#)),
@@ -272,9 +264,8 @@ async fn the_manifest_describes_the_installed_app() {
             icon["type"].as_str().unwrap()
         );
         if let Some((w, h)) = icon["sizes"].as_str().unwrap().split_once('x') {
-            let bytes = to_bytes(response.into_body(), 1_000_000).await.unwrap();
             assert_eq!(
-                png_size(&bytes),
+                png_size(response.bytes()),
                 (w.parse().unwrap(), h.parse().unwrap()),
                 "{src}"
             );

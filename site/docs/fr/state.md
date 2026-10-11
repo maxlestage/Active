@@ -342,7 +342,7 @@ Sur le serveur, plus rien ne change une fois la page rendue, et les effets comme
 
 Les états de la page en cours de rendu restent disponibles : vous pouvez rendre plusieurs fois la même vue, lire ses états après le rendu ou afficher un `Node` avec `{:?}`. Les états des requêtes terminées sont libérés après les rendus suivants sur le même thread : un serveur qui rend des millions de pages ne garde ainsi qu'une poignée d'états vivants.
 
-Il en découle une règle : **construisez et rendez la vue sans `.await` entre les deux.** Dans un gestionnaire asynchrone, chargez d'abord vos données, puis construisez la vue et rendez-la en une seule étape synchrone. Un `State` appartient au thread qui l'a créé, il n'est donc pas `Send` : dans un serveur multithread comme Axum, en conserver un au-delà d'un `.await` provoque une erreur de compilation, pas une surprise à l'exécution. Voir [Axum, Données asynchrones](../axum/#donnees-asynchrones).
+Il en découle une règle : **construisez et rendez la vue sans `.await` entre les deux.** Dans un gestionnaire asynchrone, chargez d'abord vos données, puis construisez la vue et rendez-la en une seule étape synchrone. Un `State` appartient au thread qui l'a créé, il n'est donc pas `Send` : dans un serveur multithread comme Vitesse, en conserver un au-delà d'un `.await` provoque une erreur de compilation, pas une surprise à l'exécution. Voir [Vitesse, Données asynchrones](../vitesse/#donnees-asynchrones).
 
 ## Portées
 

@@ -1,13 +1,13 @@
 ---
-title: Axum
-description: Serve active pages with Axum 0.8: routes returning Html, islands, static files, 404 pages, a sitemap, async data, and why rendering per request is safe.
+title: Vitesse
+description: Serve active pages with Vitesse: routes returning Html, islands, static files, 404 pages, a sitemap, async data, compression, tests, and why rendering per request is safe.
 ---
 
-[Axum](https://docs.rs/axum) is a popular Rust web framework built on Tokio. Rendering an `active` page in an Axum handler is one line, `Html(Document::new(view).render())`; this page builds a complete small shop around it: pages with SEO tags, an island, static files, a 404 page, a sitemap, and data loaded asynchronously. This website itself is an Axum server, in `site/src/server`.
+[Vitesse](https://maxlestage.github.io/Vitesse/) is a Rust web framework with the API of Express: `app.get`, `req.param`, middlewares, routers, its own HTTP/1.1 engine on tokio. Rendering an `active` page in a Vitesse handler is one line, `Html(Document::new(view).render())`; this page builds a complete small shop around it: pages with SEO tags, an island, static files, a 404 page, a sitemap, and data loaded asynchronously. This website itself is a Vitesse server, in `site/src/server`.
 
 ## Dependencies
 
-The crate layout is the one from [Installation](../installation/#one-crate-two-targets): components in `src/lib.rs`, the server in `src/main.rs`.
+The crate layout is the one from [Installation](../installation/#one-crate-two-targets): components in `src/lib.rs`, the server in `src/main.rs`. Vitesse brings its own runtime: there is no tokio to add.
 
 ```toml
 [package]
@@ -22,9 +22,7 @@ crate-type = ["cdylib", "rlib"]
 active = "0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-axum = "0.8"
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
-tower-http = { version = "0.7", features = ["compression-br", "compression-gzip", "fs"] }
+vitesse = { version = "0.1", features = ["compress"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 active = { version = "0.1", features = ["client"] }
@@ -125,75 +123,66 @@ pub fn start() {
 `src/main.rs` maps URLs to page functions and serves the files:
 
 ```rust
-use std::sync::Arc;
-
-use axum::Router;
-use axum::extract::{Path, State};
-use axum::http::{StatusCode, header};
-use axum::response::{Html, IntoResponse, Response};
-use axum::routing::get;
-use tower_http::compression::CompressionLayer;
-use tower_http::services::ServeDir;
+use vitesse::prelude::*;
 
 /// Shared by every request.
-struct App {
+struct Shop {
     /// Public address, used in canonical URLs and the sitemap.
     origin: String,
 }
 
-type Shared = State<Arc<App>>;
-
-async fn home(State(app): Shared) -> Html<String> {
-    Html(my_site::home_page(&app.origin))
+async fn home(req: Request) -> Html<String> {
+    let shop = req.state::<Shop>();
+    Html(my_site::home_page(&shop.origin))
 }
 
-async fn product(State(app): Shared, Path(slug): Path<String>) -> Response {
-    match my_site::find_product(&slug) {
-        Some(product) => Html(my_site::product_page(&app.origin, product)).into_response(),
-        None => not_found(State(app)).await,
+async fn product(req: Request) -> Response {
+    let shop = req.state::<Shop>();
+    match my_site::find_product(req.param("slug").unwrap_or("")) {
+        Some(product) => Html(my_site::product_page(&shop.origin, product)).into_response(),
+        None => not_found(req).await,
     }
 }
 
-async fn not_found(State(app): Shared) -> Response {
-    (StatusCode::NOT_FOUND, Html(my_site::not_found_page(&app.origin))).into_response()
+async fn not_found(req: Request) -> Response {
+    let shop = req.state::<Shop>();
+    res::status(404).html(my_site::not_found_page(&shop.origin))
 }
 
-async fn sitemap(State(app): Shared) -> impl IntoResponse {
+async fn sitemap(req: Request) -> Response {
+    let shop = req.state::<Shop>();
     let mut xml = String::from(
         r#"<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">"#,
     );
     let paths = std::iter::once("/".to_string())
         .chain(my_site::PRODUCTS.iter().map(|p| format!("/products/{}", p.slug)));
     for path in paths {
-        xml.push_str(&format!("<url><loc>{}{path}</loc></url>", app.origin));
+        xml.push_str(&format!("<url><loc>{}{path}</loc></url>", shop.origin));
     }
     xml.push_str("</urlset>");
-    ([(header::CONTENT_TYPE, "application/xml; charset=utf-8")], xml)
+    res::send(xml).header("content-type", "application/xml; charset=utf-8")
 }
 
-async fn robots(State(app): Shared) -> impl IntoResponse {
-    let body = format!("User-agent: *\nAllow: /\n\nSitemap: {}/sitemap.xml\n", app.origin);
-    ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], body)
+async fn robots(req: Request) -> String {
+    let shop = req.state::<Shop>();
+    format!("User-agent: *\nAllow: /\n\nSitemap: {}/sitemap.xml\n", shop.origin)
 }
 
-#[tokio::main]
-async fn main() {
-    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".into());
+fn main() -> std::io::Result<()> {
+    let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(3000);
     let origin = std::env::var("SITE_URL").unwrap_or_else(|_| format!("http://localhost:{port}"));
-    let app = Router::new()
-        .route("/", get(home))
-        .route("/products/{slug}", get(product))
-        .route("/sitemap.xml", get(sitemap))
-        .route("/robots.txt", get(robots))
-        .nest_service("/pkg", ServeDir::new("pkg"))
-        .nest_service("/static", ServeDir::new("static"))
-        .fallback(not_found)
-        .layer(CompressionLayer::new())
-        .with_state(Arc::new(App { origin }));
-
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await.unwrap();
+    let mut app = App::new();
+    app.state(Shop { origin });
+    app.middleware(middleware::compress());
+    app.get("/", home)
+        .get("/products/:slug", product)
+        .get("/sitemap.xml", sitemap)
+        .get("/robots.txt", robots)
+        .static_dir("/pkg", "pkg")
+        .static_dir("/static", "static")
+        .fallback(not_found);
     println!("http://localhost:{port}");
-    axum::serve(listener, app).await.unwrap();
+    app.run(port)
 }
 ```
 
@@ -202,9 +191,10 @@ Build the bundle into `pkg/` ([Building the client](../client-build/)), put `app
 What each part does:
 
 - **`Html(...)`** sets `Content-Type: text/html; charset=utf-8`.
-- **`ServeDir`** serves the bundle and static files with the right content types, including `application/wasm`.
-- **`CompressionLayer`** compresses pages, the loader and the `.wasm` file with Brotli or gzip, depending on what the browser accepts.
-- **`PORT` and `SITE_URL`** come from the environment, which is how hosts such as [Heroku](../deploy-heroku/) configure an app.
+- **`static_dir`** serves the bundle and static files with the right content types, including `application/wasm`, and the `ETag` and `Last-Modified` headers browsers cache with.
+- **`middleware::compress()`** compresses pages, the loader and the `.wasm` file with Brotli or gzip, depending on what the browser accepts (the `compress` feature of Vitesse).
+- **`app.state(...)`** shares a value with every handler, which reads it with `req.state()`.
+- **`PORT` and `SITE_URL`** come from the environment, which is how hosts such as [Heroku](../deploy-heroku/) configure an app. `app.run` listens on every interface, starts the runtime on every core and stops cleanly on Ctrl+C or SIGTERM.
 
 ## Errors and 404
 
@@ -216,7 +206,7 @@ Real pages load data from a database or an API. Do all the waiting first, then b
 
 ```rust
 use active::prelude::*;
-use axum::{extract::Path, response::Html};
+use vitesse::prelude::*;
 
 /// Stands for a database query or an HTTP call.
 async fn fetch_reviews(slug: &str) -> Vec<String> {
@@ -230,7 +220,8 @@ fn reviews_page(slug: &str, reviews: &[String]) -> String {
     Document::new(body).render()
 }
 
-async fn reviews(Path(slug): Path<String>) -> Html<String> {
+async fn reviews(req: Request) -> Html<String> {
+    let slug = req.param("slug").unwrap_or("").to_string();
     // 1. Await everything the page needs.
     let reviews = fetch_reviews(&slug).await;
     // 2. Build and render in one synchronous call.
@@ -238,9 +229,9 @@ async fn reviews(Path(slug): Path<String>) -> Html<String> {
 }
 ```
 
-The compiler enforces this rule. Axum runs handlers on several threads, so their futures must be `Send`. Views (which hold reference-counted closures) and states (which belong to the thread that created them) are not `Send`: a handler that keeps either across an `.await` does not compile. The fix is always the same: move the `.await` before the code that builds the view.
+The compiler enforces this rule. Vitesse runs handlers on several threads, so their futures must be `Send`. Views (which hold reference-counted closures) and states (which belong to the thread that created them) are not `Send`: a handler that keeps either across an `.await` does not compile. The fix is always the same: move the `.await` before the code that builds the view.
 
-> **Tip:** Axum reports this as a long "the trait bound `…: Handler<_, _>` is not satisfied" error. Put `#[axum::debug_handler]` on the handler (it needs axum's `macros` feature) to get the real cause instead: "future cannot be sent between threads safely", pointing at the value kept across the `.await`.
+> **Tip:** The error says that the future "cannot be sent between threads safely", or that the function is not a `Handler`; in both cases it points at the view or the state kept across the `.await`.
 
 ## Why per-request rendering is safe
 
@@ -251,44 +242,44 @@ The compiler enforces this rule. Axum runs handlers on several threads, so their
 To deploy a single file, embed the bundle with `include_bytes!` instead of serving `pkg/` from disk. Build the bundle before the server, since the files are read at compile time:
 
 ```rust
-use axum::Router;
-use axum::http::header;
-use axum::response::IntoResponse;
-use axum::routing::get;
+use vitesse::prelude::*;
 
 static JS: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/pkg/my_site.js"));
 static WASM: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/pkg/my_site_bg.wasm"));
 
-/// Routes for the embedded bundle, usable in a router with any state type.
-fn bundle_routes<S: Clone + Send + Sync + 'static>() -> Router<S> {
-    Router::new()
-        .route("/pkg/my_site.js", get(|| async { ([(header::CONTENT_TYPE, "text/javascript")], JS).into_response() }))
-        .route("/pkg/my_site_bg.wasm", get(|| async { ([(header::CONTENT_TYPE, "application/wasm")], WASM).into_response() }))
+/// The routes of the embedded bundle, to mount in any app.
+fn bundle() -> Router {
+    let mut router = Router::new();
+    router
+        .get("/my_site.js", |_| async { res::send(JS).header("content-type", "text/javascript") })
+        .get("/my_site_bg.wasm", |_| async { res::send(WASM).header("content-type", "application/wasm") });
+    router
 }
 ```
 
-Merge them into your router with `.merge(bundle_routes())` (before `.with_state(...)`). With a content hash in the URLs (see [Documents, Long-term caching](../documents/#long-term-caching)), you can also add a `Cache-Control: public, max-age=31536000, immutable` header.
+Mount them with `app.mount("/pkg", bundle())`. With a content hash in the URLs (see [Documents, Long-term caching](../documents/#long-term-caching)), you can also add a `Cache-Control: public, max-age=31536000, immutable` header.
 
 ## Testing
 
-Axum routers can be called without a network, which makes page tests fast:
+Vitesse's test client calls the app without a network, which makes page tests fast:
 
 ```rust
-use axum::{Router, body::Body, http::{Request, StatusCode}, response::Html, routing::get};
-use tower::ServiceExt;
+use vitesse::prelude::*;
+use vitesse::test::TestClient;
 
 #[tokio::test]
 async fn home_has_a_title() {
-    let app = Router::new().route("/", get(|| async { Html(String::from("<title>Home</title>")) }));
-    let response = app.oneshot(Request::get("/").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(response.into_body(), 1_000_000).await.unwrap();
-    assert!(String::from_utf8_lossy(&body).contains("<title>Home</title>"));
+    let mut app = App::new();
+    app.get("/", |_| async { Html("<title>Home</title>") });
+    let client = TestClient::new(app);
+    let response = client.get("/").await;
+    assert_eq!(response.status(), 200);
+    assert!(response.text().contains("<title>Home</title>"));
 }
 ```
 
-This needs `tower = { version = "0.5", features = ["util"] }` in `[dev-dependencies]`. This website's tests, in `site/tests/server.rs`, check its SEO tags, redirects and caching this way.
+This needs `tokio = { version = "1", features = ["macros", "rt"] }` in `[dev-dependencies]`. This website's tests, in `site/tests/server.rs`, check its SEO tags, redirects and caching this way.
 
 ## Other servers
 
-Nothing in `active` is specific to Axum: `Document::render()` returns a `String`. In Actix Web, Rocket, Warp, Hyper or a hand-written server, send that string with the `text/html; charset=utf-8` content type. `examples/hello` does it with the standard library alone.
+Nothing in `active` is specific to Vitesse: `Document::render()` returns a `String`. In Axum, Actix Web, Rocket, Warp, Hyper or a hand-written server, send that string with the `text/html; charset=utf-8` content type. `examples/hello` does it with the standard library alone.

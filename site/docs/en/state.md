@@ -342,7 +342,7 @@ On the server, nothing changes once a page is rendered, and effects and event ha
 
 The states of the page being rendered stay available: you can render the same view several times, read its states after rendering, or print a `Node` with `{:?}`. The states of finished requests are released after the next renders on the same thread, so a server that renders millions of pages keeps only a handful of live states.
 
-One rule follows: **build and render the view without an `.await` in between.** In an async handler, load your data first, then build the view and render it in one synchronous step. A `State` belongs to the thread that created it, so it is not `Send`: in a multi-threaded server such as Axum, keeping one across an `.await` is a compile error, not a runtime surprise. See [Axum, Async data](../axum/#async-data).
+One rule follows: **build and render the view without an `.await` in between.** In an async handler, load your data first, then build the view and render it in one synchronous step. A `State` belongs to the thread that created it, so it is not `Send`: in a multi-threaded server such as Vitesse, keeping one across an `.await` is a compile error, not a runtime surprise. See [Vitesse, Async data](../vitesse/#async-data).
 
 ## Scopes
 

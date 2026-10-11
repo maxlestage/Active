@@ -301,7 +301,7 @@ static EN: Dict = Dict {
             },
             Item {
                 title: "Servers & static sites",
-                text: "Serve pages with Axum, generate a static site, make it an app that installs and works offline.",
+                text: "Serve pages with Vitesse, generate a static site, make it an app that installs and works offline.",
             },
             Item {
                 title: "Deploy & publish",
@@ -516,7 +516,7 @@ static FR: Dict = Dict {
             },
             Item {
                 title: "Serveurs et sites statiques",
-                text: "Servir les pages avec Axum, générer un site statique, en faire une application installable qui marche hors ligne.",
+                text: "Servir les pages avec Vitesse, générer un site statique, en faire une application installable qui marche hors ligne.",
             },
             Item {
                 title: "Déployer et publier",
@@ -731,7 +731,7 @@ static ES: Dict = Dict {
             },
             Item {
                 title: "Servidores y sitios estáticos",
-                text: "Servir páginas con Axum, generar un sitio estático y convertirlo en una app instalable que funciona sin conexión.",
+                text: "Servir páginas con Vitesse, generar un sitio estático y convertirlo en una app instalable que funciona sin conexión.",
             },
             Item {
                 title: "Desplegar y publicar",

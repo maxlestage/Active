@@ -47,9 +47,9 @@ pub fn counter(props: &str) -> Node {
 pub fn start() {
     active::hydrate(&[("counter", counter)]);
 }"#,
-    r#"use axum::{response::Html, routing::get, Router};
+    r#"use vitesse::prelude::*;
 
-async fn home() -> Html<String> {
+async fn home(_: Request) -> Html<String> {
     let body = main()
         .child(h1().text("Hello"))
         .child(island("counter", "0", counter));
@@ -59,7 +59,9 @@ async fn home() -> Html<String> {
         .render())
 }
 
-let app = Router::new().route("/", get(home));"#,
+let mut app = App::new();
+app.get("/", home);
+app.run(3000)?;"#,
 ];
 
 /// Highlighted HTML of tab `index`.

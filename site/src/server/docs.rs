@@ -15,7 +15,7 @@ pub const CATEGORIES: [&[&str]; 7] = [
     &["components", "state", "events"],
     &["seo", "documents", "structured-data"],
     &["islands", "client-app", "client-build", "performance"],
-    &["axum", "static-site", "pwa"],
+    &["vitesse", "static-site", "pwa"],
     &["deploy-heroku", "deploy-pages", "publishing"],
     &["api", "benchmarks", "faq"],
 ];
