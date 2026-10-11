@@ -4,14 +4,15 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 description = "A simple, fast front-end library for Rust: components, state, routing, complete SEO tags, server rendering and WebAssembly islands."
-license = "MIT"
+authors = ["Maxime Nathan Lestage"]
+license-file = "LICENSE"
 repository = "https://github.com/maxlestage/Active"
-homepage = "https://github.com/maxlestage/Active"
+homepage = "https://maxlestage.github.io/Active/"
 documentation = "https://docs.rs/active"
 readme = "README.md"
 keywords = ["frontend", "web", "seo", "wasm", "ssr"]
 categories = ["web-programming", "wasm", "gui"]
-include = ["src", "README.md", "LICENSE"]
+include = ["src", "examples", "tests", "README.md", "LICENSE"]
 
 [features]
 default = []

@@ -89,4 +89,4 @@ Con el perfil `wasm-release`, un pánico detiene el módulo y la consola solo mu
 
 ## ¿Con qué licencia se distribuye?
 
-MIT. Puedes usarlo en proyectos comerciales y de código abierto; conserva el aviso de copyright.
+`active` es software propietario: © Maxime Nathan Lestage, todos los derechos reservados. Su código fuente se publica en crates.io y GitHub para que puedas leerlo, auditarlo y compilarlo, y puedes usarlo libremente como dependencia de tus propios programas, también comerciales. Modificarlo o redistribuir su código fuente requiere el permiso escrito del autor. Las condiciones completas están en el archivo [LICENSE](https://github.com/maxlestage/Active/blob/master/LICENSE) del repositorio.
