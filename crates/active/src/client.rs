@@ -35,9 +35,27 @@ thread_local! {
     static HEAD_UPDATE: Cell<Option<HeadUpdate>> = const { Cell::new(None) };
     /// The router's path and query string, created by its first use.
     static ROUTER: Cell<Option<(State<String>, State<String>)>> = const { Cell::new(None) };
+    /// Set by [`fragment_dyn`](crate::fragment_dyn). Called through a pointer so that bundles
+    /// without dynamic regions do not contain the focus code.
+    static KEEP_FOCUS: Cell<Option<KeepFocus>> = const { Cell::new(None) };
 }
 
 type HeadUpdate = fn(&Seo, &[Node], &Cell<bool>) -> Seo;
+
+/// Notes where the focus is in the region between two markers, before it is rebuilt, and
+/// returns what gives it back once the new content is in place.
+type KeepFocus = fn(&DomNode, &DomNode) -> Option<Box<dyn FnOnce()>>;
+
+/// Lets dynamic regions keep the focus when they are rebuilt (see [`Focus`]).
+pub(crate) fn keep_focus_in_regions() {
+    KEEP_FOCUS.with(|k| k.set(Some(keep_focus)));
+}
+
+fn keep_focus(start: &DomNode, end: &DomNode) -> Option<Box<dyn FnOnce()>> {
+    let focus = Focus::find(start, end)?;
+    let (start, end) = (start.clone(), end.clone());
+    Some(Box::new(move || focus.restore(&start, &end)))
+}
 
 #[derive(Debug)]
 struct Mismatch(&'static str);
@@ -500,7 +518,11 @@ fn bind_element(e: &Element, dom: &DomElement, hydrating: bool) -> Result<(), Mi
             let handler = handler.clone();
             let closure = Closure::<dyn Fn(web_sys::Event)>::new(move |raw| handler(Event { raw }));
             let _ = dom.add_event_listener_with_callback(name, closure.as_ref().unchecked_ref());
-            keep_alive(Box::new(closure));
+            keep_alive(Box::new(Listener {
+                target: dom.clone().into(),
+                event: name,
+                closure,
+            }));
         }
     }
     match &e.content {
@@ -549,6 +571,26 @@ fn bind_element(e: &Element, dom: &DomElement, hydrating: bool) -> Result<(), Mi
         }
     }
     Ok(())
+}
+
+/// An event listener of an element, kept as long as the scope that created it.
+///
+/// Released, it is removed from the element before its closure is freed. A region can be
+/// rebuilt while an event is still being dispatched (a click that closes a dialog, bubbling up
+/// through the elements that were just replaced): the DOM skips listeners removed during a
+/// dispatch, so the event never reaches a closure that no longer exists.
+struct Listener {
+    target: web_sys::EventTarget,
+    event: &'static str,
+    closure: Closure<dyn Fn(web_sys::Event)>,
+}
+
+impl Drop for Listener {
+    fn drop(&mut self) {
+        let _ = self
+            .target
+            .remove_event_listener_with_callback(self.event, self.closure.as_ref().unchecked_ref());
+    }
 }
 
 /// A form field shows its `value` / `checked` *property*, which stops following the
@@ -615,6 +657,10 @@ fn bind_dynamic(parent: DomElement, start: DomNode, end: DomNode, f: DynNodes) {
                     let update = std::hint::black_box(HEAD_UPDATE.with(Cell::get))?;
                     Some(Rc::new(update(parent, &nodes, &applied)))
                 });
+                // Removing the focused element sends the focus to the page: noted first, it
+                // goes back to the same element of the new content.
+                let keep = std::hint::black_box(KEEP_FOCUS.with(Cell::get));
+                let restore_focus = keep.and_then(|keep| keep(&start, &end));
                 while let Some(old) = start.next_sibling() {
                     if old.is_same_node(Some(&end)) {
                         break;
@@ -627,10 +673,136 @@ fn bind_dynamic(parent: DomElement, start: DomNode, end: DomNode, f: DynNodes) {
                     mount_node(node, &parent, Some(&end), &doc);
                 }
                 HEAD.with(|h| *h.borrow_mut() = previous);
+                if let Some(restore) = restore_focus {
+                    restore();
+                }
             });
         });
         *current.borrow_mut() = Some(next);
     });
+}
+
+/// Where the focus was in a dynamic region about to be rebuilt.
+///
+/// The new content gets it back on the element that takes the old one's place: the element
+/// with the same `id`, or else the one at the same position whose tag and classes are those of
+/// the old element and of each of its ancestors in the region. Content that shows something
+/// else (another page, another view) does not match, and the focus stays on the page.
+struct Focus {
+    id: String,
+    /// From the region down to the element: index among the sibling elements, tag, classes.
+    path: Vec<(u32, String, String)>,
+    /// A text field's selection, kept if the new field holds the same text.
+    selection: Option<(u32, u32, String)>,
+}
+
+impl Focus {
+    /// The focus, if it is inside the region between `start` and `end`.
+    fn find(start: &DomNode, end: &DomNode) -> Option<Focus> {
+        let focused = document().active_element()?;
+        let top = region_elements(start, end);
+        if !top.iter().any(|t| t.contains(Some(&focused))) {
+            return None;
+        }
+        // From the element up to the region's top level.
+        let mut path = Vec::new();
+        let mut el = focused.clone();
+        loop {
+            let (tag, class) = (el.tag_name(), el.get_attribute("class").unwrap_or_default());
+            if let Some(i) = top.iter().position(|t| t.is_same_node(Some(&el))) {
+                path.push((i as u32, tag, class));
+                break;
+            }
+            let parent = el.parent_element()?;
+            let siblings = parent.children();
+            let i = (0..siblings.length())
+                .find(|&i| siblings.item(i).is_some_and(|s| s.is_same_node(Some(&el))))?;
+            path.push((i, tag, class));
+            el = parent;
+        }
+        path.reverse();
+        Some(Focus {
+            id: focused.id(),
+            path,
+            selection: text_selection(&focused),
+        })
+    }
+
+    /// Focuses the matching element of the new content, without scrolling.
+    fn restore(&self, start: &DomNode, end: &DomNode) {
+        let top = region_elements(start, end);
+        let by_id = (!self.id.is_empty())
+            .then(|| document().get_element_by_id(&self.id))
+            .flatten()
+            .filter(|el| top.iter().any(|t| t.contains(Some(el))));
+        let Some(target) = by_id.or_else(|| self.follow(&top)) else {
+            return;
+        };
+        if let Some(html) = target.dyn_ref::<web_sys::HtmlElement>() {
+            let options = web_sys::FocusOptions::new();
+            options.set_prevent_scroll(true);
+            let _ = html.focus_with_options(&options);
+        }
+        if let Some((from, to, text)) = &self.selection {
+            if text_selection(&target).is_some_and(|(_, _, now)| now == *text) {
+                if let Some(input) = target.dyn_ref::<HtmlInputElement>() {
+                    let _ = input.set_selection_range(*from, *to);
+                } else if let Some(area) = target.dyn_ref::<HtmlTextAreaElement>() {
+                    let _ = area.set_selection_range(*from, *to);
+                }
+            }
+        }
+    }
+
+    /// The element at the same position, if every step has the same tag and classes.
+    fn follow(&self, top: &[DomElement]) -> Option<DomElement> {
+        let same = |el: &DomElement, tag: &str, class: &str| {
+            el.tag_name() == tag && el.get_attribute("class").unwrap_or_default() == class
+        };
+        let mut steps = self.path.iter();
+        let (i, tag, class) = steps.next()?;
+        let mut el = top
+            .get(*i as usize)
+            .filter(|el| same(el, tag, class))?
+            .clone();
+        for (i, tag, class) in steps {
+            el = el.children().item(*i).filter(|el| same(el, tag, class))?;
+        }
+        Some(el)
+    }
+}
+
+/// The top-level elements between the markers of a region.
+fn region_elements(start: &DomNode, end: &DomNode) -> Vec<DomElement> {
+    let mut elements = Vec::new();
+    let mut node = start.next_sibling();
+    while let Some(n) = node {
+        if n.is_same_node(Some(end)) {
+            break;
+        }
+        node = n.next_sibling();
+        if let Ok(el) = n.dyn_into::<DomElement>() {
+            elements.push(el);
+        }
+    }
+    elements
+}
+
+/// The selection and text of a text field (`None` for other elements, and for fields without
+/// a selection, such as checkboxes).
+fn text_selection(el: &DomElement) -> Option<(u32, u32, String)> {
+    if let Some(input) = el.dyn_ref::<HtmlInputElement>() {
+        let (Ok(Some(from)), Ok(Some(to))) = (input.selection_start(), input.selection_end())
+        else {
+            return None;
+        };
+        return Some((from, to, input.value()));
+    }
+    let area = el.dyn_ref::<HtmlTextAreaElement>()?;
+    let (Ok(Some(from)), Ok(Some(to))) = (area.selection_start(), area.selection_end()) else {
+        return None;
+    };
+    Some((from, to, area.value()))
 }
 
 /// One row of a keyed list: its item, the first and last of its top-level nodes (nodes in

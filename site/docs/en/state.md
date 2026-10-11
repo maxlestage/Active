@@ -132,8 +132,9 @@ assert_eq!(
 On the server the region is written between `<!--[-->` and `<!--]-->` markers. In the browser:
 
 - only the region is rebuilt, the rest of the page is untouched;
-- the states, effects and event listeners created while building the previous content are released;
-- states created **outside** the region (like `items` above) survive, which is how a list keeps its data while its items are rebuilt.
+- the states, effects and event listeners created while building the previous content are released; listeners are removed from their elements first, so an event still on its way (the click that rebuilt the region, bubbling up through the old elements) never reaches them;
+- states created **outside** the region (like `items` above) survive, which is how a list keeps its data while its items are rebuilt;
+- the focus stays put: if it was inside the region, the element that takes the focused one's place gets it back (the one with the same `id`, or else the one at the same position with the same tags and classes; a text field also keeps its selection when its text is unchanged). A menu rebuilt in another language keeps the keyboard where it was; another page, built from other elements, takes nothing.
 
 A condition that changes is a region that returns either some nodes or none:
 
