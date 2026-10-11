@@ -72,6 +72,8 @@
 }
 
 html {
+  /* Never a horizontal scroll, on phones too: nothing may stick out of the screen. */
+  overflow-x: clip;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   scroll-behavior: smooth;
@@ -1511,6 +1513,7 @@ html.intro {
 
 .steps li {
   display: grid;
+  min-width: 0;
   gap: 12px;
   align-content: start;
   padding: 28px;
@@ -1543,6 +1546,8 @@ html.intro {
 
 .steps code {
   justify-self: start;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   margin-top: 8px;
   padding: 8px 12px;
   border-radius: 10px;
@@ -2247,6 +2252,7 @@ kbd {
 }
 
 .prose :not(pre) > code {
+  overflow-wrap: anywhere;
   padding: 2px 6px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -2419,7 +2425,8 @@ kbd {
 }
 
 .docs-hero .title {
-  font-size: clamp(48px, 8vw, 120px);
+  font-size: clamp(36px, 8vw, 120px);
+  overflow-wrap: anywhere;
 }
 
 .docs-hero .search-btn {
