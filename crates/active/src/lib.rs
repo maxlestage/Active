@@ -14,6 +14,9 @@ mod view;
 #[cfg(feature = "client")]
 mod client;
 
+/// The version of this crate, e.g. `"0.1.0"`: handy for a footer or an `X-Powered-By` header.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub use document::Document;
 pub use event::{Dom, Event};
 pub use island::{IslandFn, island};

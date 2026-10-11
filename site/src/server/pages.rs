@@ -9,6 +9,11 @@ use crate::i18n::t;
 use crate::routes::{Lang, Page, Route, base, link};
 
 pub const GITHUB: &str = "https://github.com/maxlestage/Active";
+/// The license, read online: proprietary, all rights reserved.
+pub const LICENSE: &str = "https://github.com/maxlestage/Active/blob/master/LICENSE";
+/// Who designed and built active and its sister projects.
+pub const AUTHOR: &str = "Maxime Nathan Lestage";
+pub const AUTHOR_URL: &str = "https://github.com/maxlestage";
 pub const HEROKU_DEPLOY: &str =
     "https://heroku.com/deploy?template=https://github.com/maxlestage/Active";
 
@@ -200,9 +205,28 @@ fn header(route: &Route) -> Element {
         )
 }
 
+/// The sister projects of active, by the same author: (name, website). The footer links
+/// them in this order; `i18n::Footer::projects` describes each one in the same order.
+pub const ECOSYSTEM: [(&str, &str); 6] = [
+    ("Active", "https://maxlestage.github.io/Active/"),
+    ("Vitesse", "https://maxlestage.github.io/Vitesse/"),
+    ("Securite", "https://maxlestage.github.io/Securite/"),
+    ("Memoire", "https://maxlestage.github.io/Memoire/"),
+    ("Paquets", "https://maxlestage.github.io/Paquets/"),
+    ("FerroSwift", "https://maxlestage.github.io/FerroSwift/"),
+];
+
 /// (href, label, opens a new tab)
 type FooterLink<'a> = (String, &'a str, bool);
 
+fn external(link: Element) -> Element {
+    link.attr("target", "_blank")
+        .attr("rel", "noopener noreferrer")
+}
+
+/// The signature footer, shared in spirit by every site of the ecosystem: the call to
+/// action and the install command, the link columns, the sister projects, the author's
+/// signature, the giant wordmark and the legal line.
 fn footer(route: &Route) -> Element {
     let d = t(route.lang);
     let f = &d.footer;
@@ -238,82 +262,148 @@ fn footer(route: &Route) -> Element {
                 ),
                 ("https://docs.rs/active".to_string(), "docs.rs", true),
                 (doc("deploy-heroku"), f.deploy, false),
+                (LICENSE.to_string(), f.license, true),
             ],
         ),
     ];
-    let link = |(href, label, external): FooterLink<'_>| {
+    let item = |(href, label, opens_tab): FooterLink<'_>| {
         let link = a().href(href).text(label.to_string());
-        li().child(if external {
-            link.attr("target", "_blank")
-                .attr("rel", "noopener noreferrer")
-        } else {
-            link
-        })
+        li().child(if opens_tab { external(link) } else { link })
     };
-    el("footer")
-        .class("footer")
+    let cta = div()
+        .class("footer-cta")
+        .attr("data-reveal", "")
         .child(
-            a().class("footer-cta")
+            a().class("footer-cta-link")
                 .href(doc("quick-start"))
-                .attr("data-reveal", "")
                 .attr("data-cursor", "")
                 .child(span().text(f.start))
+                .child(Node::from(" "))
+                .child(em().text("active"))
                 .child(arrow()),
         )
         .child(
+            el("code")
+                .class("install")
+                .attr("aria-label", format!("{}: cargo add active", f.install))
+                .attr("title", f.install)
+                .text("cargo add active"),
+        );
+    let brand = div()
+        .class("footer-brand")
+        .attr("data-reveal", "")
+        .child(logo())
+        .child(p().text(f.tagline))
+        .child(
+            ul().class("badges")
+                .attr("aria-label", "active")
+                .child(li().text(format!("v{}", active::VERSION)))
+                .child(li().text(f.rust_only))
+                .child(
+                    li().child(external(
+                        a().href("https://crates.io/crates/active")
+                            .text("crates.io"),
+                    )),
+                ),
+        );
+    let languages = nav()
+        .attr("aria-label", f.language)
+        .attr("data-reveal", "")
+        .child(h2().text(f.language))
+        .child(ul().children(Lang::ALL.map(|lang| {
+            let link = a()
+                .href(route.with_lang(lang).href())
+                .attr("hreflang", lang.code())
+                .attr("lang", lang.code())
+                .text(t(lang).lang_name);
+            li().child(if lang == route.lang {
+                link.attr("aria-current", "true")
+            } else {
+                link
+            })
+        })));
+    let ecosystem = nav()
+        .class("footer-eco")
+        .attr("aria-label", f.ecosystem)
+        .attr("data-reveal", "")
+        .child(
+            div()
+                .class("footer-eco-head")
+                .child(h2().text(f.ecosystem))
+                .child(p().text(f.ecosystem_text)),
+        )
+        .child(
+            ul().class("eco-grid")
+                .children(ECOSYSTEM.iter().zip(f.projects).map(|((name, url), text)| {
+                    let here = *name == "Active";
+                    let mut title = span().class("eco-name").text(*name);
+                    if here {
+                        title = title.child(span().class("eco-here").text(f.here));
+                    }
+                    let link = a()
+                        .class(if here { "eco current" } else { "eco" })
+                        .href(*url)
+                        .child(title)
+                        .child(span().class("eco-text").text(text))
+                        .child(arrow());
+                    li().child(if here {
+                        link.attr("aria-current", "page")
+                    } else {
+                        external(link)
+                    })
+                })),
+        );
+    let credits = div()
+        .class("footer-credits")
+        .attr("data-reveal", "")
+        .child(p().class("credits-by").text(f.by))
+        .child(external(
+            a().class("credits-name")
+                .href(AUTHOR_URL)
+                .attr("data-cursor", "")
+                .children(
+                    AUTHOR
+                        .split(' ')
+                        .enumerate()
+                        .map(|(i, word)| span().style(format!("--i:{i}")).text(word.to_string())),
+                ),
+        ))
+        .child(p().class("credits-note").text(f.crafted));
+    let wordmark = div()
+        .class("wordmark")
+        .attr("aria-hidden", "true")
+        .children(
+            "active"
+                .chars()
+                .enumerate()
+                .map(|(i, c)| span().style(format!("--i:{i}")).text(c.to_string())),
+        );
+    let legal = div()
+        .class("footer-bottom")
+        .child(span().text(f.rights))
+        .child(external(a().href(LICENSE).text(f.proprietary)))
+        .child(span().text(f.built))
+        .child(a().href("#top").class("top").text(format!("{} ↑", f.top)));
+    el("footer")
+        .class("footer")
+        .child(cta)
+        .child(
             div()
                 .class("footer-grid")
-                .child(
-                    div()
-                        .class("footer-brand")
-                        .attr("data-reveal", "")
-                        .child(logo())
-                        .child(p().text(f.tagline)),
-                )
+                .child(brand)
                 .children(columns.into_iter().map(|(title, links)| {
                     nav()
                         .attr("aria-label", title)
                         .attr("data-reveal", "")
                         .child(h2().text(title))
-                        .child(ul().children(links.into_iter().map(link)))
+                        .child(ul().children(links.into_iter().map(item)))
                 }))
-                .child(
-                    nav()
-                        .attr("aria-label", f.language)
-                        .attr("data-reveal", "")
-                        .child(h2().text(f.language))
-                        .child(ul().children(Lang::ALL.map(|lang| {
-                            let link = a()
-                                .href(route.with_lang(lang).href())
-                                .attr("hreflang", lang.code())
-                                .attr("lang", lang.code())
-                                .text(t(lang).lang_name);
-                            li().child(if lang == route.lang {
-                                link.attr("aria-current", "true")
-                            } else {
-                                link
-                            })
-                        }))),
-                ),
+                .child(languages),
         )
-        .child(
-            div()
-                .class("wordmark")
-                .attr("aria-hidden", "true")
-                .children(
-                    "active"
-                        .chars()
-                        .enumerate()
-                        .map(|(i, c)| span().style(format!("--i:{i}")).text(c.to_string())),
-                ),
-        )
-        .child(
-            div()
-                .class("footer-bottom")
-                .child(span().text(format!("© 2026 active · {}", f.license)))
-                .child(span().text(f.built))
-                .child(a().href("#top").class("top").text(format!("{} ↑", f.top))),
-        )
+        .child(ecosystem)
+        .child(credits)
+        .child(wordmark)
+        .child(legal)
 }
 
 /// Makes a page installable: the manifest link with the theme color and the home screen
@@ -358,11 +448,13 @@ pub fn document(ctx: &Ctx<'_>, kind: &str, content: Node) -> String {
             .head(format!(
                 concat!(
                     r#"<meta name="color-scheme" content="dark"/>"#,
+                    r#"<meta name="author" content="{author}"/>"#,
                     r#"<link rel="icon" href="{base}/favicon.svg" type="image/svg+xml"/>"#,
                     // Same URL as in app.css (no version query), so the preload is reused.
                     r#"<link rel="preload" href="{base}/static/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin=""/>"#,
                 ),
-                base = base()
+                base = base(),
+                author = AUTHOR
             )),
     )
     .client(assets.url("/pkg/active_site.js"), assets.url("/pkg/active_site_bg.wasm"));
@@ -537,7 +629,7 @@ fn home(ctx: &Ctx<'_>) -> Node {
     let h = &d.home;
     let seo = alternates(Seo::new().title(h.title).title_template("%s").description(h.description).canonical(format!("/{}/", lang.code())), ctx.route)
         .json_ld(format!(
-            r#"{{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"active","description":"{}","codeRepository":"{GITHUB}","programmingLanguage":"Rust","license":"https://opensource.org/licenses/MIT","url":"{}/{}/"}}"#,
+            r#"{{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"active","description":"{}","codeRepository":"{GITHUB}","programmingLanguage":"Rust","license":"{LICENSE}","author":{{"@type":"Person","name":"{AUTHOR}","url":"{AUTHOR_URL}"}},"url":"{}/{}/"}}"#,
             json(h.description),
             ctx.origin,
             lang.code()

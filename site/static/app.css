@@ -399,6 +399,12 @@ html.intro .curtain::after {
       animation-timeline: view();
       animation-range: entry 0% entry 90%;
     }
+
+    .credits-name {
+      animation: shine linear both;
+      animation-timeline: view();
+      animation-range: entry 20% cover 55%;
+    }
   }
 }
 
@@ -406,6 +412,12 @@ html.intro .curtain::after {
   from {
     opacity: 0;
     transform: translateY(28px);
+  }
+}
+
+@keyframes shine {
+  from {
+    background-position: 100% 0;
   }
 }
 
@@ -1571,37 +1583,99 @@ html.intro {
 
 /* ---------- Footer ---------- */
 
+/* The signature footer: the call to action and the install command, the link columns, the
+   sister projects, the author's signature, the giant wordmark and the legal line. */
 .footer {
   position: relative;
+  isolation: isolate;
   padding: 0 var(--gutter) 28px;
   border-top: 1px solid var(--line);
   overflow: clip;
 }
 
+/* A warm glow rising from the bottom, behind the signature and the wordmark. */
+.footer::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  bottom: -30vw;
+  width: 140vw;
+  height: 70vw;
+  transform: translateX(-50%);
+  background: radial-gradient(closest-side, rgba(255, 90, 31, 0.12), transparent 72%);
+  pointer-events: none;
+}
+
 .footer-cta {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 24px;
+  gap: 28px 40px;
   max-width: var(--max);
   margin: 0 auto;
   padding: clamp(40px, 7vh, 72px) 0;
   border-bottom: 1px solid var(--line);
+}
+
+.footer-cta-link {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.22em;
   font-size: clamp(30px, 5vw, 72px);
   font-weight: 600;
   letter-spacing: -0.05em;
   line-height: 1;
 }
 
-.footer-cta .arrow {
+.footer-cta-link em {
+  color: var(--accent);
+  letter-spacing: -0.02em;
+  font-size: 1.06em;
+}
+
+.footer-cta-link .arrow {
   width: clamp(36px, 5vw, 72px);
   height: clamp(36px, 5vw, 72px);
+  margin-left: 0.1em;
   transition: transform 0.6s var(--ease), color 0.4s;
 }
 
-.footer-cta:hover .arrow {
+.footer-cta-link:hover .arrow {
   transform: translateX(10px) rotate(-45deg);
   color: var(--accent);
+}
+
+/* The install command, styled as a terminal pill; one click selects the whole line. */
+.install {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 22px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1;
+  white-space: nowrap;
+  -webkit-user-select: all;
+  user-select: all;
+  cursor: text;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.install::before {
+  content: "$";
+  color: var(--accent);
+}
+
+.install:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(255, 90, 31, 0.12);
 }
 
 .footer-grid {
@@ -1669,6 +1743,236 @@ html.intro {
   color: var(--accent);
 }
 
+/* Version, "100 % Rust", crates.io: small pills under the tagline. */
+.footer .badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.footer .badges li {
+  padding: 5px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.footer .badges li:first-child {
+  border-color: rgba(255, 90, 31, 0.5);
+  color: var(--accent);
+}
+
+.footer .badges a::after {
+  display: none;
+}
+
+/* The sister projects: a hairline grid of tiles, the current one marked. */
+.footer-eco {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 0 56px;
+}
+
+.footer-eco-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 32px;
+  margin-bottom: 22px;
+}
+
+.footer-eco-head p {
+  max-width: 44em;
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.footer .eco-grid {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--line);
+  overflow: clip;
+}
+
+.footer .eco-grid li {
+  min-width: 0;
+}
+
+.footer .eco {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 14px;
+  align-items: start;
+  height: 100%;
+  padding: 24px 26px;
+  background: var(--bg);
+  color: var(--muted);
+  transition: background 0.4s, color 0.4s;
+}
+
+.footer .eco::after {
+  display: none;
+}
+
+.eco .eco-name {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.eco .eco-text {
+  grid-column: 1;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.eco .arrow {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  opacity: 0;
+  transform: translate(-6px, 6px);
+  transition: opacity 0.4s, transform 0.5s var(--ease), color 0.4s;
+}
+
+.footer .eco:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+
+.eco:hover .arrow {
+  opacity: 1;
+  transform: none;
+  color: var(--accent);
+}
+
+.footer .eco.current {
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(255, 90, 31, 0.16), transparent 60%),
+    var(--bg);
+}
+
+.eco.current .arrow {
+  display: none;
+}
+
+.eco-here {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 90, 31, 0.5);
+  border-radius: 999px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.eco-here::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: ping 2.4s ease-out infinite;
+}
+
+@keyframes ping {
+  from {
+    box-shadow: 0 0 0 0 rgba(255, 90, 31, 0.6);
+  }
+  to {
+    box-shadow: 0 0 0 7px rgba(255, 90, 31, 0);
+  }
+}
+
+/* The signature: who designed and built this. */
+.footer-credits {
+  display: grid;
+  justify-items: center;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: clamp(48px, 8vh, 96px) 0 clamp(24px, 4vh, 40px);
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.credits-by {
+  margin: 0 0 18px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.credits-name {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 0.26em;
+  font-size: clamp(34px, 6.4vw, 92px);
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  line-height: 1.05;
+  background: linear-gradient(
+    100deg,
+    var(--text) 0%,
+    var(--text) 36%,
+    var(--accent-2) 47%,
+    var(--accent) 51%,
+    var(--accent-2) 55%,
+    var(--text) 66%,
+    var(--text) 100%
+  );
+  background-size: 300% 100%;
+  background-position: 50% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.credits-name span {
+  display: inline-block;
+  transition: transform 0.5s var(--ease);
+  transition-delay: calc(var(--i) * 60ms);
+}
+
+.credits-name:hover span {
+  transform: translateY(-4px);
+}
+
+.credits-note {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: clamp(17px, 1.6vw, 21px);
+}
+
+/* The project name, as big as the screen; its letters rise as it scrolls into view and the
+   accent fills it on hover. */
 .wordmark {
   display: flex;
   justify-content: center;
@@ -1679,28 +1983,51 @@ html.intro {
   letter-spacing: -0.075em;
   user-select: none;
   overflow: clip;
-  background: linear-gradient(180deg, var(--text) 25%, rgba(237, 233, 227, 0.05));
+  background: linear-gradient(
+    180deg,
+    var(--text) 0%,
+    var(--text) 22%,
+    rgba(237, 233, 227, 0.06) 50%,
+    var(--accent-2) 54%,
+    var(--accent) 100%
+  );
+  background-size: 100% 200%;
+  background-position: 0 0;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  transition: background-position 1s var(--ease);
+}
+
+.wordmark:hover {
+  background-position: 0 100%;
 }
 
 .wordmark span {
   display: inline-block;
+  -webkit-text-stroke: 1px rgba(237, 233, 227, 0.12);
 }
 
 .footer-bottom {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  gap: 10px 24px;
   max-width: var(--max);
   margin: 26px auto 0;
-  font-size: 13px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
   color: var(--faint);
+  font-size: 13px;
 }
 
-.footer-bottom .top:hover {
+.footer-bottom a {
+  color: var(--muted);
+  transition: color 0.3s;
+}
+
+.footer-bottom a:hover {
   color: var(--accent);
 }
 
@@ -2327,6 +2654,10 @@ dialog.search::backdrop {
   .footer-brand {
     grid-column: 1 / -1;
   }
+
+  .footer .eco-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 900px) {
@@ -2495,6 +2826,30 @@ dialog.search::backdrop {
 
   .footer-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .footer .eco-grid {
+    grid-template-columns: 1fr;
+    border-radius: 14px;
+  }
+
+  .footer .eco {
+    padding: 18px 20px;
+  }
+
+  .footer-cta {
+    padding: 36px 0;
+  }
+
+  .install {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 
   .pager {

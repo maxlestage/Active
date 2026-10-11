@@ -120,4 +120,8 @@ El bundle del navegador del sitio web se compila como el del ejemplo anterior (`
 
 ## Licencia
 
-[MIT](LICENSE)
+Active es software propietario: © 2026 Maxime Nathan Lestage, todos los derechos reservados. No es software de código abierto. El código fuente se publica en crates.io y GitHub para que pueda leerse, auditarse y compilarse, y puedes usarlo libremente como dependencia de tus propios programas, también comerciales. Modificarlo o redistribuir su código fuente requiere el permiso escrito del autor. Condiciones completas: [LICENSE](LICENSE).
+
+## Créditos
+
+Diseñado y desarrollado por [Maxime Nathan Lestage](https://github.com/maxlestage), dentro de una misma familia de proyectos Rust: [Active](https://maxlestage.github.io/Active/), [Vitesse](https://maxlestage.github.io/Vitesse/), [Securite](https://maxlestage.github.io/Securite/), [Memoire](https://maxlestage.github.io/Memoire/), [Paquets](https://maxlestage.github.io/Paquets/) y [FerroSwift](https://maxlestage.github.io/FerroSwift/).

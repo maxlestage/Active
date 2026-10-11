@@ -2,7 +2,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/active.svg)](https://crates.io/crates/active)
 [![docs.rs](https://img.shields.io/docsrs/active)](https://docs.rs/active)
-[![MIT](https://img.shields.io/crates/l/active.svg)](https://github.com/maxlestage/Active/blob/master/LICENSE)
+[![License: proprietary](https://img.shields.io/badge/license-proprietary-2a2a2e.svg)](https://github.com/maxlestage/Active/blob/master/LICENSE)
 
 **A simple, fast front-end library for Rust: components, state, routing and complete SEO
 tags, rendered on the server and run in the browser as WebAssembly.**
@@ -261,4 +261,8 @@ Any server works the same way (Actix Web, Rocket, Hyper, a static site generator
 
 ## License
 
-[MIT](https://github.com/maxlestage/Active/blob/master/LICENSE)
+Proprietary software: © 2026 Maxime Nathan Lestage, all rights reserved. The source is published so that it can be read, audited and built; you may use `active` freely as a dependency of your own programs, commercial ones included, but not modify or redistribute its source without the author's written permission. Full terms: [LICENSE](https://github.com/maxlestage/Active/blob/master/LICENSE).
+
+## Credits
+
+Designed and developed by [Maxime Nathan Lestage](https://github.com/maxlestage).

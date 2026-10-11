@@ -89,4 +89,4 @@ With the `wasm-release` profile, a panic stops the module and the console shows 
 
 ## What license is it under?
 
-MIT. You can use it in commercial and open-source projects; keep the copyright notice.
+`active` is proprietary software: © Maxime Nathan Lestage, all rights reserved. Its source is published on crates.io and GitHub so that you can read, audit and build it, and you may use it freely as a dependency of your own programs, commercial ones included. Modifying it or redistributing its source needs the author's written permission. The full terms are in the repository's [LICENSE](https://github.com/maxlestage/Active/blob/master/LICENSE).
