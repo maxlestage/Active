@@ -1,0 +1,24 @@
+{
+  "name": "active",
+  "description": "Presentation site and documentation of active, a simple and fast front-end library for Rust: components, routing, SEO and WebAssembly. English, French and Spanish.",
+  "logo": "https://maxlestage.github.io/Active/static/apple-touch-icon.png",
+  "keywords": [
+    "rust",
+    "seo",
+    "webassembly",
+    "ssr",
+    "documentation"
+  ],
+  "stack": "container",
+  "env": {
+    "SITE_URL": {
+      "description": "Optional. Public address of the site, e.g. https://www.example.com. Leave empty to use the address the visitor used.",
+      "required": false
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1
+    }
+  }
+}

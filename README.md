@@ -94,8 +94,8 @@ Guide: [`site/docs/en/deploy-pages.md`](site/docs/en/deploy-pages.md).
 
 ## Deploy the site on Heroku from a phone
 
-1. Create an app in the [Heroku dashboard](https://dashboard.heroku.com/new-app), open **Deploy**, connect your repository and tap **Deploy Branch**. Heroku builds the [`Dockerfile`](Dockerfile) (see [`heroku.yml`](heroku.yml)): the WebAssembly bundle, then the server, all from the Rust sources.
-2. To redeploy on every change: **Enable Automatic Deploys** from `master`.
+1. Open `https://heroku.com/deploy?template=<the address of your repository>` in your phone's browser, choose a name and tap **Deploy app**. Heroku reads [`app.json`](app.json) and builds the [`Dockerfile`](Dockerfile) (see [`heroku.yml`](heroku.yml)): the WebAssembly bundle, then the server, all from the Rust sources.
+2. To redeploy on every change: in the app's **Deploy** tab, connect the repository and **Enable Automatic Deploys** from `master`.
 
 Heroku has no free plan: an Eco dyno costs about $5 a month. Step-by-step guide: [`site/docs/en/deploy-heroku.md`](site/docs/en/deploy-heroku.md).
 

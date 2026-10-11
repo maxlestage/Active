@@ -69,7 +69,7 @@ Heroku n'a pas d'offre gratuite. Au moment de la rédaction, l'option la moins c
 
 ## Comment s'appelle le crate ?
 
-`active`, sur [crates.io](https://crates.io/crates/active), avec la documentation sur [docs.rs/active](https://docs.rs/active). Tant que la première version n'y est pas publiée, dépendez du dépôt : `active = { git = "https://maxlestage.github.io/Active/" }`. La page [Publier le crate](../publishing/) explique comment se font les publications.
+`active`, sur [crates.io](https://crates.io/crates/active), avec la documentation sur [docs.rs/active](https://docs.rs/active). La page [Publier le crate](../publishing/) explique comment se font les publications.
 
 ## Quelle version de Rust faut-il ?
 

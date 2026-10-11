@@ -32,8 +32,6 @@ On Windows, download `rustup-init.exe` from [rustup.rs](https://rustup.rs) inste
 cargo add active
 ```
 
-> **Note:** Until the first release is on crates.io, depend on the Git repository instead: `active = { git = "https://maxlestage.github.io/Active/" }` in `Cargo.toml`. Cargo finds the `active` package inside the repository.
-
 ### Feature flags
 
 | Feature | Default | What it adds |
