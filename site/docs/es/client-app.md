@@ -9,7 +9,7 @@ Es la opción adecuada para herramientas, paneles y todo lo que está detrás de
 
 ## Qué vas a construir
 
-El repositorio contiene un ejemplo completo, [`examples/spa`](https://github.com/maxlestage/Active/tree/master/examples/spa): una lista de tareas con dos páginas, un formulario, filtros guardados en la URL (`/?show=done`), una lista guardada en `localStorage` y un título de página por ruta. Ejecútalo desde la raíz del repositorio:
+El repositorio contiene un ejemplo completo, `examples/spa`: una lista de tareas con dos páginas, un formulario, filtros guardados en la URL (`/?show=done`), una lista guardada en `localStorage` y un título de página por ruta. Ejecútalo desde la raíz del repositorio:
 
 ```sh
 cargo build -p spa --lib --target wasm32-unknown-unknown --profile wasm-release

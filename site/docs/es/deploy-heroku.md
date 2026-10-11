@@ -11,14 +11,14 @@ Heroku construye el `Dockerfile` del repositorio (servidor Rust y bundle de WebA
 
 Necesitas dos cuentas:
 
-- **GitHub.** Un fork del repositorio te permite cambiar el sitio y desplegar tus cambios. Sirven tanto la aplicación de GitHub como [github.com](https://github.com) en un navegador móvil.
+- **GitHub.** Un fork del repositorio te permite cambiar el sitio y desplegar tus cambios. Sirven tanto la aplicación de GitHub como github.com en un navegador móvil.
 - **Heroku**, en [signup.heroku.com](https://signup.heroku.com), con un **método de pago** añadido en Account settings, Billing. Heroku no tiene plan gratuito: consulta [Costos](#costos) más abajo.
 
 > **Consejo:** El panel de Heroku funciona en un navegador móvil. Si una página se ve apretada, cambia el navegador al modo "Sitio de escritorio".
 
 ## 1. Hacer un fork del repositorio
 
-1. Abre [github.com/maxlestage/Active](https://github.com/maxlestage/Active).
+1. Abre [maxlestage.github.io/Active](https://maxlestage.github.io/Active/).
 2. Toca **Fork**, conserva el nombre por defecto `Active` y confirma con **Create fork**.
 
 Ahora tienes `https://github.com/<you>/Active`, que puedes editar desde la aplicación o el sitio web de GitHub. Para desplegar el repositorio original sin cambios, puedes saltarte este paso.
@@ -27,7 +27,7 @@ Ahora tienes `https://github.com/<you>/Active`, que puedes editar desde la aplic
 
 El botón lee `app.json` y crea una aplicación de Heroku que construye el repositorio con Docker.
 
-1. Abre el enlace de despliegue. Para el repositorio original es [heroku.com/deploy?template=https://github.com/maxlestage/Active](https://heroku.com/deploy?template=https://github.com/maxlestage/Active). Para tu fork, usa `https://heroku.com/deploy?template=https://github.com/<you>/Active`.
+1. Abre el enlace de despliegue. Para el repositorio original es heroku.com/deploy?template=https://maxlestage.github.io/Active/. Para tu fork, usa `https://heroku.com/deploy?template=https://github.com/<you>/Active`.
 2. Inicia sesión en Heroku si te lo pide.
 3. **App name:** elige un nombre en minúsculas como `my-active-site`. Tu dirección será `my-active-site-<random>.herokuapp.com` o similar, y se muestra al final.
 4. **Region:** United States o Europe, la que esté más cerca de tus visitantes.

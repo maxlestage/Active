@@ -30,7 +30,7 @@ Como la versión sale de la etiqueta, el crate publicado siempre coincide con la
 
 La aplicación móvil de GitHub no muestra la configuración del repositorio, así que usa el sitio web en el navegador de tu teléfono.
 
-1. Abre el repositorio en [github.com](https://github.com) y luego **Settings**.
+1. Abre el repositorio en github.com y luego **Settings**.
 2. Abre **Secrets and variables** y luego **Actions**.
 3. Toca **New repository secret**. Name: `CARGO_REGISTRY_TOKEN`. Secret: pega el token. Toca **Add secret**.
 

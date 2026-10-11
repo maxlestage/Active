@@ -229,7 +229,7 @@ fn quote() -> Element {
 }
 ```
 
-Esto requiere `wasm-bindgen-futures = "0.4"` y las features `Response` y `Window` de web-sys. La búsqueda de la documentación de este sitio funciona así: consulta [`site/src/client/search.rs`](https://github.com/maxlestage/Active/blob/master/site/src/client/search.rs).
+Esto requiere `wasm-bindgen-futures = "0.4"` y las features `Response` y `Window` de web-sys. La búsqueda de la documentación de este sitio funciona así: consulta `site/src/client/search.rs`.
 
 > **Advertencia:** Cuando el future termina, el estado todavía debe existir. Si el componente puede eliminarse mientras tanto (porque está en una región dinámica que puede reconstruirse), crea el estado por encima de esa región.
 

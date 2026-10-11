@@ -144,7 +144,7 @@ et reconstruit cet îlot de zéro. La page fonctionne toujours, mais l'îlot cli
 - **Du code qui varie selon la cible.** Un `#[cfg(target_arch = "wasm32")]` qui modifie le balisage. Réservez-le au comportement (gestionnaires, effets), jamais à ce qui est rendu.
 - **Du HTML modifié après le rendu.** Un proxy, une extension de navigateur ou un script qui réécrit la page.
 
-Le contenu texte n'est pas comparé, seulement la structure. Le HTML brut défini avec `.html(...)` n'est jamais touché par l'hydratation, ce qui est utile pour du contenu que seul le serveur peut produire, comme du code avec coloration syntaxique : rendez-le sur le serveur et passez une chaîne vide dans le navigateur. Les onglets de la page d'accueil de ce site fonctionnent ainsi (voir [`site/src/islands.rs`](https://github.com/maxlestage/Active/blob/master/site/src/islands.rs)).
+Le contenu texte n'est pas comparé, seulement la structure. Le HTML brut défini avec `.html(...)` n'est jamais touché par l'hydratation, ce qui est utile pour du contenu que seul le serveur peut produire, comme du code avec coloration syntaxique : rendez-le sur le serveur et passez une chaîne vide dans le navigateur. Les onglets de la page d'accueil de ce site fonctionnent ainsi (voir `site/src/islands.rs`).
 
 ## Des îlots dans des îlots
 

@@ -211,7 +211,7 @@ A site without islands needs no bundle: drop `.client(...)`, the `start` functio
 
 Search engines discover pages through `sitemap.xml`, which lists every URL with its absolute address, and find the sitemap through `robots.txt`. The generator above writes both from the same list of pages, so they never get out of sync. Submit the sitemap's address in [Google Search Console](https://search.google.com/search-console) and Bing Webmaster Tools to speed up indexing.
 
-For a multilingual site, add an `<xhtml:link rel="alternate" hreflang="…">` element per language inside each `<url>`, as this website's server does in [`site/src/server/mod.rs`](https://github.com/maxlestage/Active/blob/master/site/src/server/mod.rs).
+For a multilingual site, add an `<xhtml:link rel="alternate" hreflang="…">` element per language inside each `<url>`, as this website's server does in `site/src/server/mod.rs`.
 
 ## Hosting
 

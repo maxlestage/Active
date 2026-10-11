@@ -7,10 +7,10 @@ Esta página pone una página real en tu pantalla: HTML renderizado por un servi
 
 ## Ejecutar el ejemplo
 
-El repositorio contiene una aplicación mínima, [`examples/hello`](https://github.com/maxlestage/Active/tree/master/examples/hello). Clónalo, compila el bundle del navegador e inicia el servidor:
+El repositorio contiene una aplicación mínima, `examples/hello`. Clónalo, compila el bundle del navegador e inicia el servidor:
 
 ```sh
-git clone https://github.com/maxlestage/Active
+git clone https://maxlestage.github.io/Active/
 cd Active
 cargo build -p hello --lib --target wasm32-unknown-unknown --profile wasm-release
 wasm-bindgen --target web --no-typescript --out-dir examples/hello/pkg target/wasm32-unknown-unknown/wasm-release/hello.wasm
@@ -67,7 +67,7 @@ opt-level = "s"
 panic = "abort"
 ```
 
-> **Nota:** Mientras el crate no esté publicado en crates.io, reemplaza los dos valores `active = …` por `{ git = "https://github.com/maxlestage/Active" }` (añadiendo `features = ["client"]` al segundo).
+> **Nota:** Mientras el crate no esté publicado en crates.io, reemplaza los dos valores `active = …` por `{ git = "https://maxlestage.github.io/Active/" }` (añadiendo `features = ["client"]` al segundo).
 
 ### 3. Escribir la página
 

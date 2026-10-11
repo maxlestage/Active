@@ -100,7 +100,7 @@ The page preloads both files and starts the module. Your `#[wasm_bindgen(start)]
 
 ## In continuous integration
 
-This repository builds its site on every push with GitHub Actions ([`.github/workflows/ci.yml`](https://github.com/maxlestage/Active/blob/master/.github/workflows/ci.yml)). The relevant steps:
+This repository builds its site on every push with GitHub Actions (`.github/workflows/ci.yml`). The relevant steps:
 
 ```yaml
 - uses: dtolnay/rust-toolchain@stable
@@ -122,7 +122,7 @@ It also lints the browser code, which the regular build does not check:
 cargo clippy --lib --target wasm32-unknown-unknown -- -D warnings
 ```
 
-For Docker, the [`Dockerfile`](https://github.com/maxlestage/Active/blob/master/Dockerfile) runs the same commands in a build stage; see [Deploy to Heroku](../deploy-heroku/#how-the-repository-is-deployed).
+For Docker, the `Dockerfile` runs the same commands in a build stage; see [Deploy to Heroku](../deploy-heroku/#how-the-repository-is-deployed).
 
 ## Troubleshooting
 

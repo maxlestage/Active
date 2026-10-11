@@ -79,7 +79,7 @@ brotli -c -q 11 pkg/my_site_bg.wasm | wc -c   # Brotli, if the brotli tool is in
 
 Always measure the `_bg.wasm` file produced by `wasm-bindgen`: the file in `target/` still contains metadata that `wasm-bindgen` removes and is several times larger.
 
-To see what takes space, build once without stripping and inspect the result with [twiggy](https://github.com/rustwasm/twiggy):
+To see what takes space, build once without stripping and inspect the result with twiggy:
 
 ```sh
 cargo install twiggy
@@ -95,7 +95,7 @@ twiggy top -n 20 pkg-debug/my_site_bg.wasm
 - **Keep heavy work on the server.** Parsing Markdown, highlighting code or formatting dates can run on the server and reach the island as HTML or props. This website highlights its code examples on the server and passes the result as raw HTML, so the bundle contains no highlighter.
 - **Watch dependencies.** Every crate used by browser code ends up in the bundle. Check the size after adding one, and prefer `web-sys` features you actually use.
 - **Try `opt-level = "z"`** and keep it if it is smaller for your code.
-- **Optionally run `wasm-opt`** from [Binaryen](https://github.com/WebAssembly/binaryen) after `wasm-bindgen`: `wasm-opt -Oz -o out.wasm pkg/my_site_bg.wasm`. It usually removes a few more percent. If it rejects the module because of a WebAssembly feature, enable that feature with the matching `--enable-…` flag. This repository does not use it, so the numbers above are without it.
+- **Optionally run `wasm-opt`** from Binaryen after `wasm-bindgen`: `wasm-opt -Oz -o out.wasm pkg/my_site_bg.wasm`. It usually removes a few more percent. If it rejects the module because of a WebAssembly feature, enable that feature with the matching `--enable-…` flag. This repository does not use it, so the numbers above are without it.
 
 ## Rendering on the server
 

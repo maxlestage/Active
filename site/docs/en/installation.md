@@ -32,7 +32,7 @@ On Windows, download `rustup-init.exe` from [rustup.rs](https://rustup.rs) inste
 cargo add active
 ```
 
-> **Note:** Until the first release is on crates.io, depend on the Git repository instead: `active = { git = "https://github.com/maxlestage/Active" }` in `Cargo.toml`. Cargo finds the `active` package inside the repository.
+> **Note:** Until the first release is on crates.io, depend on the Git repository instead: `active = { git = "https://maxlestage.github.io/Active/" }` in `Cargo.toml`. Cargo finds the `active` package inside the repository.
 
 ### Feature flags
 
@@ -44,7 +44,7 @@ Without `client`, `active` has no dependencies at all. Event handlers and effect
 
 ## One crate, two targets
 
-The recommended layout is a single crate whose library holds the components. The native build is your server; the WebAssembly build of the same library is the browser bundle. This is how [`examples/hello`](https://github.com/maxlestage/Active/tree/master/examples/hello) and this website are organized.
+The recommended layout is a single crate whose library holds the components. The native build is your server; the WebAssembly build of the same library is the browser bundle. This is how `examples/hello` and this website are organized.
 
 ```text
 my-site/

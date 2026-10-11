@@ -94,10 +94,8 @@ Guide: [`site/docs/en/deploy-pages.md`](site/docs/en/deploy-pages.md).
 
 ## Deploy the site on Heroku from a phone
 
-[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/maxlestage/Active)
-
-1. Open this page on your phone and tap **Deploy to Heroku**. Sign in, choose an app name, then tap **Deploy app**. Heroku builds the [`Dockerfile`](Dockerfile): the WebAssembly bundle, then the server, all from the Rust sources.
-2. To redeploy on every change: in the Heroku dashboard, open **Deploy → GitHub**, connect your fork, then **Enable Automatic Deploys** from `master`.
+1. Create an app in the [Heroku dashboard](https://dashboard.heroku.com/new-app), open **Deploy**, connect your repository and tap **Deploy Branch**. Heroku builds the [`Dockerfile`](Dockerfile) (see [`heroku.yml`](heroku.yml)): the WebAssembly bundle, then the server, all from the Rust sources.
+2. To redeploy on every change: **Enable Automatic Deploys** from `master`.
 
 Heroku has no free plan: an Eco dyno costs about $5 a month. Step-by-step guide: [`site/docs/en/deploy-heroku.md`](site/docs/en/deploy-heroku.md).
 
@@ -124,4 +122,4 @@ Active is proprietary software: © 2026 Maxime Nathan Lestage, all rights reserv
 
 ## Credits
 
-Designed and developed by [Maxime Nathan Lestage](https://github.com/maxlestage), as part of one family of Rust projects: [Active](https://maxlestage.github.io/Active/), [Vitesse](https://maxlestage.github.io/Vitesse/), [Securite](https://maxlestage.github.io/Securite/), [Memoire](https://maxlestage.github.io/Memoire/), [Paquets](https://maxlestage.github.io/Paquets/) and [FerroSwift](https://maxlestage.github.io/FerroSwift/).
+Designed and developed by Maxime Nathan Lestage, as part of one family of Rust projects: [Active](https://maxlestage.github.io/Active/), [Vitesse](https://maxlestage.github.io/Vitesse/), [Securite](https://maxlestage.github.io/Securite/), [Memoire](https://maxlestage.github.io/Memoire/), [Paquets](https://maxlestage.github.io/Paquets/) and [FerroSwift](https://maxlestage.github.io/FerroSwift/).

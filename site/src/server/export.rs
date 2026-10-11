@@ -1,9 +1,9 @@
 //! `active-site export <dir>`: the whole site as static files, for GitHub Pages or any
 //! static host. Every file comes from the server's own handlers, so both are identical.
 //!
-//! What a static host cannot do is replaced: the root page links the languages instead of
-//! reading `Accept-Language`, the opening curtain is left out (it plays once per visit
-//! thanks to a cookie), and `404.html` is the English "not found" page.
+//! What a static host cannot do is replaced: the root page and `404.html` go to the visitor's
+//! language with a script (and link the languages), the opening curtain is left out (it plays
+//! once per visit thanks to a cookie), and each language has its "not found" page.
 //!
 //! The site stays an installable app: `manifest.webmanifest`, `sw.js` and the offline page
 //! are written too, every URL in them behind the base path.
@@ -44,15 +44,24 @@ pub async fn export(out: &Path, base: &str, site_url: Option<String>) -> io::Res
         let html = get(&site, &route.path(), StatusCode::OK).await?;
         write(&format!("{}index.html", route.path()), &html)?;
     }
-    write(
-        "404.html",
-        &get(&site, "/en/404/", StatusCode::NOT_FOUND).await?,
-    )?;
     let origin = site
         .site_url
         .clone()
         .unwrap_or_else(|| "http://localhost".into());
-    write("index.html", pages::language_picker(&origin).as_bytes())?;
+    // The visitor's language, chosen in the browser: at the root and on a missing address
+    // (the static host serves `404.html`), then the "not found" page of each language.
+    write("index.html", pages::language_picker(&origin, "").as_bytes())?;
+    write(
+        "404.html",
+        pages::language_picker(&origin, "404/").as_bytes(),
+    )?;
+    for lang in Lang::ALL {
+        let path = format!("/{}/404/", lang.code());
+        write(
+            &format!("{path}index.html"),
+            &get(&site, &path, StatusCode::NOT_FOUND).await?,
+        )?;
+    }
     for lang in Lang::ALL {
         let index = format!("/search/{}.txt", lang.code());
         write(&index, &get(&site, &index, StatusCode::OK).await?)?;

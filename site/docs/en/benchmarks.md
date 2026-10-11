@@ -3,7 +3,7 @@ title: Benchmarks
 description: active measured against Leptos, Dioxus, Yew, Sycamore, maud and hand-written HTML: server rendering, WebAssembly size and time to interactive.
 ---
 
-`active` was compared with the main Rust web frameworks on three questions: how fast does the server render a complete page, how much WebAssembly does the browser download for a small interactive component, and how soon is that component usable. Everything is Rust: the pages, the servers, and the harness that drives Chromium. The whole suite is in [`bench/`](https://github.com/maxlestage/Active/tree/master/bench).
+`active` was compared with the main Rust web frameworks on three questions: how fast does the server render a complete page, how much WebAssembly does the browser download for a small interactive component, and how soon is that component usable. Everything is Rust: the pages, the servers, and the harness that drives Chromium. The whole suite is in `bench/`.
 
 ## Summary
 
@@ -48,7 +48,7 @@ The same counter in every framework: a button that increments the number next to
 | Yew | hydration | 241.8 kB | 90.0 kB | 6.3 kB | 96.3 kB |
 | Dioxus | client-side render | 426.9 kB | 155.4 kB | 15.0 kB | 170.4 kB |
 
-> **Tip:** the benchmark counter records timings with a floating-point number, which pulls Rust's float formatting into every bundle. Without it, the [`hello` example](https://github.com/maxlestage/Active/tree/master/examples/hello) is about 22 kB gzip. See [performance](../performance/) for the size of each kind of app and how to shrink a bundle further.
+> **Tip:** the benchmark counter records timings with a floating-point number, which pulls Rust's float formatting into every bundle. Without it, the `hello` example is about 22 kB gzip. See [performance](../performance/) for the size of each kind of app and how to shrink a bundle further.
 
 ## Time to interactive
 
@@ -75,4 +75,4 @@ cargo run --release -p runner -- ssr             # one part: ssr, wasm, browser 
 BENCH_PRINT=1 cargo run --release -p ssr-active  # print the page an implementation renders
 ```
 
-The runner finds Chromium on the `PATH` (or set `CHROME=/path/to/chrome`). It writes `bench/RESULTS.md` and the raw data in `bench/results/`. The method, the version of every framework and the choices made for each one are described in [`bench/README.md`](https://github.com/maxlestage/Active/blob/master/bench/README.md).
+The runner finds Chromium on the `PATH` (or set `CHROME=/path/to/chrome`). It writes `bench/RESULTS.md` and the raw data in `bench/results/`. The method, the version of every framework and the choices made for each one are described in `bench/README.md`.

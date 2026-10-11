@@ -32,7 +32,7 @@ En Windows, descarga en su lugar `rustup-init.exe` desde [rustup.rs](https://rus
 cargo add active
 ```
 
-> **Nota:** Hasta que la primera publicación esté en crates.io, usa como dependencia el repositorio Git: `active = { git = "https://github.com/maxlestage/Active" }` en `Cargo.toml`. Cargo encuentra el paquete `active` dentro del repositorio.
+> **Nota:** Hasta que la primera publicación esté en crates.io, usa como dependencia el repositorio Git: `active = { git = "https://maxlestage.github.io/Active/" }` en `Cargo.toml`. Cargo encuentra el paquete `active` dentro del repositorio.
 
 ### Features de Cargo
 
@@ -44,7 +44,7 @@ Sin `client`, `active` no tiene ninguna dependencia. Los manejadores de eventos 
 
 ## Un crate, dos destinos
 
-La estructura recomendada es un único crate cuya biblioteca contiene los componentes. La compilación nativa es tu servidor; la compilación a WebAssembly de esa misma biblioteca es el bundle del navegador. Así están organizados [`examples/hello`](https://github.com/maxlestage/Active/tree/master/examples/hello) y este sitio web.
+La estructura recomendada es un único crate cuya biblioteca contiene los componentes. La compilación nativa es tu servidor; la compilación a WebAssembly de esa misma biblioteca es el bundle del navegador. Así están organizados `examples/hello` y este sitio web.
 
 ```text
 my-site/

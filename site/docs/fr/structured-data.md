@@ -108,7 +108,7 @@ Une fois par site, généralement dans la mise en page ou sur la page d'accueil 
   "name": "Acme",
   "url": "https://acme.com",
   "logo": "https://acme.com/logo.png",
-  "sameAs": ["https://github.com/acme"]
+  "sameAs": ["https://acme.example"]
 }
 ```
 

@@ -58,7 +58,6 @@ pub struct Home {
     pub hero: [&'static str; 3],
     pub lead: &'static str,
     pub cta: &'static str,
-    pub github: &'static str,
     pub dust: &'static str,
     pub particles: &'static str,
     pub scroll: &'static str,
@@ -83,7 +82,6 @@ pub struct Home {
     pub cta_title: &'static str,
     pub cta_text: &'static str,
     pub cta_docs: &'static str,
-    pub cta_deploy: &'static str,
 }
 
 pub struct Docs {
@@ -96,7 +94,6 @@ pub struct Docs {
     pub on_this_page: &'static str,
     pub prev: &'static str,
     pub next: &'static str,
-    pub edit: &'static str,
     pub categories: [Item; 7],
 }
 
@@ -168,7 +165,6 @@ static EN: Dict = Dict {
         hero: ["Front end.", "Real SEO.", "*All Rust.*"],
         lead: "active is a simple Rust library to build front ends: components and state, routing, complete SEO tags. Render on the server, wake up islands or run a whole app in the browser, as WebAssembly. No JavaScript to write.",
         cta: "Get started",
-        github: "View on GitHub",
         dust: "This dust is simulated in Rust",
         particles: "particles",
         scroll: "Scroll",
@@ -275,7 +271,6 @@ static EN: Dict = Dict {
         cta_title: "Ready when *you are.*",
         cta_text: "Read the docs, ship your first page, deploy from your phone.",
         cta_docs: "Read the documentation",
-        cta_deploy: "Deploy to Heroku",
     },
     docs: Docs {
         title: "Documentation",
@@ -287,7 +282,6 @@ static EN: Dict = Dict {
         on_this_page: "On this page",
         prev: "Previous",
         next: "Next",
-        edit: "Edit this page on GitHub",
         categories: [
             Item {
                 title: "Getting started",
@@ -386,7 +380,6 @@ static FR: Dict = Dict {
         hero: ["Front-end.", "Vrai SEO.", "*Tout en Rust.*"],
         lead: "active est une bibliothèque Rust simple pour faire du front-end : composants et état, routage, balises SEO complètes. Rendu sur le serveur, îlots ou application complète dans le navigateur, en WebAssembly. Aucun JavaScript à écrire.",
         cta: "Commencer",
-        github: "Voir sur GitHub",
         dust: "Cette poussière est simulée en Rust",
         particles: "particules",
         scroll: "Défiler",
@@ -493,7 +486,6 @@ static FR: Dict = Dict {
         cta_title: "Prêt quand *vous l'êtes.*",
         cta_text: "Lisez la doc, publiez votre première page, déployez depuis votre téléphone.",
         cta_docs: "Lire la documentation",
-        cta_deploy: "Déployer sur Heroku",
     },
     docs: Docs {
         title: "Documentation",
@@ -505,7 +497,6 @@ static FR: Dict = Dict {
         on_this_page: "Sur cette page",
         prev: "Précédent",
         next: "Suivant",
-        edit: "Modifier cette page sur GitHub",
         categories: [
             Item {
                 title: "Bien démarrer",
@@ -604,7 +595,6 @@ static ES: Dict = Dict {
         hero: ["Front-end.", "SEO real.", "*Todo en Rust.*"],
         lead: "active es una biblioteca de Rust simple para hacer front-end: componentes y estado, enrutamiento, etiquetas SEO completas. Renderizado en el servidor, islas o una aplicación completa en el navegador, como WebAssembly. Sin escribir JavaScript.",
         cta: "Empezar",
-        github: "Ver en GitHub",
         dust: "Este polvo se simula en Rust",
         particles: "partículas",
         scroll: "Desplazar",
@@ -711,7 +701,6 @@ static ES: Dict = Dict {
         cta_title: "Listo cuando *tú lo estés.*",
         cta_text: "Lee la documentación, publica tu primera página y despliega desde tu móvil.",
         cta_docs: "Leer la documentación",
-        cta_deploy: "Desplegar en Heroku",
     },
     docs: Docs {
         title: "Documentación",
@@ -723,7 +712,6 @@ static ES: Dict = Dict {
         on_this_page: "En esta página",
         prev: "Anterior",
         next: "Siguiente",
-        edit: "Editar esta página en GitHub",
         categories: [
             Item {
                 title: "Primeros pasos",

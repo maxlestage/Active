@@ -11,14 +11,14 @@ Heroku construit le `Dockerfile` du dépôt (serveur Rust et bundle WebAssembly)
 
 Il vous faut deux comptes :
 
-- **GitHub.** Un fork du dépôt vous permet de modifier le site et de déployer vos changements. L'application GitHub comme [github.com](https://github.com) dans un navigateur mobile conviennent.
+- **GitHub.** Un fork du dépôt vous permet de modifier le site et de déployer vos changements. L'application GitHub comme github.com dans un navigateur mobile conviennent.
 - **Heroku**, sur [signup.heroku.com](https://signup.heroku.com), avec un **moyen de paiement** ajouté dans Account settings, Billing. Heroku n'a pas d'offre gratuite : voir [Coûts](#couts) plus bas.
 
 > **Astuce :** Le tableau de bord de Heroku fonctionne dans un navigateur mobile. Si une page semble à l'étroit, passez le navigateur en mode « Version pour ordinateur » (« Desktop site »).
 
 ## 1. Forker le dépôt
 
-1. Ouvrez [github.com/maxlestage/Active](https://github.com/maxlestage/Active).
+1. Ouvrez [maxlestage.github.io/Active](https://maxlestage.github.io/Active/).
 2. Touchez **Fork**, gardez le nom par défaut `Active`, et confirmez avec **Create fork**.
 
 Vous disposez maintenant de `https://github.com/<you>/Active`, que vous pouvez modifier depuis l'application ou le site GitHub. Pour déployer le dépôt d'origine sans modification, vous pouvez sauter cette étape.
@@ -27,7 +27,7 @@ Vous disposez maintenant de `https://github.com/<you>/Active`, que vous pouvez m
 
 Le bouton lit `app.json` et crée une application Heroku qui construit le dépôt avec Docker.
 
-1. Ouvrez le lien de déploiement. Pour le dépôt d'origine, il s'agit de [heroku.com/deploy?template=https://github.com/maxlestage/Active](https://heroku.com/deploy?template=https://github.com/maxlestage/Active). Pour votre fork, utilisez `https://heroku.com/deploy?template=https://github.com/<you>/Active`.
+1. Ouvrez le lien de déploiement. Pour le dépôt d'origine, il s'agit de heroku.com/deploy?template=https://maxlestage.github.io/Active/. Pour votre fork, utilisez `https://heroku.com/deploy?template=https://github.com/<you>/Active`.
 2. Connectez-vous à Heroku si on vous le demande.
 3. **App name :** choisissez un nom en minuscules comme `my-active-site`. Votre adresse devient `my-active-site-<random>.herokuapp.com` ou une adresse similaire, affichée à la fin.
 4. **Region :** United States ou Europe, selon ce qui est le plus proche de vos visiteurs.

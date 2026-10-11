@@ -2,8 +2,6 @@
 
 [![crates.io](https://img.shields.io/crates/v/active.svg)](https://crates.io/crates/active)
 [![docs.rs](https://img.shields.io/docsrs/active)](https://docs.rs/active)
-[![License: proprietary](https://img.shields.io/badge/license-proprietary-2a2a2e.svg)](https://github.com/maxlestage/Active/blob/master/LICENSE)
-
 **A simple, fast front-end library for Rust: components, state, routing and complete SEO
 tags, rendered on the server and run in the browser as WebAssembly.**
 
@@ -119,7 +117,7 @@ classes. No node is recreated. On the server, handlers and effects are never run
 state arena is emptied after each render, so a server can render pages forever without
 growing.
 
-Build the browser bundle with [wasm-bindgen](https://github.com/wasm-bindgen/wasm-bindgen):
+Build the browser bundle with [wasm-bindgen](https://crates.io/crates/wasm-bindgen):
 
 ```sh
 rustup target add wasm32-unknown-unknown
@@ -165,7 +163,7 @@ fn about() -> Node {
 
 Forms are controlled with `attr_dyn("value", …)` and `on_input`; a complete to-do app
 with routing, filters and `localStorage` is in
-[`examples/spa`](https://github.com/maxlestage/Active/tree/master/examples/spa).
+`examples/spa`.
 
 ## SEO
 
@@ -254,15 +252,15 @@ Any server works the same way (Actix Web, Rocket, Hyper, a static site generator
 ## Links
 
 - Guides in English, French and Spanish, examples and benchmarks:
-  [github.com/maxlestage/Active](https://github.com/maxlestage/Active).
-- Server page with an island: [`examples/hello`](https://github.com/maxlestage/Active/tree/master/examples/hello).
-- Client-side app with routing: [`examples/spa`](https://github.com/maxlestage/Active/tree/master/examples/spa).
-- The project website, built with `active`: [`site/`](https://github.com/maxlestage/Active/tree/master/site).
+  [maxlestage.github.io/Active](https://maxlestage.github.io/Active/).
+- Server page with an island: `examples/hello`.
+- Client-side app with routing: `examples/spa`.
+- The project website, built with `active`: `site/`.
 
 ## License
 
-Proprietary software: © 2026 Maxime Nathan Lestage, all rights reserved. The source is published so that it can be read, audited and built; you may use `active` freely as a dependency of your own programs, commercial ones included, but not modify or redistribute its source without the author's written permission. Full terms: [LICENSE](https://github.com/maxlestage/Active/blob/master/LICENSE).
+Proprietary software: © 2026 Maxime Nathan Lestage, all rights reserved. The source is published so that it can be read, audited and built; you may use `active` freely as a dependency of your own programs, commercial ones included, but not modify or redistribute its source without the author's written permission. Full terms: [LICENSE](https://maxlestage.github.io/Active/LICENSE.txt).
 
 ## Credits
 
-Designed and developed by [Maxime Nathan Lestage](https://github.com/maxlestage).
+Designed and developed by Maxime Nathan Lestage.

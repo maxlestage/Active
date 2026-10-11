@@ -94,10 +94,8 @@ Guide : [`site/docs/fr/deploy-pages.md`](site/docs/fr/deploy-pages.md).
 
 ## Déployer le site sur Heroku depuis un téléphone
 
-[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/maxlestage/Active)
-
-1. Ouvrez cette page sur votre téléphone et touchez **Deploy to Heroku**. Connectez-vous, choisissez un nom d'application, puis touchez **Deploy app**. Heroku construit le [`Dockerfile`](Dockerfile) : le bundle WebAssembly, puis le serveur, entièrement à partir des sources Rust.
-2. Pour redéployer à chaque changement : dans le tableau de bord Heroku, ouvrez **Deploy → GitHub**, connectez votre fork, puis activez **Enable Automatic Deploys** depuis `master`.
+1. Créez une application dans le [tableau de bord Heroku](https://dashboard.heroku.com/new-app), ouvrez **Deploy**, connectez votre dépôt et touchez **Deploy Branch**. Heroku construit le [`Dockerfile`](Dockerfile) (voir [`heroku.yml`](heroku.yml)) : le bundle WebAssembly, puis le serveur, entièrement à partir des sources Rust.
+2. Pour redéployer à chaque changement : activez **Enable Automatic Deploys** depuis `master`.
 
 Heroku n'a pas d'offre gratuite : un dyno Eco coûte environ 5 $ par mois. Guide pas à pas : [`site/docs/fr/deploy-heroku.md`](site/docs/fr/deploy-heroku.md).
 
@@ -124,4 +122,4 @@ Active est un logiciel propriétaire : © 2026 Maxime Nathan Lestage, tous droit
 
 ## Crédits
 
-Conçu et développé par [Maxime Nathan Lestage](https://github.com/maxlestage), au sein d'une même famille de projets Rust : [Active](https://maxlestage.github.io/Active/), [Vitesse](https://maxlestage.github.io/Vitesse/), [Securite](https://maxlestage.github.io/Securite/), [Memoire](https://maxlestage.github.io/Memoire/), [Paquets](https://maxlestage.github.io/Paquets/) et [FerroSwift](https://maxlestage.github.io/FerroSwift/).
+Conçu et développé par Maxime Nathan Lestage, au sein d'une même famille de projets Rust : [Active](https://maxlestage.github.io/Active/), [Vitesse](https://maxlestage.github.io/Vitesse/), [Securite](https://maxlestage.github.io/Securite/), [Memoire](https://maxlestage.github.io/Memoire/), [Paquets](https://maxlestage.github.io/Paquets/) et [FerroSwift](https://maxlestage.github.io/FerroSwift/).

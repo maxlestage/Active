@@ -144,7 +144,7 @@ y reconstruye esa isla desde cero. La página sigue funcionando, pero la isla pa
 - **Código que cambia según el target.** Un `#[cfg(target_arch = "wasm32")]` que modifica el marcado. Úsalo solo para el comportamiento (manejadores, efectos), nunca para lo que se renderiza.
 - **HTML modificado después del renderizado.** Un proxy, una extensión del navegador o un script que reescribe la página.
 
-No se compara el contenido de texto, solo la estructura. La hidratación nunca toca el HTML sin escapar definido con `.html(...)`, algo útil para el contenido que solo el servidor puede producir, como el código con resaltado de sintaxis: renderízalo en el servidor y pasa una cadena vacía en el navegador. Las pestañas de la página de inicio de este sitio funcionan así (consulta [`site/src/islands.rs`](https://github.com/maxlestage/Active/blob/master/site/src/islands.rs)).
+No se compara el contenido de texto, solo la estructura. La hidratación nunca toca el HTML sin escapar definido con `.html(...)`, algo útil para el contenido que solo el servidor puede producir, como el código con resaltado de sintaxis: renderízalo en el servidor y pasa una cadena vacía en el navegador. Las pestañas de la página de inicio de este sitio funcionan así (consulta `site/src/islands.rs`).
 
 ## Islas dentro de islas
 

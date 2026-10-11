@@ -30,7 +30,7 @@ Comme la version vient du tag, le crate publié correspond toujours à la public
 
 L'application mobile GitHub n'affiche pas les paramètres des dépôts : utilisez donc le site web dans le navigateur de votre téléphone.
 
-1. Ouvrez le dépôt sur [github.com](https://github.com), puis **Settings**.
+1. Ouvrez le dépôt sur github.com, puis **Settings**.
 2. Ouvrez **Secrets and variables**, puis **Actions**.
 3. Touchez **New repository secret**. Name : `CARGO_REGISTRY_TOKEN`. Secret : collez le jeton. Touchez **Add secret**.
 

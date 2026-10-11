@@ -100,7 +100,7 @@ La página precarga ambos archivos y arranca el módulo. Después se ejecuta tu 
 
 ## En integración continua
 
-Este repositorio compila su sitio en cada push con GitHub Actions ([`.github/workflows/ci.yml`](https://github.com/maxlestage/Active/blob/master/.github/workflows/ci.yml)). Los pasos relevantes:
+Este repositorio compila su sitio en cada push con GitHub Actions (`.github/workflows/ci.yml`). Los pasos relevantes:
 
 ```yaml
 - uses: dtolnay/rust-toolchain@stable
@@ -122,7 +122,7 @@ También pasa el linter al código del navegador, que la compilación normal no 
 cargo clippy --lib --target wasm32-unknown-unknown -- -D warnings
 ```
 
-Para Docker, el [`Dockerfile`](https://github.com/maxlestage/Active/blob/master/Dockerfile) ejecuta los mismos comandos en una etapa de compilación; consulta [Desplegar en Heroku](../deploy-heroku/#como-se-despliega-el-repositorio).
+Para Docker, el `Dockerfile` ejecuta los mismos comandos en una etapa de compilación; consulta [Desplegar en Heroku](../deploy-heroku/#como-se-despliega-el-repositorio).
 
 ## Solución de problemas
 
