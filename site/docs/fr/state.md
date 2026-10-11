@@ -132,8 +132,9 @@ assert_eq!(
 Sur le serveur, la région est écrite entre les marqueurs `<!--[-->` et `<!--]-->`. Dans le navigateur :
 
 - seule la région est reconstruite, le reste de la page n'est pas touché ;
-- les états, effets et écouteurs d'événements créés lors de la construction du contenu précédent sont libérés ;
-- les états créés **en dehors** de la région (comme `items` ci-dessus) sont conservés : c'est ainsi qu'une liste garde ses données pendant que ses éléments sont reconstruits.
+- les états, effets et écouteurs d'événements créés lors de la construction du contenu précédent sont libérés ; les écouteurs sont d'abord retirés de leurs éléments, si bien qu'un événement encore en route (le clic qui a reconstruit la région, qui remonte par les anciens éléments) ne les atteint jamais ;
+- les états créés **en dehors** de la région (comme `items` ci-dessus) sont conservés : c'est ainsi qu'une liste garde ses données pendant que ses éléments sont reconstruits ;
+- le focus reste en place : s'il était dans la région, l'élément qui prend la place de celui qui l'avait le retrouve (celui qui a le même `id`, sinon celui qui occupe la même position avec les mêmes balises et les mêmes classes ; un champ de texte garde aussi sa sélection si son texte n'a pas changé). Un menu reconstruit dans une autre langue garde le clavier là où il était ; une autre page, faite d'autres éléments, ne prend rien.
 
 Une condition qui change est une région qui renvoie soit des nœuds, soit aucun :
 

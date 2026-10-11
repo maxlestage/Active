@@ -132,8 +132,9 @@ assert_eq!(
 En el servidor, la región se escribe entre los marcadores `<!--[-->` y `<!--]-->`. En el navegador:
 
 - solo se reconstruye la región; el resto de la página no se toca;
-- se liberan los estados, los efectos y los listeners de eventos creados al construir el contenido anterior;
-- los estados creados **fuera** de la región (como `items` arriba) sobreviven: así una lista conserva sus datos mientras se reconstruyen sus elementos.
+- se liberan los estados, los efectos y los listeners de eventos creados al construir el contenido anterior; los listeners se quitan antes de sus elementos, así que un evento todavía en camino (el clic que reconstruyó la región, que sube por los elementos antiguos) nunca los alcanza;
+- los estados creados **fuera** de la región (como `items` arriba) sobreviven: así una lista conserva sus datos mientras se reconstruyen sus elementos;
+- el foco se queda donde estaba: si estaba dentro de la región, lo recupera el elemento que ocupa el lugar del que lo tenía (el que tiene el mismo `id` o, si no, el que está en la misma posición con las mismas etiquetas y clases; un campo de texto conserva además su selección si su texto no cambió). Un menú reconstruido en otro idioma deja el teclado donde estaba; otra página, hecha de otros elementos, no toma nada.
 
 Una condición que cambia es una región que devuelve algunos nodos o ninguno:
 

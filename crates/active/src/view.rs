@@ -151,6 +151,12 @@ pub fn fragment(nodes: impl IntoIterator<Item = impl Into<Node>>) -> Node {
 /// condition, the current page of a router. Only this part of the page is rebuilt, and the
 /// states, effects and listeners created for the previous nodes are released.
 ///
+/// In the browser, a region rebuilt while it holds the focus gives it back to the element
+/// that takes the focused one's place: the one with the same `id`, or else the one at the
+/// same position with the same tags and classes (a text field also keeps its selection if
+/// its text is unchanged). A menu rebuilt in another language keeps the keyboard where it
+/// was; another page, built from other elements, takes nothing.
+///
 /// ```
 /// use active::{fragment_dyn, html::*, use_state, Node};
 ///
@@ -164,6 +170,10 @@ pub fn fragment(nodes: impl IntoIterator<Item = impl Into<Node>>) -> Node {
 /// );
 /// ```
 pub fn fragment_dyn(f: impl Fn() -> Vec<Node> + 'static) -> Node {
+    // Browser: a rebuilt region gives the focus back to its new content. Set here, so that
+    // only apps with dynamic regions contain this code.
+    #[cfg(feature = "client")]
+    crate::client::keep_focus_in_regions();
     Node::Dynamic(Rc::new(f))
 }
 
