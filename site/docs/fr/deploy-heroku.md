@@ -27,7 +27,7 @@ Vous disposez maintenant de `https://github.com/<you>/Active`, que vous pouvez m
 
 Le bouton lit `app.json` et crée une application Heroku qui construit le dépôt avec Docker.
 
-1. Ouvrez le lien de déploiement. Pour le dépôt d'origine, il s'agit de heroku.com/deploy?template=https://maxlestage.github.io/Active/. Pour votre fork, utilisez `https://heroku.com/deploy?template=https://github.com/<you>/Active`.
+1. Ouvrez le lien de déploiement de votre dépôt : `https://heroku.com/deploy?template=<l'adresse de votre dépôt>`.
 2. Connectez-vous à Heroku si on vous le demande.
 3. **App name :** choisissez un nom en minuscules comme `my-active-site`. Votre adresse devient `my-active-site-<random>.herokuapp.com` ou une adresse similaire, affichée à la fin.
 4. **Region :** United States ou Europe, selon ce qui est le plus proche de vos visiteurs.

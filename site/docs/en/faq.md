@@ -69,7 +69,7 @@ Heroku has no free tier. At the time of writing, the cheapest option, Eco dynos,
 
 ## What is the crate called?
 
-`active`, on [crates.io](https://crates.io/crates/active), with the documentation on [docs.rs/active](https://docs.rs/active). Until the first version is published there, depend on the repository: `active = { git = "https://maxlestage.github.io/Active/" }`. The [Publishing](../publishing/) page explains how releases are made.
+`active`, on [crates.io](https://crates.io/crates/active), with the documentation on [docs.rs/active](https://docs.rs/active). The [Publishing](../publishing/) page explains how releases are made.
 
 ## Which Rust version do I need?
 
