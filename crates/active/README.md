@@ -1,3 +1,5 @@
+[![Active: front end, real SEO, all Rust. A counter island written in Rust](https://raw.githubusercontent.com/maxlestage/Active/master/site/static/og.png)](https://maxlestage.github.io/Active/)
+
 # Active
 
 [![crates.io](https://img.shields.io/crates/v/active.svg)](https://crates.io/crates/active)
