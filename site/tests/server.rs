@@ -161,6 +161,73 @@ async fn docs_pages_render_with_their_navigation() {
     assert!(html.contains(r#"<meta property="og:type" content="article"/>"#));
 }
 
+/// Every link from a documentation page to a section of another page (or of the same
+/// one) leads to a heading that exists, in every language. Headings get ASCII ids:
+/// « Paramètres » is `#parametres`.
+#[tokio::test]
+async fn links_between_docs_pages_reach_their_section() {
+    let mut pages = std::collections::HashMap::new();
+    for lang in active_site::routes::Lang::ALL {
+        for slug in site().docs.slugs() {
+            let path = format!("/{}/docs/{slug}/", lang.code());
+            pages.insert(path.clone(), text(get(&path, &[]).await).await);
+        }
+    }
+    let mut broken = Vec::new();
+    for (from, html) in &pages {
+        for link in html
+            .split(r#"href=""#)
+            .skip(1)
+            .filter_map(|rest| rest.split('"').next())
+        {
+            let Some((target, id)) = link.split_once('#') else {
+                continue;
+            };
+            // `../state/` from `/fr/docs/api/` is `/fr/docs/state/`.
+            let target = match target.strip_prefix("../") {
+                Some(rest) => format!(
+                    "{}{rest}",
+                    &from[..from[..from.len() - 1].rfind('/').unwrap() + 1]
+                ),
+                None if target.is_empty() => from.clone(),
+                None => target.to_owned(),
+            };
+            let Some(page) = pages.get(&target) else {
+                continue;
+            };
+            let id = percent_decode(id);
+            if !id.is_empty() && !page.contains(&format!(r#"id="{id}""#)) {
+                broken.push(format!("{from} → {link}"));
+            }
+        }
+    }
+    assert!(
+        broken.is_empty(),
+        "sections not found:\n{}",
+        broken.join("\n")
+    );
+}
+
+/// `param%C3%A8tres` → `paramètres`.
+fn percent_decode(text: &str) -> String {
+    let mut bytes = Vec::new();
+    let mut rest = text.as_bytes();
+    while let Some((&b, tail)) = rest.split_first() {
+        match (b, tail) {
+            (b'%', [h, l, more @ ..]) if h.is_ascii_hexdigit() && l.is_ascii_hexdigit() => {
+                let hex = std::str::from_utf8(&[*h, *l]).unwrap().to_owned();
+                bytes.push(u8::from_str_radix(&hex, 16).unwrap());
+                rest = more;
+            }
+            _ => {
+                bytes.push(b);
+                rest = tail;
+            }
+        }
+    }
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
 #[tokio::test]
 async fn directories_get_a_trailing_slash() {
     let response = get("/en/docs?x=1", &[]).await;
