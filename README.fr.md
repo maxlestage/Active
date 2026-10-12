@@ -1,3 +1,5 @@
+[![Active : front-end, vrai SEO, tout en Rust. Un îlot compteur écrit en Rust](https://raw.githubusercontent.com/maxlestage/Active/master/site/static/og.png)](https://maxlestage.github.io/Active/)
+
 # Active
 
 [English](README.md) · **Français** · [Español](README.es.md)
