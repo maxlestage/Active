@@ -41,6 +41,12 @@ async fn exports_every_page_behind_the_base_path() {
     // What a static host cannot compute.
     let root = read(&dir, "index.html");
     assert!(root.contains(r#"content="0; url=/Active/en/""#));
+    // The address people share most: its card has the image.
+    assert!(
+        root.contains(
+            r#"<meta property="og:image" content="https://user.github.io/Active/og.png"/>"#
+        )
+    );
     assert!(read(&dir, "404.html").contains(r#"<meta name="robots" content="noindex,follow"/>"#));
     assert!(
         read(&dir, "sitemap.xml").contains("<loc>https://user.github.io/Active/es/docs/</loc>")

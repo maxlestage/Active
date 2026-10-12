@@ -427,6 +427,12 @@ pub fn document(ctx: &Ctx<'_>, kind: &str, content: Node) -> String {
         .title_template("%s — Active")
         .base_url(ctx.origin)
         .image("/og.png")
+        .meta_property("og:image:width", "1200")
+        .meta_property("og:image:height", "630")
+        .meta_property(
+            "og:image:alt",
+            "Active: front end, real SEO, all Rust. A counter island written in Rust.",
+        )
         .locale(t(route.lang).locale);
     let mut doc = installable(
         Document::new(body)
@@ -1066,6 +1072,13 @@ pub fn language_picker(origin: &str, target: &str) -> String {
         .title("Active")
         .description(t(Lang::En).home.description)
         .base_url(origin)
+        .image("/og.png")
+        .meta_property("og:image:width", "1200")
+        .meta_property("og:image:height", "630")
+        .meta_property(
+            "og:image:alt",
+            "Active: front end, real SEO, all Rust. A counter island written in Rust.",
+        )
         .canonical(format!("/en/{target}"))
         .noindex(true);
     let body = main()

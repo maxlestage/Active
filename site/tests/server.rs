@@ -65,6 +65,11 @@ async fn home_pages_have_complete_seo_tags_in_every_language() {
         assert!(
             html.contains(r#"<meta property="og:image" content="https://example.test/og.png"/>"#)
         );
+        // The card of a shared link: the image, its size and its description.
+        assert!(html.contains(r#"<meta property="og:image:width" content="1200"/>"#));
+        assert!(html.contains(r#"<meta property="og:image:height" content="630"/>"#));
+        assert!(html.contains(r#"<meta property="og:image:alt" content="#));
+        assert!(html.contains(r#"<meta name="twitter:card" content="summary_large_image"/>"#));
         assert!(html.contains(r#"as="fetch" type="application/wasm""#));
         assert!(html.contains(r#"<active-island data-island="dust""#));
         // The playground output is rendered on the server by the same Rust code.
