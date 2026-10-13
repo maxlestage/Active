@@ -122,7 +122,7 @@ It also lints the browser code, which the regular build does not check:
 cargo clippy --lib --target wasm32-unknown-unknown -- -D warnings
 ```
 
-For Docker, the `Dockerfile` runs the same commands in a build stage; see [Deploy to Heroku](../deploy-heroku/#how-the-repository-is-deployed).
+On Heroku, `heroku-build.sh` runs the first two commands after the `emk/rust` buildpack has built the server; for Docker, the `Dockerfile` runs all three in a build stage. See [Deploy to Heroku](../deploy-heroku/#how-the-repository-is-deployed).
 
 ## Troubleshooting
 

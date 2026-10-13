@@ -122,7 +122,7 @@ Il analyse aussi le code du navigateur avec le linter, ce que la compilation nor
 cargo clippy --lib --target wasm32-unknown-unknown -- -D warnings
 ```
 
-Pour Docker, le `Dockerfile` exécute les mêmes commandes dans une étape de build ; voir [Déployer sur Heroku](../deploy-heroku/#comment-le-depot-est-deploye).
+Sur Heroku, `heroku-build.sh` exécute les deux premières commandes une fois que le buildpack `emk/rust` a compilé le serveur ; pour Docker, le `Dockerfile` exécute les trois dans une étape de build. Voir [Déployer sur Heroku](../deploy-heroku/#comment-le-depot-est-deploye).
 
 ## Dépannage
 

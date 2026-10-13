@@ -95,7 +95,7 @@ Solo se suben los archivos enumerados en el `include` del crate (`src`, `README.
 | Lint, servidor | `cargo clippy --workspace --all-targets -- -D warnings` |
 | Lint, navegador | `cargo clippy -p active --features client --target wasm32-unknown-unknown -- -D warnings`, y luego lo mismo para el sitio y los ejemplos (`--lib`) |
 | Pruebas | `cargo test --workspace` |
-| Compilar el sitio | los mismos comandos que el `Dockerfile` que usa [Heroku](../deploy-heroku/) |
+| Compilar el sitio | los mismos comandos que [Heroku](../deploy-heroku/) (`RustConfig` y `heroku-build.sh`) y el `Dockerfile` |
 | Empaquetado | `cargo package -p active --allow-dirty` |
 
 El último paso detecta los problemas de empaquetado (un archivo que falta, metadatos no válidos) antes de que lo haga una publicación.

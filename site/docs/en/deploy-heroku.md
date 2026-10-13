@@ -5,7 +5,7 @@ description: Put an Active site online with Heroku using only a phone: fork on G
 
 This guide puts a site built with `active` online with [Heroku](https://www.heroku.com), using only a phone and a web browser. It uses this repository (the `active` website) as the example; the last sections show how to deploy your own app the same way.
 
-Heroku builds the repository's `Dockerfile` (Rust server and WebAssembly bundle), runs the server, and gives you an address ending in `herokuapp.com`. Once connected to GitHub, every push to `master` goes live by itself.
+Heroku builds the repository with the Rust buildpack [`emk/rust`](https://elements.heroku.com/buildpacks/emk/heroku-buildpack-rust) (Rust server and WebAssembly bundle), runs the server, and gives you an address ending in `herokuapp.com`. Once connected to GitHub, every push to `master` goes live by itself. The repository's `Dockerfile` remains another way to build it: see [With Docker](#with-docker).
 
 ## Before you start
 
@@ -25,7 +25,7 @@ You now have `https://github.com/<you>/Active`, which you can edit from the GitH
 
 ## 2. Deploy with the button
 
-The button reads `app.json` and creates a Heroku app that builds the repository with Docker.
+The button reads `app.json` and creates a Heroku app on the `heroku-24` stack that builds the repository with the `emk/rust` buildpack.
 
 1. Open the deploy link of your repository: `https://heroku.com/deploy?template=https://github.com/maxlestage/Active`.
 2. Log in to Heroku if asked.
@@ -34,7 +34,7 @@ The button reads `app.json` and creates a Heroku app that builds the repository 
 5. **SITE_URL:** leave it empty for now (see [Configuration](#configuration)).
 6. Tap **Deploy app**.
 
-Heroku now builds the Docker image: it installs the WebAssembly target and `wasm-bindgen-cli`, compiles the browser bundle and the server in release mode. The first build takes several minutes because everything is compiled from scratch. When "Your app was successfully deployed" appears, tap **View**.
+Heroku now runs the buildpack: it installs Rust and compiles the server in release mode, then `heroku-build.sh` adds the WebAssembly target, compiles the browser bundle and runs `wasm-bindgen`. The first build takes several minutes because everything is compiled from scratch. When "Your app was successfully deployed" appears, tap **View**.
 
 ## 3. Redeploy automatically from GitHub
 
@@ -48,7 +48,23 @@ The button deploys once. To publish every change you push:
 
 From now on, every commit that reaches `master` (a file edited on GitHub, a merged pull request) starts a new build. Follow builds in the **Activity** tab. The **Manual deploy** section deploys a branch on demand.
 
-> **Warning:** Create the app with the button, then connect it. An app created with **New → Create new app** in the dashboard uses Heroku's default buildpack stack, which ignores `heroku.yml` and cannot build this repository. Moving an existing app to the container stack requires the Heroku CLI (`heroku stack:set container --app <name>`), which a phone does not have.
+> **Tip:** The button is not required. An app created with **New → Create new app** in the dashboard works too: before its first deploy, open its **Settings** tab, under **Buildpacks** tap **Add buildpack**, enter `emk/rust` and save. The app must be on a regular stack such as `heroku-24`, not on the container stack, which ignores buildpacks.
+
+### With the Heroku CLI
+
+On a computer, from a clone of the repository:
+
+```sh
+heroku create --stack heroku-24 --buildpack emk/rust
+git push heroku master
+```
+
+An existing app, for example one on the container stack, switches to the buildpack with these commands; the next deploy uses it:
+
+```sh
+heroku stack:set heroku-24 --app <name>
+heroku buildpacks:set emk/rust --app <name>
+```
 
 ### Editing the site from a phone
 
@@ -56,11 +72,39 @@ With automatic deploys on, the whole loop works from the GitHub app or website: 
 
 ## How the repository is deployed
 
-Four files tell Heroku what to do. You do not need to change them to deploy this site.
+These files tell Heroku what to do. You do not need to change them to deploy this site.
 
 | File | Role |
 | --- | --- |
-| `app.json` | Read by the Deploy button: app description, `"stack": "container"`, the optional `SITE_URL` variable, one `web` dyno |
+| `app.json` | Read by the Deploy button: app description, `"stack": "heroku-24"`, the `emk/rust` buildpack, the optional `SITE_URL` variable, one `web` dyno |
+| `RustConfig` | Read by the buildpack: the Rust version (`stable`) and the flags of its `cargo build`, which builds the server; then runs `heroku-build.sh` |
+| `heroku-build.sh` | Builds the WebAssembly bundle into `site/pkg`, since the buildpack itself only runs `cargo build` |
+| `Procfile` | Starts the `web` process: `SITE_DIR=site exec target/release/active-site` |
+
+Without its comments, `RustConfig` is three lines:
+
+```sh
+VERSION=stable
+RUST_CARGO_BUILD_FLAGS="--release -p active-site --bin active-site"
+trap 'status=$?; if [ "$status" -eq 0 ]; then bash "$BUILD_DIR/heroku-build.sh" || exit 1; fi' EXIT
+```
+
+The buildpack reads this file before its build, so the `trap` runs `heroku-build.sh` once `cargo build` has succeeded. The script runs the same commands as the CI and as [Building the client](../client-build/):
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo build -p active-site --lib --target wasm32-unknown-unknown --profile wasm-release
+wasm-bindgen --target web --no-typescript --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm
+```
+
+It uses the `wasm-bindgen` version recorded in `Cargo.lock`: it downloads that release's prebuilt binary, or compiles it with `cargo install` if the download fails. The server then runs from the repository's directory and serves `site/static`, `site/docs` and `site/pkg` from `SITE_DIR=site`.
+
+### With Docker
+
+`heroku.yml`, the `Dockerfile` and `.dockerignore` remain: an app on the container stack ignores buildpacks and builds the `Dockerfile` instead, and the same image runs on any container host. To use them on Heroku, switch the app with the Heroku CLI (`heroku stack:set container --app <name>`) and deploy again; `heroku stack:set heroku-24 --app <name>` brings it back to the buildpack.
+
+| File | Role |
+| --- | --- |
 | `heroku.yml` | Tells the container stack to build the `web` process from `Dockerfile` |
 | `Dockerfile` | Two stages: a Rust image builds the bundle and the server, a small Debian image runs them |
 | `.dockerignore` | Keeps `target/`, `pkg/`, `bench/` and Git data out of the build |
@@ -139,7 +183,68 @@ Change the dyno type in the **Resources** tab. Check [heroku.com/pricing](https:
 
 ## Deploy your own app
 
-For an app laid out like the [Quick start](../quick-start/) (package `my-site`, `pkg/` served by the server), copy `heroku.yml` and `app.json` to your repository, adapt `app.json`'s name and description, and use this `Dockerfile`:
+For an app laid out like the [Quick start](../quick-start/) (package `my-site`, `pkg/` served by the server), the simplest way is the `emk/rust` buildpack, with four files at the root of your repository.
+
+`RustConfig` tells the buildpack what to build, then runs the post-build script:
+
+```sh
+VERSION=stable
+RUST_CARGO_BUILD_FLAGS="--release --bin my-site"
+trap 'status=$?; if [ "$status" -eq 0 ]; then bash "$BUILD_DIR/heroku-build.sh" || exit 1; fi' EXIT
+```
+
+`heroku-build.sh` builds the WebAssembly bundle into `pkg/`, since the buildpack only runs `cargo build`:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+target="${CARGO_TARGET_DIR:-target}"
+rustup target add wasm32-unknown-unknown
+cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
+version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
+bin="$target/wasm-bindgen-$version"
+[ -x "$bin/bin/wasm-bindgen" ] || cargo install wasm-bindgen-cli --version "$version" --locked --root "$bin"
+"$bin/bin/wasm-bindgen" --target web --no-typescript --out-dir pkg "$target/wasm32-unknown-unknown/wasm-release/my_site.wasm"
+```
+
+`Procfile` starts the server:
+
+```
+web: exec target/release/my-site
+```
+
+`app.json`, for the Deploy button (adapt the name and description):
+
+```json
+{
+  "name": "my-site",
+  "description": "My site built with active.",
+  "stack": "heroku-24",
+  "buildpacks": [{ "url": "emk/rust" }],
+  "formation": { "web": { "quantity": 1 } }
+}
+```
+
+The script takes the `wasm-bindgen-cli` version from `Cargo.lock`, so the two always match; compiling the CLI adds a few minutes to the build. `RustConfig` runs the script with `bash`, so it does not need the executable bit, which a file created on github.com does not have.
+
+Make the server listen on `PORT` on all interfaces:
+
+```rust
+use vitesse::prelude::*;
+
+fn main() -> std::io::Result<()> {
+    let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(3000);
+    let app = App::new(); // your routes
+    app.run(port)
+}
+```
+
+Then deploy with `https://heroku.com/deploy?template=https://github.com/<you>/<repo>` and connect GitHub as above, or create the app in the dashboard or with the Heroku CLI and add the `emk/rust` buildpack.
+
+### Your app with Docker
+
+To build with Docker instead, copy `heroku.yml`, set `"stack": "container"` in `app.json` and remove its `buildpacks`, and use this `Dockerfile` instead of `RustConfig`, `heroku-build.sh` and `Procfile`:
 
 ```dockerfile
 FROM rust:1-slim-bookworm AS build
@@ -158,19 +263,7 @@ COPY --from=build /src/pkg /app/pkg
 CMD ["/app/my-site"]
 ```
 
-Add a `.dockerignore` containing `target` and `pkg`, and make the server listen on `PORT` on all interfaces:
-
-```rust
-use vitesse::prelude::*;
-
-fn main() -> std::io::Result<()> {
-    let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(3000);
-    let app = App::new(); // your routes
-    app.run(port)
-}
-```
-
-Keep the `wasm-bindgen-cli` version in the `Dockerfile` equal to the `wasm-bindgen` version in `Cargo.lock`. Then deploy with `https://heroku.com/deploy?template=https://github.com/<you>/<repo>` and connect GitHub as above.
+Add a `.dockerignore` containing `target` and `pkg`. Keep the `wasm-bindgen-cli` version in the `Dockerfile` equal to the `wasm-bindgen` version in `Cargo.lock`.
 
 ## Troubleshooting
 
@@ -178,8 +271,9 @@ Keep the `wasm-bindgen-cli` version in the `Dockerfile` equal to the `wasm-bindg
 
 Open **Activity**, then the failed build's log, and read the last lines.
 
-- **"No default language could be detected"** or a buildpack error: the app is not on the container stack. Create a new app with the Deploy button.
-- **A `wasm-bindgen` schema or version error:** the CLI version in the `Dockerfile` differs from the `wasm-bindgen` crate in `Cargo.lock`. Make them equal.
+- **"No default language could be detected"**: the app has no buildpack. In **Settings**, under **Buildpacks**, add `emk/rust`, then deploy again, or create a new app with the Deploy button.
+- **The log shows a Docker build instead of the buildpack:** the app is on the container stack, which ignores buildpacks. Switch it with the Heroku CLI (see [With the Heroku CLI](#with-the-heroku-cli)) or create a new app with the Deploy button.
+- **A `wasm-bindgen` schema or version error:** the CLI version differs from the `wasm-bindgen` crate in `Cargo.lock`. `heroku-build.sh` reads it from `Cargo.lock`; with Docker, make the version in the `Dockerfile` equal.
 - **A Rust compile error:** the same error appears locally with the commands from [Building the client](../client-build/). Fix it, commit, and the next build picks it up.
 
 ### Application error
