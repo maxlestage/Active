@@ -4,14 +4,16 @@ Active is published on [crates.io](https://crates.io/crates/active) as the `acti
 under its [proprietary license](LICENSE): the source is visible there so that it can be
 audited and built, and anyone may depend on it.
 
-## One release = one tag
+## One release = one version bump
 
-1. Bump `version` in [`crates/active/Cargo.toml`](crates/active/Cargo.toml) and commit.
-2. Open **Releases → Draft a new release**, create the tag `vX.Y.Z` (the same version with a
-   `v` in front) and tap **Publish release**.
+Bump `version` in [`crates/active/Cargo.toml`](crates/active/Cargo.toml) and push it to
+`master`. Nothing else to fill in.
 
-The [`release.yml`](.github/workflows/release.yml) workflow runs the tests and publishes the
-crate. It works from the GitHub website on a phone; nothing is installed locally. The whole
+Once CI passes, the [`release.yml`](.github/workflows/release.yml) workflow sees a version
+without a tag, creates the tag `vX.Y.Z` (the same version with a `v` in front) and the GitHub
+release (notes generated from the commits), runs the tests and publishes the crate. A GitHub
+release published by hand with a tag `vX.Y.Z` publishes too, taking the version from the tag.
+It works from the GitHub website on a phone; nothing is installed locally. The whole
 guide, with screenshots-level detail: [`site/docs/en/publishing.md`](site/docs/en/publishing.md).
 
 ## One-time setup

@@ -1,21 +1,21 @@
 ---
 title: Publier le crate
-description: Publiez une nouvelle version d'active sur crates.io depuis un téléphone (GitHub Release) ou avec cargo publish, et voyez comment la CI vérifie chaque push.
+description: Publiez une nouvelle version d'active sur crates.io en changeant sa version depuis un téléphone, ou avec cargo publish, et voyez comment la CI vérifie chaque push.
 ---
 
-Cette page s'adresse aux mainteneurs du dépôt ou d'un fork. Une publication du crate `active` tient en une seule action : **créer une publication GitHub (GitHub Release) dont le tag est la version**, par exemple `v0.2.0`. Un workflow GitHub Actions teste le crate et le publie sur [crates.io](https://crates.io). Tout se passe sur les sites de GitHub et de crates.io : un téléphone suffit.
+Cette page s'adresse aux mainteneurs du dépôt ou d'un fork. Une publication du crate `active` tient en une seule action : **modifier la version dans `crates/active/Cargo.toml` et la pousser sur `master`**, par exemple de `0.1.0` à `0.2.0`. Une fois la CI passée, un workflow GitHub Actions crée le tag de la version et la publication GitHub (GitHub Release), teste le crate et le publie sur [crates.io](https://crates.io). Tout se passe sur les sites de GitHub et de crates.io : un téléphone suffit.
 
 ## Fonctionnement du workflow de publication
 
-Le workflow est `.github/workflows/release.yml`. Il s'exécute à la mise en ligne d'une publication GitHub, et :
+Le workflow est `.github/workflows/release.yml`. Il s'exécute chaque fois que la CI réussit sur un push sur `master`, et :
 
-1. **Lit la version dans le tag.** `v0.2.0` donne `0.2.0`. Un tag qui ne ressemble pas à `v1.2.3` (éventuellement avec un suffixe de préversion comme `-beta.1`) arrête le workflow avec une erreur.
-2. **Vérifie le jeton.** Sans le secret `CARGO_REGISTRY_TOKEN`, le job se termine avec l'avertissement « CARGO_REGISTRY_TOKEN secret missing — cargo publish skipped » et ne publie rien.
-3. **Écrit la version** du tag dans `crates/active/Cargo.toml`.
+1. **Lit la version** dans `crates/active/Cargo.toml`. Si son tag (`v0.2.0` pour `0.2.0`) existe déjà, la version a déjà été publiée et le workflow s'arrête là.
+2. **Crée le tag et la publication GitHub.** Il crée le tag `v0.2.0` sur le commit testé par la CI, et la publication GitHub du même nom, avec des notes générées par GitHub à partir des commits depuis la publication précédente.
+3. **Vérifie le jeton.** Sans le secret `CARGO_REGISTRY_TOKEN`, le job se termine avec l'avertissement « CARGO_REGISTRY_TOKEN secret missing — cargo publish skipped » et ne publie rien sur crates.io.
 4. **Lance les tests** avec `cargo test -p active`. Un test en échec arrête la publication.
-5. **Publie** avec `cargo publish -p active --allow-dirty`.
+5. **Publie** avec `cargo publish -p active --allow-dirty`, sauf si cette version est déjà sur crates.io.
 
-Comme la version vient du tag, le crate publié correspond toujours à la publication, même si vous oubliez de modifier `Cargo.toml`. L'incrémenter aussi dans le dépôt (étape 3 ci-dessous) permet au code source et à crates.io de rester cohérents.
+Une publication GitHub créée à la main (étape 4 ci-dessous) lance la même publication : la version est alors lue dans le tag de la publication, `v0.2.0` donnant `0.2.0`, et écrite dans `crates/active/Cargo.toml` avant de publier. Un tag qui ne ressemble pas à `v1.2.3` (éventuellement avec un suffixe de préversion comme `-beta.1`) arrête le workflow avec une erreur.
 
 ## 1. Créer un jeton crates.io
 
@@ -40,11 +40,15 @@ Le nom doit correspondre exactement. Personne ne peut relire un secret une fois 
 
 1. Dans le dépôt, ouvrez `crates/active/Cargo.toml` et touchez l'icône en forme de crayon (**Edit**).
 2. Modifiez la ligne `version = "…"` de la section `[package]`, par exemple de `0.1.0` à `0.2.0`.
-3. Touchez **Commit changes** et faites le commit sur `master`.
+3. Touchez **Commit changes** et faites le commit sur `master` (ou sur une branche : l'auto-merge la fusionne dans `master` une fois la CI verte, et lance lui-même la publication).
+
+Ce commit est la publication : une fois la CI passée, le workflow crée le tag `v0.2.0` et la publication GitHub, puis publie le crate. Aucun formulaire à remplir.
 
 Suivez le [versionnage sémantique](https://semver.org) : avant `1.0.0`, incrémentez le numéro mineur (de `0.1.x` à `0.2.0`) pour les changements incompatibles ou les nouvelles fonctionnalités, et le numéro de correctif (de `0.2.0` à `0.2.1`) pour les simples corrections. Cargo considère `0.1.x` et `0.2.x` comme incompatibles.
 
-## 4. Créer une publication
+## 4. Créer une publication à la main (facultatif)
+
+Inutile après l'étape 3. Une publication créée à la main publie toujours le crate, par exemple pour une version dont vous voulez créer le tag vous-même :
 
 1. Ouvrez `https://github.com/<owner>/Active/releases/new` (ou **Releases**, puis **Draft a new release**).
 2. Touchez **Choose a tag**, tapez `v0.2.0` (la version de l'étape 3 précédée d'un `v`) et sélectionnez **Create new tag on publish**.
@@ -54,14 +58,16 @@ Suivez le [versionnage sémantique](https://semver.org) : avant `1.0.0`, incrém
 
 ## 5. Vérifier le résultat
 
-Ouvrez l'onglet **Actions** : une exécution **Release** apparaît en quelques secondes. Une coche verte signifie que le crate est publié (ou que le jeton manquait : ouvrez l'exécution pour voir l'avertissement). Ensuite :
+Ouvrez l'onglet **Actions** : une exécution **Release** apparaît une fois que l'exécution **CI** du push a réussi. Une coche verte signifie que le crate est publié (ou que le jeton manquait : ouvrez l'exécution pour voir l'avertissement). Ensuite :
 
+- **Releases** affiche le nouveau tag `v0.2.0` et ses notes ;
 - [crates.io/crates/active](https://crates.io/crates/active) affiche la nouvelle version ;
 - [docs.rs/active](https://docs.rs/active) génère la documentation de l'API quelques minutes plus tard, avec la fonctionnalité `client` activée.
 
 ### En cas d'échec
 
-- **Les tests échouent :** rien n'est publié. Corrigez le code, puis créez une nouvelle publication avec la version de correctif suivante.
+- **La CI échoue :** aucun tag n'est créé et rien n'est publié. Corrigez le code et poussez à nouveau : la version est publiée dès que la CI réussit.
+- **Les tests échouent dans l'exécution Release :** le tag et la publication GitHub existent, mais rien n'est sur crates.io. Corrigez le code, puis passez à la version de correctif suivante et poussez.
 - **La version existe déjà :** crates.io n'accepte jamais deux fois la même version, même après un yank. Publiez la version suivante.
 - **401 ou 403 :** le jeton est absent, expiré ou n'a pas la bonne portée. Créez-en un nouveau et mettez à jour le secret.
 - **Le nom appartient à quelqu'un d'autre** (première publication uniquement) : un autre compte possède `active` sur crates.io. Renommez le paquet dans `crates/active/Cargo.toml` (par exemple `active-web`) et mettez à jour la documentation.
@@ -77,7 +83,7 @@ cargo publish -p active --dry-run   # builds the package exactly as it will be u
 cargo publish -p active
 ```
 
-Seuls les fichiers listés dans le champ `include` du crate (`src`, `README.md`, `LICENSE`) sont envoyés. `cargo package -p active --list` les affiche. Taguez ensuite le commit (`git tag v0.2.0 && git push --tags`) pour que le dépôt garde la trace de ce qui a été publié.
+Seuls les fichiers listés dans le champ `include` du crate (`src`, `README.md`, `LICENSE`) sont envoyés. `cargo package -p active --list` les affiche. Poussez ensuite le changement de version sur `master` : le workflow crée le tag et la publication GitHub, et ignore crates.io puisque cette version y est déjà.
 
 ## Intégration continue
 
