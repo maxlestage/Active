@@ -96,7 +96,7 @@ Guide : [`site/docs/fr/deploy-pages.md`](site/docs/fr/deploy-pages.md).
 
 ## Déployer le site sur Heroku depuis un téléphone
 
-1. Ouvrez `https://heroku.com/deploy?template=https://github.com/maxlestage/Active` dans le navigateur de votre téléphone, choisissez un nom et touchez **Deploy app**. Heroku lit [`app.json`](app.json) et construit le [`Dockerfile`](Dockerfile) (voir [`heroku.yml`](heroku.yml)) : le bundle WebAssembly, puis le serveur, entièrement à partir des sources Rust.
+1. Ouvrez `https://heroku.com/deploy?template=https://github.com/maxlestage/Active` dans le navigateur de votre téléphone, choisissez un nom et touchez **Deploy app**. Heroku lit [`app.json`](app.json) et construit le site avec le buildpack [`emk/rust`](https://elements.heroku.com/buildpacks/emk/heroku-buildpack-rust) sur la stack `heroku-24` : le serveur (voir [`RustConfig`](RustConfig)), puis le bundle WebAssembly ([`heroku-build.sh`](heroku-build.sh)), entièrement à partir des sources Rust ; [`Procfile`](Procfile) le démarre. Le [`Dockerfile`](Dockerfile) (voir [`heroku.yml`](heroku.yml)) reste disponible pour les applications sur la stack container.
 2. Pour redéployer à chaque changement : dans l'onglet **Deploy** de l'application, connectez le dépôt et activez **Enable Automatic Deploys** depuis `master`.
 
 Heroku n'a pas d'offre gratuite : un dyno Eco coûte environ 5 $ par mois. Guide pas à pas : [`site/docs/fr/deploy-heroku.md`](site/docs/fr/deploy-heroku.md).
@@ -116,7 +116,7 @@ cargo run -p active --example page         # print a complete page
 cargo run -p active-site                   # the website on http://localhost:3000
 ```
 
-Le bundle navigateur du site web se compile comme l'exemple ci-dessus (`-p active-site`, sortie dans `site/pkg`) ; voir le [`Dockerfile`](Dockerfile). Chaque branche qui passe la CI est automatiquement fusionnée dans `master`, sauf les branches nommées `wip/…` ([`ci.yml`](.github/workflows/ci.yml)) ; `master` est ensuite publié sur GitHub Pages ([`pages.yml`](.github/workflows/pages.yml)).
+Le bundle navigateur du site web se compile comme l'exemple ci-dessus (`-p active-site`, sortie dans `site/pkg`) ; voir [`heroku-build.sh`](heroku-build.sh) ou le [`Dockerfile`](Dockerfile). Chaque branche qui passe la CI est automatiquement fusionnée dans `master`, sauf les branches nommées `wip/…` ([`ci.yml`](.github/workflows/ci.yml)) ; `master` est ensuite publié sur GitHub Pages ([`pages.yml`](.github/workflows/pages.yml)).
 
 ## Licence
 

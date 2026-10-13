@@ -95,7 +95,7 @@ Only the files listed in the crate's `include` (`src`, `README.md`, `LICENSE`) a
 | Lint, server | `cargo clippy --workspace --all-targets -- -D warnings` |
 | Lint, browser | `cargo clippy -p active --features client --target wasm32-unknown-unknown -- -D warnings`, then the same for the site and the examples (`--lib`) |
 | Test | `cargo test --workspace` |
-| Build the site | the same commands as the `Dockerfile` used by [Heroku](../deploy-heroku/) |
+| Build the site | the same commands as [Heroku](../deploy-heroku/) (`RustConfig` and `heroku-build.sh`) and the `Dockerfile` |
 | Package | `cargo package -p active --allow-dirty` |
 
 The last step catches packaging problems (a missing file, invalid metadata) before a release does.

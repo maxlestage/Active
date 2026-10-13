@@ -9,7 +9,12 @@
     "ssr",
     "documentation"
   ],
-  "stack": "container",
+  "stack": "heroku-24",
+  "buildpacks": [
+    {
+      "url": "emk/rust"
+    }
+  ],
   "env": {
     "SITE_URL": {
       "description": "Optional. Public address of the site, e.g. https://www.example.com. Leave empty to use the address the visitor used.",
