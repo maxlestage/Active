@@ -51,6 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,3 +63,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git merge --no-edit "origin/${GITHUB_REF_NAME}"
           git push origin master
+      # A push made with GITHUB_TOKEN starts no workflow: release a new version by hand.
+      - name: Release a new version (tag, GitHub release, crates.io)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release.yml --ref master --repo "$GITHUB_REPOSITORY" -f release=true

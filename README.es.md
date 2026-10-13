@@ -104,9 +104,9 @@ Heroku no tiene plan gratuito: un dyno Eco cuesta unos 5 USD al mes. Guía paso 
 ## Publicar en crates.io desde un teléfono
 
 1. Crea un token en [crates.io/settings/tokens](https://crates.io/settings/tokens) y añádelo como secreto del repositorio con el nombre `CARGO_REGISTRY_TOKEN` (GitHub → Settings → Secrets and variables → Actions).
-2. Abre **Releases → Draft a new release**, crea una etiqueta como `v0.1.0` y toca **Publish release**.
+2. Cambia `version` en [`crates/active/Cargo.toml`](crates/active/Cargo.toml) (icono del lápiz en GitHub) y haz commit en `master`.
 
-El workflow [`release.yml`](.github/workflows/release.yml) toma la versión del crate de la etiqueta, ejecuta las pruebas y publica `active`. Guía: [`site/docs/es/publishing.md`](site/docs/es/publishing.md).
+Cuando la CI pasa, el workflow [`release.yml`](.github/workflows/release.yml) crea la etiqueta de la nueva versión (`v0.1.0` para `0.1.0`), crea la GitHub Release con notas generadas a partir de los commits, ejecuta las pruebas y publica `active`. Una GitHub Release publicada a mano también funciona: la versión se toma entonces de su etiqueta. Guía: [`site/docs/es/publishing.md`](site/docs/es/publishing.md).
 
 ## Desarrollo
 
