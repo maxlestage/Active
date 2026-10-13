@@ -96,7 +96,7 @@ Guide: [`site/docs/en/deploy-pages.md`](site/docs/en/deploy-pages.md).
 
 ## Deploy the site on Heroku from a phone
 
-1. Open `https://heroku.com/deploy?template=https://github.com/maxlestage/Active` in your phone's browser, choose a name and tap **Deploy app**. Heroku reads [`app.json`](app.json) and builds the site with the [`emk/rust`](https://elements.heroku.com/buildpacks/emk/heroku-buildpack-rust) buildpack on the `heroku-24` stack: the server (see [`RustConfig`](RustConfig)), then the WebAssembly bundle ([`heroku-build.sh`](heroku-build.sh)), all from the Rust sources; [`Procfile`](Procfile) starts it. The [`Dockerfile`](Dockerfile) (see [`heroku.yml`](heroku.yml)) remains for apps on the container stack.
+1. Open `https://heroku.com/deploy?template=https://github.com/maxlestage/Active` in your phone's browser, choose a name and tap **Deploy app**. Heroku reads [`app.json`](app.json) and builds the site with the [`emk/rust`](https://elements.heroku.com/buildpacks/emk/heroku-buildpack-rust) buildpack on the `heroku-26` stack: the buildpack installs Rust ([`RustConfig`](RustConfig)), then [`heroku-build.sh`](heroku-build.sh) builds the server and the WebAssembly bundle, all from the Rust sources; [`Procfile`](Procfile) starts it. The [`Dockerfile`](Dockerfile) (see [`heroku.yml`](heroku.yml)) remains for apps on the container stack.
 2. To redeploy on every change: in the app's **Deploy** tab, connect the repository and **Enable Automatic Deploys** from `master`.
 
 Heroku has no free plan: an Eco dyno costs about $5 a month. Step-by-step guide: [`site/docs/en/deploy-heroku.md`](site/docs/en/deploy-heroku.md).

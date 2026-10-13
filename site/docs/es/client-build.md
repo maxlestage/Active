@@ -122,7 +122,7 @@ También pasa el linter al código del navegador, que la compilación normal no 
 cargo clippy --lib --target wasm32-unknown-unknown -- -D warnings
 ```
 
-En Heroku, `heroku-build.sh` ejecuta los dos primeros comandos después de que el buildpack `emk/rust` compile el servidor; para Docker, el `Dockerfile` ejecuta los tres en una etapa de compilación. Consulta [Desplegar en Heroku](../deploy-heroku/#como-se-despliega-el-repositorio).
+En Heroku, `heroku-build.sh` ejecuta los tres después de que el buildpack `emk/rust` instale Rust; para Docker, el `Dockerfile` los ejecuta en una etapa de compilación. Consulta [Desplegar en Heroku](../deploy-heroku/#como-se-despliega-el-repositorio).
 
 ## Solución de problemas
 

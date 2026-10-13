@@ -25,7 +25,7 @@ You now have `https://github.com/<you>/Active`, which you can edit from the GitH
 
 ## 2. Deploy with the button
 
-The button reads `app.json` and creates a Heroku app on the `heroku-24` stack that builds the repository with the `emk/rust` buildpack.
+The button reads `app.json` and creates a Heroku app on the `heroku-26` stack that builds the repository with the `emk/rust` buildpack.
 
 1. Open the deploy link of your repository: `https://heroku.com/deploy?template=https://github.com/maxlestage/Active`.
 2. Log in to Heroku if asked.
@@ -34,7 +34,7 @@ The button reads `app.json` and creates a Heroku app on the `heroku-24` stack th
 5. **SITE_URL:** leave it empty for now (see [Configuration](#configuration)).
 6. Tap **Deploy app**.
 
-Heroku now runs the buildpack: it installs Rust and compiles the server in release mode, then `heroku-build.sh` adds the WebAssembly target, compiles the browser bundle and runs `wasm-bindgen`. The first build takes several minutes because everything is compiled from scratch. When "Your app was successfully deployed" appears, tap **View**.
+Heroku now runs the buildpack: it installs Rust, then `heroku-build.sh` compiles the server in release mode, adds the WebAssembly target, compiles the browser bundle and runs `wasm-bindgen`. The first build takes several minutes because everything is compiled from scratch. When "Your app was successfully deployed" appears, tap **View**.
 
 ## 3. Redeploy automatically from GitHub
 
@@ -48,21 +48,21 @@ The button deploys once. To publish every change you push:
 
 From now on, every commit that reaches `master` (a file edited on GitHub, a merged pull request) starts a new build. Follow builds in the **Activity** tab. The **Manual deploy** section deploys a branch on demand.
 
-> **Tip:** The button is not required. An app created with **New → Create new app** in the dashboard works too: before its first deploy, open its **Settings** tab, under **Buildpacks** tap **Add buildpack**, enter `emk/rust` and save. The app must be on a regular stack such as `heroku-24`, not on the container stack, which ignores buildpacks.
+> **Tip:** The button is not required. An app created with **New → Create new app** in the dashboard works too: before its first deploy, open its **Settings** tab, under **Buildpacks** tap **Add buildpack**, enter `emk/rust` and save. The app must be on a regular stack such as `heroku-26`, not on the container stack, which ignores buildpacks.
 
 ### With the Heroku CLI
 
 On a computer, from a clone of the repository:
 
 ```sh
-heroku create --stack heroku-24 --buildpack emk/rust
+heroku create --stack heroku-26 --buildpack emk/rust
 git push heroku master
 ```
 
 An existing app, for example one on the container stack, switches to the buildpack with these commands; the next deploy uses it:
 
 ```sh
-heroku stack:set heroku-24 --app <name>
+heroku stack:set heroku-26 --app <name>
 heroku buildpacks:set emk/rust --app <name>
 ```
 
@@ -76,22 +76,23 @@ These files tell Heroku what to do. You do not need to change them to deploy thi
 
 | File | Role |
 | --- | --- |
-| `app.json` | Read by the Deploy button: app description, `"stack": "heroku-24"`, the `emk/rust` buildpack, the optional `SITE_URL` variable, one `web` dyno |
-| `RustConfig` | Read by the buildpack: the Rust version (`stable`) and the flags of its `cargo build`, which builds the server; then runs `heroku-build.sh` |
-| `heroku-build.sh` | Builds the WebAssembly bundle into `site/pkg`, since the buildpack itself only runs `cargo build` |
+| `app.json` | Read by the Deploy button: app description, `"stack": "heroku-26"`, the `emk/rust` buildpack, the optional `SITE_URL` variable, one `web` dyno |
+| `RustConfig` | Read by the buildpack: the Rust version (`stable`), `RUST_SKIP_BUILD=1` to skip its own build, then runs `heroku-build.sh` |
+| `heroku-build.sh` | Builds the server into `target/release` and the WebAssembly bundle into `site/pkg` |
 | `Procfile` | Starts the `web` process: `SITE_DIR=site exec target/release/active-site` |
 
 Without its comments, `RustConfig` is three lines:
 
 ```sh
 VERSION=stable
-RUST_CARGO_BUILD_FLAGS="--release -p active-site --bin active-site"
+RUST_SKIP_BUILD=1
 trap 'status=$?; if [ "$status" -eq 0 ]; then bash "$BUILD_DIR/heroku-build.sh" || exit 1; fi' EXIT
 ```
 
-The buildpack reads this file before its build, so the `trap` runs `heroku-build.sh` once `cargo build` has succeeded. The script runs the same commands as the CI and as [Building the client](../client-build/):
+The buildpack reads this file, installs Rust, then skips its own build, which would only run a plain `cargo build --release`; the `trap` runs `heroku-build.sh` once the buildpack is done. The script runs the same commands as the CI and as [Building the client](../client-build/), and copies the server into `target/release` when Cargo builds into the buildpack's cache (`CARGO_TARGET_DIR`):
 
 ```sh
+cargo build --release -p active-site --bin active-site
 rustup target add wasm32-unknown-unknown
 cargo build -p active-site --lib --target wasm32-unknown-unknown --profile wasm-release
 wasm-bindgen --target web --no-typescript --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm
@@ -101,7 +102,7 @@ It uses the `wasm-bindgen` version recorded in `Cargo.lock`: it downloads that r
 
 ### With Docker
 
-`heroku.yml`, the `Dockerfile` and `.dockerignore` remain: an app on the container stack ignores buildpacks and builds the `Dockerfile` instead, and the same image runs on any container host. To use them on Heroku, switch the app with the Heroku CLI (`heroku stack:set container --app <name>`) and deploy again; `heroku stack:set heroku-24 --app <name>` brings it back to the buildpack.
+`heroku.yml`, the `Dockerfile` and `.dockerignore` remain: an app on the container stack ignores buildpacks and builds the `Dockerfile` instead, and the same image runs on any container host. To use them on Heroku, switch the app with the Heroku CLI (`heroku stack:set container --app <name>`) and deploy again; `heroku stack:set heroku-26 --app <name>` brings it back to the buildpack.
 
 | File | Role |
 | --- | --- |
@@ -183,23 +184,30 @@ Change the dyno type in the **Resources** tab. Check [heroku.com/pricing](https:
 
 ## Deploy your own app
 
-For an app laid out like the [Quick start](../quick-start/) (package `my-site`, `pkg/` served by the server), the simplest way is the `emk/rust` buildpack, with four files at the root of your repository.
+For a single crate whose binary is the app, the `emk/rust` buildpack's plain `cargo build --release` is enough: add a `Procfile` with `web: ./target/release/my-site`, and optionally a `RustConfig` with `VERSION=1.90` to pin the Rust version.
 
-`RustConfig` tells the buildpack what to build, then runs the post-build script:
+When more is needed, such as the WebAssembly bundle of an app laid out like the [Quick start](../quick-start/) (package `my-site`, `pkg/` served by the server), a package of a workspace or an example, do as this repository, with four files at the root of your repository.
+
+`RustConfig` sets the Rust version, skips the buildpack's own build, and runs the build script once Rust is installed:
 
 ```sh
 VERSION=stable
-RUST_CARGO_BUILD_FLAGS="--release --bin my-site"
+RUST_SKIP_BUILD=1
 trap 'status=$?; if [ "$status" -eq 0 ]; then bash "$BUILD_DIR/heroku-build.sh" || exit 1; fi' EXIT
 ```
 
-`heroku-build.sh` builds the WebAssembly bundle into `pkg/`, since the buildpack only runs `cargo build`:
+`heroku-build.sh` builds the server, copies it into `target/release` when Cargo builds into the buildpack's cache (`CARGO_TARGET_DIR`), then builds the WebAssembly bundle into `pkg/`:
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
 target="${CARGO_TARGET_DIR:-target}"
+cargo build --release --bin my-site
+mkdir -p target/release
+if [ "$target" != target ]; then
+  cp "$target/release/my-site" target/release/
+fi
 rustup target add wasm32-unknown-unknown
 cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
 version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
@@ -220,7 +228,7 @@ web: exec target/release/my-site
 {
   "name": "my-site",
   "description": "My site built with active.",
-  "stack": "heroku-24",
+  "stack": "heroku-26",
   "buildpacks": [{ "url": "emk/rust" }],
   "formation": { "web": { "quantity": 1 } }
 }
