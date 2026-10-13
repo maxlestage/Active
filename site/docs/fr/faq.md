@@ -85,8 +85,8 @@ Avec le profil `wasm-release`, une panique arrête le module et la console n'aff
 
 ## Est-ce prêt pour la production ?
 
-`active` est jeune (version 0.1). L'API est petite et testée, et ce site web tourne avec, mais elle peut changer avant la 1.0. Épinglez la version dans `Cargo.toml` et lisez les notes de version lors des mises à jour. Les tickets et les contributions sont les bienvenus sur [GitHub](https://maxlestage.github.io/Active/).
+`active` est jeune (version 0.1). L'API est petite et testée, et ce site web tourne avec, mais elle peut changer avant la 1.0. Épinglez la version dans `Cargo.toml` et lisez les notes de version lors des mises à jour. Les tickets et les contributions sont les bienvenus sur [GitHub](https://github.com/maxlestage/Active).
 
 ## Sous quelle licence est-il distribué ?
 
-`active` est un logiciel propriétaire : © Maxime Nathan Lestage, tous droits réservés. Son code source est publié sur crates.io et GitHub pour que vous puissiez le lire, l'auditer et le compiler, et vous pouvez l'utiliser librement comme dépendance de vos propres programmes, y compris commerciaux. Le modifier ou redistribuer son code source demande l'accord écrit de l'auteur. Les conditions complètes sont dans le fichier [LICENSE](https://maxlestage.github.io/Active/LICENSE.txt) du dépôt.
+`active` est un logiciel propriétaire : © Maxime Nathan Lestage, tous droits réservés. Son code source est publié sur crates.io et GitHub pour que vous puissiez le lire, l'auditer et le compiler, et vous pouvez l'utiliser librement comme dépendance de vos propres programmes, y compris commerciaux. Le modifier ou redistribuer son code source demande l'accord écrit de l'auteur. Les conditions complètes sont dans le fichier [LICENSE](https://active-c1883a966650.herokuapp.com/static/LICENSE.txt) du dépôt.

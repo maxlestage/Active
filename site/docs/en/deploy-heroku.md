@@ -18,7 +18,7 @@ You need two accounts:
 
 ## 1. Fork the repository
 
-1. Open [maxlestage.github.io/Active](https://maxlestage.github.io/Active/).
+1. Open [github.com/maxlestage/Active](https://github.com/maxlestage/Active).
 2. Tap **Fork**, keep the default name `Active`, and confirm with **Create fork**.
 
 You now have `https://github.com/<you>/Active`, which you can edit from the GitHub app or website. To deploy the original repository without changes, you can skip this step.

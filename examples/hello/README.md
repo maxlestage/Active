@@ -25,7 +25,7 @@ HTML, at `3`. Click it: the WebAssembly module now drives it.
 ## Installable
 
 The page is also a Progressive Web App, with `active::pwa` (see the
-[guide](https://maxlestage.github.io/Active/en/docs/pwa/)):
+[guide](https://active-c1883a966650.herokuapp.com/en/docs/pwa/)):
 
 - `manifest()` in `lib.rs` is the web app manifest, served at `/manifest.webmanifest`: the
   name, the colors and the icons of `static/` (drawn from `icon.svg`);
