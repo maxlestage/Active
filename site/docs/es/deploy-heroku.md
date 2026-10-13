@@ -25,7 +25,7 @@ Ahora tienes `https://github.com/<you>/Active`, que puedes editar desde la aplic
 
 ## 2. Desplegar con el botón
 
-El botón lee `app.json` y crea una aplicación de Heroku en la pila `heroku-24` que construye el repositorio con el buildpack `emk/rust`.
+El botón lee `app.json` y crea una aplicación de Heroku en la pila `heroku-26` que construye el repositorio con el buildpack `emk/rust`.
 
 1. Abre el enlace de despliegue de tu repositorio: `https://heroku.com/deploy?template=https://github.com/maxlestage/Active`.
 2. Inicia sesión en Heroku si te lo pide.
@@ -34,7 +34,7 @@ El botón lee `app.json` y crea una aplicación de Heroku en la pila `heroku-24`
 5. **SITE_URL:** déjalo vacío por ahora (consulta [Configuración](#configuracion)).
 6. Toca **Deploy app**.
 
-Heroku ejecuta ahora el buildpack: instala Rust y compila el servidor en modo release; después `heroku-build.sh` añade el target de WebAssembly, compila el bundle del navegador y ejecuta `wasm-bindgen`. La primera compilación tarda varios minutos porque todo se compila desde cero. Cuando aparezca "Your app was successfully deployed", toca **View**.
+Heroku ejecuta ahora el buildpack: instala Rust; después `heroku-build.sh` compila el servidor en modo release, añade el target de WebAssembly, compila el bundle del navegador y ejecuta `wasm-bindgen`. La primera compilación tarda varios minutos porque todo se compila desde cero. Cuando aparezca "Your app was successfully deployed", toca **View**.
 
 ## 3. Volver a desplegar automáticamente desde GitHub
 
@@ -48,21 +48,21 @@ El botón despliega una sola vez. Para publicar cada cambio que subas:
 
 A partir de ahora, cada commit que llegue a `master` (un archivo editado en GitHub, un pull request fusionado) inicia una nueva compilación. Sigue las compilaciones en la pestaña **Activity**. La sección **Manual deploy** despliega una rama cuando lo necesites.
 
-> **Consejo:** El botón no es obligatorio. Una aplicación creada con **New → Create new app** en el panel también funciona: antes de su primer despliegue, abre su pestaña **Settings**, en **Buildpacks** toca **Add buildpack**, escribe `emk/rust` y guarda. La aplicación debe estar en una pila normal como `heroku-24`, no en la pila de contenedores, que ignora los buildpacks.
+> **Consejo:** El botón no es obligatorio. Una aplicación creada con **New → Create new app** en el panel también funciona: antes de su primer despliegue, abre su pestaña **Settings**, en **Buildpacks** toca **Add buildpack**, escribe `emk/rust` y guarda. La aplicación debe estar en una pila normal como `heroku-26`, no en la pila de contenedores, que ignora los buildpacks.
 
 ### Con la CLI de Heroku
 
 En un ordenador, desde un clon del repositorio:
 
 ```sh
-heroku create --stack heroku-24 --buildpack emk/rust
+heroku create --stack heroku-26 --buildpack emk/rust
 git push heroku master
 ```
 
 Una aplicación existente, por ejemplo una en la pila de contenedores, pasa al buildpack con estos comandos; el siguiente despliegue lo usa:
 
 ```sh
-heroku stack:set heroku-24 --app <name>
+heroku stack:set heroku-26 --app <name>
 heroku buildpacks:set emk/rust --app <name>
 ```
 
@@ -76,22 +76,23 @@ Estos archivos le indican a Heroku qué hacer. No necesitas cambiarlos para desp
 
 | Archivo | Función |
 | --- | --- |
-| `app.json` | Lo lee el botón Deploy: descripción de la aplicación, `"stack": "heroku-24"`, el buildpack `emk/rust`, la variable opcional `SITE_URL`, un dyno `web` |
-| `RustConfig` | Lo lee el buildpack: la versión de Rust (`stable`) y las opciones de su `cargo build`, que compila el servidor; después ejecuta `heroku-build.sh` |
-| `heroku-build.sh` | Compila el bundle de WebAssembly en `site/pkg`, ya que el buildpack solo ejecuta `cargo build` |
+| `app.json` | Lo lee el botón Deploy: descripción de la aplicación, `"stack": "heroku-26"`, el buildpack `emk/rust`, la variable opcional `SITE_URL`, un dyno `web` |
+| `RustConfig` | Lo lee el buildpack: la versión de Rust (`stable`), `RUST_SKIP_BUILD=1` para omitir su propia compilación; después ejecuta `heroku-build.sh` |
+| `heroku-build.sh` | Compila el servidor en `target/release` y el bundle de WebAssembly en `site/pkg` |
 | `Procfile` | Arranca el proceso `web`: `SITE_DIR=site exec target/release/active-site` |
 
 Sin sus comentarios, `RustConfig` tiene tres líneas:
 
 ```sh
 VERSION=stable
-RUST_CARGO_BUILD_FLAGS="--release -p active-site --bin active-site"
+RUST_SKIP_BUILD=1
 trap 'status=$?; if [ "$status" -eq 0 ]; then bash "$BUILD_DIR/heroku-build.sh" || exit 1; fi' EXIT
 ```
 
-El buildpack lee este archivo antes de compilar, así que el `trap` ejecuta `heroku-build.sh` una vez que `cargo build` ha terminado bien. El script ejecuta los mismos comandos que la CI y que [Compilar el cliente](../client-build/):
+El buildpack lee este archivo, instala Rust y después omite su propia compilación, que solo ejecutaría un simple `cargo build --release`; el `trap` ejecuta `heroku-build.sh` cuando el buildpack termina. El script ejecuta los mismos comandos que la CI y que [Compilar el cliente](../client-build/), y copia el servidor en `target/release` cuando Cargo compila en la caché del buildpack (`CARGO_TARGET_DIR`):
 
 ```sh
+cargo build --release -p active-site --bin active-site
 rustup target add wasm32-unknown-unknown
 cargo build -p active-site --lib --target wasm32-unknown-unknown --profile wasm-release
 wasm-bindgen --target web --no-typescript --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm
@@ -101,7 +102,7 @@ Usa la versión de `wasm-bindgen` registrada en `Cargo.lock`: descarga el binari
 
 ### Con Docker
 
-`heroku.yml`, el `Dockerfile` y `.dockerignore` se mantienen: una aplicación en la pila de contenedores ignora los buildpacks y construye el `Dockerfile` en su lugar, y la misma imagen funciona en cualquier hosting de contenedores. Para usarlos en Heroku, cambia la pila de la aplicación con la CLI de Heroku (`heroku stack:set container --app <name>`) y vuelve a desplegar; `heroku stack:set heroku-24 --app <name>` la devuelve al buildpack.
+`heroku.yml`, el `Dockerfile` y `.dockerignore` se mantienen: una aplicación en la pila de contenedores ignora los buildpacks y construye el `Dockerfile` en su lugar, y la misma imagen funciona en cualquier hosting de contenedores. Para usarlos en Heroku, cambia la pila de la aplicación con la CLI de Heroku (`heroku stack:set container --app <name>`) y vuelve a desplegar; `heroku stack:set heroku-26 --app <name>` la devuelve al buildpack.
 
 | Archivo | Función |
 | --- | --- |
@@ -183,23 +184,30 @@ Cambia el tipo de dyno en la pestaña **Resources**. Consulta [heroku.com/pricin
 
 ## Desplegar tu propia aplicación
 
-Para una aplicación organizada como en el [Inicio rápido](../quick-start/) (paquete `my-site`, `pkg/` servido por el servidor), lo más sencillo es el buildpack `emk/rust`, con cuatro archivos en la raíz de tu repositorio.
+Para un único crate cuyo binario es la aplicación, basta con el simple `cargo build --release` del buildpack `emk/rust`: añade un `Procfile` con `web: ./target/release/my-site` y, si quieres, un `RustConfig` con `VERSION=1.90` para fijar la versión de Rust.
 
-`RustConfig` indica al buildpack qué compilar y después ejecuta el script posterior a la compilación:
+Si hace falta más, como el bundle de WebAssembly de una aplicación organizada como en el [Inicio rápido](../quick-start/) (paquete `my-site`, `pkg/` servido por el servidor), un paquete de un workspace o un ejemplo, haz como este repositorio, con cuatro archivos en la raíz de tu repositorio.
+
+`RustConfig` fija la versión de Rust, omite la compilación del propio buildpack y ejecuta el script de compilación una vez instalado Rust:
 
 ```sh
 VERSION=stable
-RUST_CARGO_BUILD_FLAGS="--release --bin my-site"
+RUST_SKIP_BUILD=1
 trap 'status=$?; if [ "$status" -eq 0 ]; then bash "$BUILD_DIR/heroku-build.sh" || exit 1; fi' EXIT
 ```
 
-`heroku-build.sh` compila el bundle de WebAssembly en `pkg/`, ya que el buildpack solo ejecuta `cargo build`:
+`heroku-build.sh` compila el servidor, lo copia en `target/release` cuando Cargo compila en la caché del buildpack (`CARGO_TARGET_DIR`) y después compila el bundle de WebAssembly en `pkg/`:
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
 target="${CARGO_TARGET_DIR:-target}"
+cargo build --release --bin my-site
+mkdir -p target/release
+if [ "$target" != target ]; then
+  cp "$target/release/my-site" target/release/
+fi
 rustup target add wasm32-unknown-unknown
 cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
 version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
@@ -220,7 +228,7 @@ web: exec target/release/my-site
 {
   "name": "my-site",
   "description": "My site built with active.",
-  "stack": "heroku-24",
+  "stack": "heroku-26",
   "buildpacks": [{ "url": "emk/rust" }],
   "formation": { "web": { "quantity": 1 } }
 }
