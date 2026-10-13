@@ -18,7 +18,7 @@ Il vous faut deux comptes :
 
 ## 1. Forker le dépôt
 
-1. Ouvrez [maxlestage.github.io/Active](https://maxlestage.github.io/Active/).
+1. Ouvrez [github.com/maxlestage/Active](https://github.com/maxlestage/Active).
 2. Touchez **Fork**, gardez le nom par défaut `Active`, et confirmez avec **Create fork**.
 
 Vous disposez maintenant de `https://github.com/<you>/Active`, que vous pouvez modifier depuis l'application ou le site GitHub. Pour déployer le dépôt d'origine sans modification, vous pouvez sauter cette étape.

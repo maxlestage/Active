@@ -1,7 +1,7 @@
 {
   "name": "active",
   "description": "Presentation site and documentation of active, a simple and fast front-end library for Rust: components, routing, SEO and WebAssembly. English, French and Spanish.",
-  "logo": "https://maxlestage.github.io/Active/static/apple-touch-icon.png",
+  "logo": "https://active-c1883a966650.herokuapp.com/apple-touch-icon.png",
   "keywords": [
     "rust",
     "seo",

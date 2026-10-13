@@ -1,4 +1,4 @@
-[![Active: front end, real SEO, all Rust. A counter island written in Rust](https://raw.githubusercontent.com/maxlestage/Active/master/site/static/og.png)](https://maxlestage.github.io/Active/)
+[![Active: front end, real SEO, all Rust. A counter island written in Rust](https://raw.githubusercontent.com/maxlestage/Active/master/site/static/og.png)](https://active-c1883a966650.herokuapp.com/)
 
 # Active
 
@@ -256,14 +256,14 @@ Any server works the same way (Actix Web, Rocket, Hyper, a static site generator
 ## Links
 
 - Guides in English, French and Spanish, examples and benchmarks:
-  [maxlestage.github.io/Active](https://maxlestage.github.io/Active/).
+  [active-c1883a966650.herokuapp.com](https://active-c1883a966650.herokuapp.com/).
 - Server page with an island: `examples/hello`.
 - Client-side app with routing: `examples/spa`.
 - The project website, built with `active`: `site/`.
 
 ## License
 
-Proprietary software: © 2026 Maxime Nathan Lestage, all rights reserved. The source is published so that it can be read, audited and built; you may use `active` freely as a dependency of your own programs, commercial ones included, but not modify or redistribute its source without the author's written permission. Full terms: [LICENSE](https://maxlestage.github.io/Active/LICENSE.txt).
+Proprietary software: © 2026 Maxime Nathan Lestage, all rights reserved. The source is published so that it can be read, audited and built; you may use `active` freely as a dependency of your own programs, commercial ones included, but not modify or redistribute its source without the author's written permission. Full terms: [LICENSE](https://active-c1883a966650.herokuapp.com/static/LICENSE.txt).
 
 ## Credits
 

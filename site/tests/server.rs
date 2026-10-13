@@ -103,23 +103,24 @@ async fn every_page_ends_with_the_signature_footer() {
             "{lang}"
         );
         assert!(footer.contains(&format!("v{}", active::VERSION)), "{lang}");
-        // The seven projects of the ecosystem, this one marked as the current page.
-        for project in [
-            "Active",
-            "Vitesse",
-            "Securite",
-            "Memoire",
-            "Paquets",
-            "FerroSwift",
-            "Solidify",
+        // The five projects of the ecosystem, on their Heroku sites, this one marked as the
+        // current page.
+        for url in [
+            "https://active-c1883a966650.herokuapp.com/",
+            "https://vitesse-f16135654c3d.herokuapp.com/",
+            "https://securite-2db4c1994be7.herokuapp.com/",
+            "https://memoire-7f4525f1fdaf.herokuapp.com/",
+            "https://paquets-90dfc06b6fea.herokuapp.com/",
         ] {
-            assert!(
-                footer.contains(&format!(
-                    r#"href="https://maxlestage.github.io/{project}/""#
-                )),
-                "{lang} {project}"
-            );
+            assert!(footer.contains(&format!(r#"href="{url}""#)), "{lang} {url}");
         }
+        // Only those five.
+        assert_eq!(footer.matches(r#"class="eco""#).count(), 4, "{lang}");
+        assert_eq!(
+            footer.matches(r#"class="eco current""#).count(),
+            1,
+            "{lang}"
+        );
         assert!(footer.contains(r#"aria-current="page""#), "{lang}");
         assert!(footer.contains(here), "{lang}");
     }

@@ -85,8 +85,8 @@ With the `wasm-release` profile, a panic stops the module and the console shows 
 
 ## Is it ready for production?
 
-`active` is young (version 0.1). The API is small and tested, and this website runs on it, but it may change before 1.0. Pin the version in `Cargo.toml` and read the release notes when you upgrade. Issues and contributions are welcome on [GitHub](https://maxlestage.github.io/Active/).
+`active` is young (version 0.1). The API is small and tested, and this website runs on it, but it may change before 1.0. Pin the version in `Cargo.toml` and read the release notes when you upgrade. Issues and contributions are welcome on [GitHub](https://github.com/maxlestage/Active).
 
 ## What license is it under?
 
-`active` is proprietary software: © Maxime Nathan Lestage, all rights reserved. Its source is published on crates.io and GitHub so that you can read, audit and build it, and you may use it freely as a dependency of your own programs, commercial ones included. Modifying it or redistributing its source needs the author's written permission. The full terms are in the repository's [LICENSE](https://maxlestage.github.io/Active/LICENSE.txt).
+`active` is proprietary software: © Maxime Nathan Lestage, all rights reserved. Its source is published on crates.io and GitHub so that you can read, audit and build it, and you may use it freely as a dependency of your own programs, commercial ones included. Modifying it or redistributing its source needs the author's written permission. The full terms are in the repository's [LICENSE](https://active-c1883a966650.herokuapp.com/static/LICENSE.txt).

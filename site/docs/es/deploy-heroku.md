@@ -18,7 +18,7 @@ Necesitas dos cuentas:
 
 ## 1. Hacer un fork del repositorio
 
-1. Abre [maxlestage.github.io/Active](https://maxlestage.github.io/Active/).
+1. Abre [github.com/maxlestage/Active](https://github.com/maxlestage/Active).
 2. Toca **Fork**, conserva el nombre por defecto `Active` y confirma con **Create fork**.
 
 Ahora tienes `https://github.com/<you>/Active`, que puedes editar desde la aplicación o el sitio web de GitHub. Para desplegar el repositorio original sin cambios, puedes saltarte este paso.
