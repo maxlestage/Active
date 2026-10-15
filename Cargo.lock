@@ -708,7 +708,7 @@ checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
 [[package]]
 name = "vitesse"
 version = "0.1.0"
-source = "git+https://github.com/maxlestage/Vitesse#76d3cb3853bac396bae44900d2db15d700ce9060"
+source = "git+https://github.com/maxlestage/Vitesse#751667a9ae25e3e8f701d1d73d52960a7081db48"
 dependencies = [
  "brotli",
  "bytes",
