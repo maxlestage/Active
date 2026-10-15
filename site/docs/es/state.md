@@ -250,6 +250,28 @@ Cómo se comportan los efectos:
 - **Sin bucles infinitos.** Un efecto que escribe un estado que él mismo lee no se vuelve a disparar; dos efectos que escriben cada uno lo que lee el otro se detienen tras mil ejecuciones.
 - **Se liberan con su región.** Los efectos creados dentro de una región dinámica se detienen cuando la región se reconstruye.
 
+## Vigilar un valor: watch
+
+`effect` se vuelve a ejecutar con cualquier cambio de todo lo que lee. `watch(source, callback)` separa **lo que se sigue** de **lo que se hace**, como el `watch` de Vue: `source` lee estados y devuelve un valor; cuando ese valor cambia (comparado con `PartialEq`), se ejecuta `callback(&nuevo, &anterior)`. Lo que lee el callback no se sigue, y no se llama para el primer valor.
+
+```rust
+use active::prelude::*;
+
+fn search() -> Element {
+    let query = use_state(String::new());
+    let page = use_state(1u32);
+    // A new search starts again from the first page.
+    watch(move || query.get(), move |_new, _old| page.set(1));
+    div()
+        .child(input().attr("type", "search").bind_value(query))
+        .child(p().text_dyn(move || format!("Page {}", page.get())))
+}
+```
+
+- `watch_immediate(source, callback)` también llama a `callback(&valor, None)` enseguida; las llamadas siguientes reciben `Some(&anterior)` (el `immediate: true` de Vue).
+- Ambos devuelven un `Watcher`: `watcher.stop()` lo detiene antes de que se libere su componente. El handle es `Copy`, así que el propio callback puede detenerlo.
+- Como los efectos, los watchers solo se ejecutan en el navegador y se liberan con su componente.
+
 ## Limpiar
 
 A veces un componente pone en marcha algo que vive fuera de la vista: un temporizador, un WebSocket, un bucle de animación, un listener en `window`. `on_cleanup(f)` ejecuta `f` cuando el componente se libera, es decir, cuando la región dinámica que lo construyó se reconstruye o el router muestra otra página:
@@ -333,6 +355,44 @@ fn search() -> Element {
 ```
 
 Las [islas](../islands/) separadas no comparten estados: cada isla es su propia pequeña aplicación. Si dos partes de una página deben comunicarse, ponlas en la misma isla.
+
+## Proporcionar valores a un subárbol: provide
+
+Pasar un handle como argumento funciona bien en uno o dos niveles. Para valores que necesitan muchos componentes en lo profundo del árbol (un tema, el usuario conectado, traducciones, un store global), `provide(valor, || vista)` da `valor` a todo lo que se construye dentro, y `use_context::<T>()` lo lee en cualquier punto inferior, como `provide` / `inject` en Vue:
+
+```rust
+use active::prelude::*;
+
+/// The app's store: a struct of states is `Copy`, every component shares the same states.
+#[derive(Clone, Copy)]
+struct Cart {
+    items: State<Vec<String>>,
+}
+
+fn add_button(name: &'static str) -> Element {
+    let cart = expect_context::<Cart>();
+    button().on_click(move |_| cart.items.update(|i| i.push(name.into()))).text("Add")
+}
+
+fn cart_badge() -> Element {
+    let cart = expect_context::<Cart>();
+    span().class("badge").text_dyn(move || cart.items.with(Vec::len).to_string())
+}
+
+fn shop() -> Element {
+    let cart = Cart { items: use_state(Vec::new()) };
+    provide(cart, || div().child(cart_badge()).child(add_button("Oak chair")))
+}
+
+assert!(Node::from(shop()).render().contains(r#"<span class="badge"><!--#-->0</span>"#));
+```
+
+- `use_context::<T>()` devuelve el valor de tipo `T` más cercano (clonado) o `None`; `expect_context::<T>()` entra en pánico nombrando el tipo cuando no se proporcionó ninguno.
+- El tipo es la clave: envuelve los valores simples en un pequeño struct (`struct Theme(&'static str)`). Un `provide` interior del mismo tipo oculta el exterior.
+- Un struct de `State` es `Copy`: todos los componentes que lo leen comparten los mismos estados, lo que lo convierte en un store, al estilo de Pinia, sin otra API.
+- Las regiones dinámicas y las listas creadas dentro de `provide` conservan los valores: su contenido puede llamar a `use_context` cada vez que se reconstruye.
+- Llama a `use_context` mientras construyes la vista, no en un manejador de eventos ni en un efecto, que se ejecutan más tarde: lee el valor una vez y muévelo a los closures.
+- Como los estados, los valores proporcionados no cruzan las islas: cada isla es su propia aplicación.
 
 ## En el servidor
 

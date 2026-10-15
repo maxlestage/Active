@@ -22,9 +22,9 @@ The crate uses the 2024 edition and needs Rust 1.85 or newer. It contains no `un
 | `active::*` | every item below |
 | `active::html` | one function per HTML and SVG tag |
 | `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) and [`register_script`](#register-script) and [`version`](#version): installable, offline sites |
-| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state`; with `client`, also `location`, `navigate` and `query_param` |
+| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state`, `watch`, `watch_immediate`, `provide`, `use_context`, `expect_context`, `match_path`; with `client`, also `location`, `navigate` and `query_param` |
 
-Not in the prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Use them as `active::hydrate`, etc.
+Not in the prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `Watcher`, `Params`, `Routes`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Use them as `active::hydrate`, etc.
 
 ## Views
 
@@ -81,6 +81,7 @@ An HTML element under construction, created by a [tag function](#tag-functions) 
 | `pub fn class(self, class: impl Into<Str>) -> Self` | Adds classes (space separated); empty strings are ignored. |
 | `pub fn class_if(self, class: impl Into<Str>, f: impl Fn() -> bool + 'static) -> Self` | Adds `class` while `f()` is true. |
 | `pub fn style(self, style: impl Into<Str>) -> Self` | `style="…"` (replaces a previous style). |
+| `pub fn style_dyn(self, property: &'static str, f: impl Fn() -> String + 'static) -> Self` | One CSS property recomputed from states, added to the `style` set before it; an empty value leaves it out. A `style` set after replaces it. |
 | `pub fn href(self, href: impl Into<Str>) -> Self` | `href="…"` (replaces a previous href). |
 
 **Content**
@@ -104,7 +105,17 @@ An HTML element under construction, created by a [tag function](#tag-functions) 
 | `pub fn on(self, event: &'static str, handler: impl Fn(Event) + 'static) -> Self` | Listens to a DOM event. |
 | `pub fn on_click(self, handler: impl Fn(Event) + 'static) -> Self` | `on("click", …)`. |
 | `pub fn on_input(self, handler: impl Fn(Event) + 'static) -> Self` | `on("input", …)`. |
+| `pub fn on_submit(self, handler: impl Fn(Event) + 'static) -> Self` | `on("submit", …)` that first calls `prevent_default`. |
+| `pub fn on_key(self, key: &'static str, handler: impl Fn(Event) + 'static) -> Self` | `keydown` listener called only for `key` (`"Enter"`, `"Escape"`…). |
 | `pub fn on_mount(self, f: impl Fn(&Dom) + 'static) -> Self` | Runs `f` with the DOM element once it is in the page. |
+
+**Two-way binding** (the value is rendered on the server; the listener only exists with `client`)
+
+| Method | Description |
+| --- | --- |
+| `pub fn bind_value(self, state: State<String>) -> Self` | Field value ⇄ state: `<input>` and `<textarea>` written on `input`, `<select>` on `change`. A `<textarea>` renders the state as its text. |
+| `pub fn bind_checked(self, state: State<bool>) -> Self` | Checkbox ⇄ state, written on `change`. |
+| `pub fn bind_parsed<T>(self, state: State<T>) -> Self` (`T: FromStr + Display + PartialEq`) | Field ⇄ state of a parsed type (numbers): written when the text parses, the text typed is kept otherwise. |
 
 ### Free functions
 
@@ -205,6 +216,35 @@ impl Scope { pub fn dispose(self) }
 
 `scope` runs `f` and returns its result with a `Scope` owning the states, effects and event listeners created inside. `dispose` releases them. `Scope` is `#[must_use]`. On the server, a render inside an open scope does not empty the state store.
 
+### watch and watch_immediate
+
+```rust
+pub fn watch<T: Clone + PartialEq + 'static>(source: impl Fn() -> T + 'static, callback: impl Fn(&T, &T) + 'static) -> Watcher
+pub fn watch_immediate<T: Clone + PartialEq + 'static>(source: impl Fn() -> T + 'static, callback: impl Fn(&T, Option<&T>) + 'static) -> Watcher
+```
+
+Calls `callback(&new, &old)` each time the value returned by `source` changes (`PartialEq`). `source` is followed like an effect, `callback` is not. `watch` skips the first value; `watch_immediate` calls `callback(&first, None)` right away. Browser only, like `effect`; released with the component.
+
+### Watcher
+
+```rust
+#[derive(Clone, Copy, Debug)]
+pub struct Watcher { /* … */ }
+impl Watcher { pub fn stop(self) }
+```
+
+Stops a watcher before its component is released. Stopping twice does nothing.
+
+### provide, use_context and expect_context
+
+```rust
+pub fn provide<T: 'static, R>(value: T, f: impl FnOnce() -> R) -> R
+pub fn use_context<T: Clone + 'static>() -> Option<T>
+pub fn expect_context<T: Clone + 'static>() -> T
+```
+
+`provide` gives `value` to everything built by `f`, dynamic regions and keyed lists included (they keep it when they rebuild). `use_context` returns the closest provided value of type `T`, cloned; `expect_context` panics, naming the type, when there is none. Call them while building the view. See [State](../state/).
+
 ## Events
 
 ### Event
@@ -218,6 +258,8 @@ A DOM event passed to handlers. Implements `Debug` and `Clone`.
 | `pub fn prevent_default(&self)` | Cancels the browser's default action. |
 | `pub fn current_target(&self) -> Option<Dom>` | The element the listener is attached to. `None` on the server. |
 | `pub fn raw(&self) -> &web_sys::Event` | The underlying event. Only with `client`. |
+| `pub fn stop_propagation(&self)` | Stops the event from reaching the parent elements. |
+| `pub fn checked(&self) -> bool` | Whether the checkbox or radio button that fired the event is checked; `false` otherwise. |
 
 ### Dom
 
@@ -364,6 +406,49 @@ where
 ```
 
 A short hash of `parts` (10 hexadecimal characters, FNV-1a), for `ServiceWorker::new`: hash what the worker saves, and every deployment that changes it installs a new worker.
+
+## Routing
+
+Available on the server and in the browser. See [Client-side apps](../client-app/).
+
+### match_path
+
+```rust
+pub fn match_path(pattern: &str, path: &str) -> Option<Params>
+```
+
+Matches `path` (its query string and fragment ignored, as well as extra slashes) against `pattern`: `posts` matches that segment, `:id` one segment, `:id?` an optional segment, `*rest` (last) everything left (`*` alone captures nothing). Values are percent-decoded.
+
+### Params
+
+```rust
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Params { /* … */ }
+```
+
+| Method | Description |
+| --- | --- |
+| `pub fn get(&self, name: &str) -> Option<&str>` | The value of a parameter. |
+| `pub fn parse<T: FromStr>(&self, name: &str) -> Option<T>` | The value parsed; `None` if missing or invalid. |
+| `pub fn iter(&self) -> impl Iterator<Item = (&str, &str)>` | The parameters, in pattern order. |
+| `pub fn is_empty(&self) -> bool` | Whether there is none. |
+
+### Routes
+
+```rust
+#[derive(Clone, Default)]
+pub struct Routes { /* … */ }
+```
+
+| Method | Description |
+| --- | --- |
+| `pub fn new() -> Self` | An empty table. |
+| `pub fn route(self, pattern: impl Into<String>, view: impl Fn(State<Params>) -> Node + 'static) -> Self` | Adds a route; the first matching pattern wins. |
+| `pub fn fallback(self, view: impl Fn(State<Params>) -> Node + 'static) -> Self` | The page shown when nothing matches; its `path` parameter holds the whole path. |
+| `pub fn resolve(&self, path: &str) -> Option<Params>` | The parameters of the route that matches (or of the fallback). |
+| `pub fn matches(&self, path: &str) -> bool` | Whether a route other than the fallback matches. |
+| `pub fn render(&self, path: &str) -> Node` | The page of one path. |
+| `pub fn view(self, path: impl Fn() -> String + 'static) -> Node` | The page of a changing path: kept while the same route matches (its `State<Params>` is updated), rebuilt when another does. |
 
 ## Islands
 

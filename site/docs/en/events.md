@@ -34,6 +34,8 @@ A handler is any `Fn(Event)` closure. Because it is `Fn` (it may run many times)
 | `e.value()` | the current value of the `<input>`, `<textarea>` or `<select>` that fired the event (`""` otherwise) |
 | `e.key()` | the key of a keyboard event: `"Enter"`, `"Escape"`, `"ArrowDown"`, `"k"`… (`""` otherwise) |
 | `e.prevent_default()` | cancels the browser's default action: following a link, submitting a form… |
+| `e.stop_propagation()` | stops the event from reaching the listeners of the parent elements |
+| `e.checked()` | whether the checkbox or radio button that fired the event is checked (`false` otherwise) |
 | `e.current_target()` | the element the listener is attached to, as an `Option<Dom>` |
 | `e.raw()` | the underlying `web_sys::Event` (feature `client` only) |
 
@@ -100,6 +102,37 @@ fn preferences() -> Element {
 
 HTML has no `value` attribute on `<select>`, so the server marks the chosen `<option>` with `selected`; in the browser, the `value` binding keeps the menu in sync afterwards.
 
+## Two-way binding
+
+Writing `attr_dyn("value", …)` and `on_input` for every field gets repetitive. `bind_value(state)` does both, like Vue's `v-model`: the field shows the state, and what the user types goes back into it.
+
+```rust
+use active::prelude::*;
+
+fn profile() -> Element {
+    let name = use_state(String::from("Ada"));
+    let bio = use_state(String::new());
+    let newsletter = use_state(true);
+    let age = use_state(36u32);
+    form()
+        .child(input().attr("type", "text").bind_value(name))
+        .child(textarea().bind_value(bio))
+        .child(input().attr("type", "checkbox").bind_checked(newsletter))
+        .child(input().attr("type", "number").bind_parsed(age))
+        .child(p().text_dyn(move || format!("{}, {}", name.get(), age.get())))
+}
+
+assert!(Node::from(profile()).render().contains(r#"<input type="number" value="36"/>"#));
+```
+
+| Method | Binds | Vue |
+| --- | --- | --- |
+| `.bind_value(State<String>)` | the text of an `<input>` or a `<textarea>`, the value of a `<select>` (written on `input`, on `change` for a `<select>`) | `v-model` |
+| `.bind_checked(State<bool>)` | a checkbox (written on `change`) | `v-model` on a checkbox |
+| `.bind_parsed(State<T>)` | a number, or any `T: FromStr + Display + PartialEq`: written when the text parses; otherwise the state keeps its last value and the text typed is left alone | `v-model.number` |
+
+The server renders the current value (`value="…"`, `checked`, the text of a `<textarea>`), so the form is filled before the WebAssembly loads. For a `<select>`, also mark the chosen `<option>` with `bool_attr("selected", …)`, as above.
+
 ## Submitting a form
 
 Handle `"submit"` on the `<form>` and call `prevent_default()` so the browser does not load a new page:
@@ -146,6 +179,41 @@ fn search_field(open: State<bool>) -> Element {
             open.set(false);
         }
     })
+}
+```
+
+## Modifiers
+
+Vue's event modifiers have short equivalents:
+
+| Vue | active |
+| --- | --- |
+| `@submit.prevent="save"` | `.on_submit(save)`: cancels the page load, then calls `save` |
+| `@keydown.enter="send"` | `.on_key("Enter", send)`, with any key name: `"Escape"`, `"ArrowDown"`, `"k"`… |
+| `@click.stop="…"` | `.on_click(move \|e\| { e.stop_propagation(); … })` |
+| `@click.prevent="…"` | `.on_click(move \|e\| { e.prevent_default(); … })` |
+
+```rust
+use active::prelude::*;
+
+fn chat() -> Element {
+    let message = use_state(String::new());
+    let sent = use_state(Vec::<String>::new());
+    let send = move || {
+        let text = message.get();
+        if !text.trim().is_empty() {
+            sent.update(|list| list.push(text));
+            message.set(String::new());
+        }
+    };
+    form()
+        .on_submit(move |_| send())
+        .child(
+            textarea()
+                .bind_value(message)
+                .on_key("Escape", move |_| message.set(String::new())),
+        )
+        .child(button().text("Send"))
 }
 ```
 

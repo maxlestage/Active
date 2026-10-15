@@ -210,6 +210,41 @@ assert!(pages(path).render().contains("hello-rust</h1>"));
 
 Dans l'application, passez `active::location()` comme `path`. L'état donné à une page ne contient jamais que des routes de ce genre de page : la page lit ses paramètres sans avoir à gérer les autres routes. Dans la page, suivez les paramètres comme n'importe quel état : `use_state`/`effect` pour les données à recharger, `text_dyn` pour ce qui les affiche.
 
+### Tables de routes
+
+Au-delà de quelques pages, `active::Routes` compare le chemin à des motifs, comme Vue Router :
+
+```rust
+use active::prelude::*;
+use active::{Params, Routes};
+
+fn post(params: State<Params>) -> Node {
+    let id = move || params.with(|p| p.get("id").unwrap_or_default().to_string());
+    article().child(h1().text_dyn(move || format!("Post {}", id()))).into()
+}
+
+fn routes() -> Routes {
+    Routes::new()
+        .route("/", |_| h1().text("Blog").into())
+        .route("/posts/:id", post)
+        .route("/docs/*rest", |params| {
+            p().text_dyn(move || params.with(|p| p.get("rest").unwrap_or_default().to_string()))
+                .into()
+        })
+        .fallback(|_| h1().text("Not found").into())
+}
+
+assert!(routes().render("/posts/42").render().contains("Post 42"));
+assert!(routes().matches("/posts/42") && !routes().matches("/nope"));
+```
+
+- Motifs : `posts` correspond à ce segment, `:id` à n'importe quel segment, `:id?` à un segment facultatif, `*rest` (en dernier) à tout le reste. Les valeurs sont décodées (`%20` devient une espace) ; `params.parse::<u32>("id")` en convertit une.
+- La première route qui correspond l'emporte ; le `fallback` s'affiche quand aucune ne correspond (son paramètre `path` contient tout le chemin).
+- Dans l'application, `routes().view(move || active::location().get())` affiche la page courante. Comme `switch`, elle garde la page tant que la même route correspond : passer de `/posts/1` à `/posts/2` met seulement à jour le `State<Params>` avec lequel la page a été construite.
+- Côté serveur, `routes.render(chemin)` construit la page d'un chemin, et `routes.matches(chemin)` indique s'il faut répondre 404.
+- Routes imbriquées : terminez le motif parent par `*rest` (`"/settings/*rest"`) et construisez la page enfant avec une autre `Routes`, rendue à partir de `rest`.
+- `active::match_path(motif, chemin)` compare un seul motif et renvoie ses `Params`, pour votre propre routage.
+
 ### Chaînes de requête
 
 `active::query()` renvoie la chaîne de requête sans le `?` (`"q=rust&page=2"`) sous forme d'état, et `active::query_param(name)` renvoie un paramètre, décodé, ou `None`. Les deux suivent le routeur : les liens, `navigate` et les boutons d'historique les mettent à jour. Passer de `/search?q=a` à `/search?q=b` reconstruit les régions qui lisent la requête, tandis que celles qui ne lisent que le chemin restent telles quelles.

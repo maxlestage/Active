@@ -34,6 +34,8 @@ Un gestionnaire est n'importe quelle closure `Fn(Event)`. Comme elle est `Fn` (e
 | `e.value()` | la valeur courante de l'`<input>`, du `<textarea>` ou du `<select>` qui a déclenché l'événement (`""` sinon) |
 | `e.key()` | la touche d'un événement clavier : `"Enter"`, `"Escape"`, `"ArrowDown"`, `"k"`… (`""` sinon) |
 | `e.prevent_default()` | annule l'action par défaut du navigateur : suivre un lien, envoyer un formulaire… |
+| `e.stop_propagation()` | empêche l'événement d'atteindre les écouteurs des éléments parents |
+| `e.checked()` | si la case à cocher ou le bouton radio qui a déclenché l'événement est coché (`false` sinon) |
 | `e.current_target()` | l'élément auquel l'écouteur est attaché, sous forme d'`Option<Dom>` |
 | `e.raw()` | le `web_sys::Event` sous-jacent (fonctionnalité `client` uniquement) |
 
@@ -100,6 +102,37 @@ fn preferences() -> Element {
 
 En HTML, `<select>` n'a pas d'attribut `value` : le serveur marque donc l'`<option>` choisie avec `selected` ; dans le navigateur, la liaison `value` garde ensuite le menu synchronisé.
 
+## Liaison bidirectionnelle
+
+Écrire `attr_dyn("value", …)` et `on_input` pour chaque champ devient vite répétitif. `bind_value(etat)` fait les deux, comme `v-model` dans Vue : le champ affiche l'état, et ce que tape l'utilisateur y est réécrit.
+
+```rust
+use active::prelude::*;
+
+fn profile() -> Element {
+    let name = use_state(String::from("Ada"));
+    let bio = use_state(String::new());
+    let newsletter = use_state(true);
+    let age = use_state(36u32);
+    form()
+        .child(input().attr("type", "text").bind_value(name))
+        .child(textarea().bind_value(bio))
+        .child(input().attr("type", "checkbox").bind_checked(newsletter))
+        .child(input().attr("type", "number").bind_parsed(age))
+        .child(p().text_dyn(move || format!("{}, {}", name.get(), age.get())))
+}
+
+assert!(Node::from(profile()).render().contains(r#"<input type="number" value="36"/>"#));
+```
+
+| Méthode | Lie | Vue |
+| --- | --- | --- |
+| `.bind_value(State<String>)` | le texte d'un `<input>` ou d'un `<textarea>`, la valeur d'un `<select>` (écrit sur `input`, sur `change` pour un `<select>`) | `v-model` |
+| `.bind_checked(State<bool>)` | une case à cocher (écrit sur `change`) | `v-model` sur une case à cocher |
+| `.bind_parsed(State<T>)` | un nombre, ou tout `T: FromStr + Display + PartialEq` : écrit quand le texte se convertit ; sinon l'état garde sa dernière valeur et le texte tapé n'est pas touché | `v-model.number` |
+
+Le serveur rend la valeur courante (`value="…"`, `checked`, le texte d'un `<textarea>`), le formulaire est donc rempli avant que le WebAssembly ne se charge. Pour un `<select>`, marquez aussi l'`<option>` choisie avec `bool_attr("selected", …)`, comme ci-dessus.
+
 ## Soumettre un formulaire
 
 Gérez `"submit"` sur le `<form>` et appelez `prevent_default()` pour que le navigateur ne charge pas une nouvelle page :
@@ -146,6 +179,41 @@ fn search_field(open: State<bool>) -> Element {
             open.set(false);
         }
     })
+}
+```
+
+## Modificateurs
+
+Les modificateurs d'événements de Vue ont des équivalents courts :
+
+| Vue | active |
+| --- | --- |
+| `@submit.prevent="save"` | `.on_submit(save)` : annule le chargement de page, puis appelle `save` |
+| `@keydown.enter="send"` | `.on_key("Enter", send)`, avec n'importe quel nom de touche : `"Escape"`, `"ArrowDown"`, `"k"`… |
+| `@click.stop="…"` | `.on_click(move \|e\| { e.stop_propagation(); … })` |
+| `@click.prevent="…"` | `.on_click(move \|e\| { e.prevent_default(); … })` |
+
+```rust
+use active::prelude::*;
+
+fn chat() -> Element {
+    let message = use_state(String::new());
+    let sent = use_state(Vec::<String>::new());
+    let send = move || {
+        let text = message.get();
+        if !text.trim().is_empty() {
+            sent.update(|list| list.push(text));
+            message.set(String::new());
+        }
+    };
+    form()
+        .on_submit(move |_| send())
+        .child(
+            textarea()
+                .bind_value(message)
+                .on_key("Escape", move |_| message.set(String::new())),
+        )
+        .child(button().text("Send"))
 }
 ```
 

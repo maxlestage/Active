@@ -250,6 +250,28 @@ How effects behave:
 - **No infinite loops.** An effect that writes a state it reads does not trigger itself again; two effects that each write what the other reads are stopped after a thousand runs.
 - **Released with their region.** Effects created inside a dynamic region stop when the region is rebuilt.
 
+## Watching a value: watch
+
+`effect` re-runs for any change of anything it reads. `watch(source, callback)` separates **what is followed** from **what is done**, like Vue's `watch`: `source` reads states and returns a value; when that value changes (compared with `PartialEq`), `callback(&new, &old)` runs. What the callback reads is not followed, and it is not called for the first value.
+
+```rust
+use active::prelude::*;
+
+fn search() -> Element {
+    let query = use_state(String::new());
+    let page = use_state(1u32);
+    // A new search starts again from the first page.
+    watch(move || query.get(), move |_new, _old| page.set(1));
+    div()
+        .child(input().attr("type", "search").bind_value(query))
+        .child(p().text_dyn(move || format!("Page {}", page.get())))
+}
+```
+
+- `watch_immediate(source, callback)` also calls `callback(&value, None)` right away; later calls get `Some(&old)` (Vue's `immediate: true`).
+- Both return a `Watcher`: `watcher.stop()` stops it before its component is released. The handle is `Copy`, so the callback itself can stop it.
+- Like effects, watchers run only in the browser and are released with their component.
+
 ## Cleaning up
 
 A component sometimes starts something that lives outside the view: a timer, a WebSocket, an animation loop, a listener on `window`. `on_cleanup(f)` runs `f` when the component is released, that is when the dynamic region that built it re-renders or the router shows another page:
@@ -333,6 +355,44 @@ fn search() -> Element {
 ```
 
 Separate [islands](../islands/) do not share states: each island is its own small app. If two parts of a page must talk to each other, put them in the same island.
+
+## Providing values to a subtree: provide
+
+Passing a handle down works well for one or two levels. For values that many components deep in the tree need (a theme, the signed-in user, translations, an app-wide store), `provide(value, || view)` gives `value` to everything built inside, and `use_context::<T>()` reads it anywhere below, like Vue's `provide` / `inject`:
+
+```rust
+use active::prelude::*;
+
+/// The app's store: a struct of states is `Copy`, every component shares the same states.
+#[derive(Clone, Copy)]
+struct Cart {
+    items: State<Vec<String>>,
+}
+
+fn add_button(name: &'static str) -> Element {
+    let cart = expect_context::<Cart>();
+    button().on_click(move |_| cart.items.update(|i| i.push(name.into()))).text("Add")
+}
+
+fn cart_badge() -> Element {
+    let cart = expect_context::<Cart>();
+    span().class("badge").text_dyn(move || cart.items.with(Vec::len).to_string())
+}
+
+fn shop() -> Element {
+    let cart = Cart { items: use_state(Vec::new()) };
+    provide(cart, || div().child(cart_badge()).child(add_button("Oak chair")))
+}
+
+assert!(Node::from(shop()).render().contains(r#"<span class="badge"><!--#-->0</span>"#));
+```
+
+- `use_context::<T>()` returns the closest value of type `T` (cloned) or `None`; `expect_context::<T>()` panics with the type's name when none was provided.
+- The type is the key: wrap plain values in a small struct (`struct Theme(&'static str)`). An inner `provide` of the same type hides the outer one.
+- A struct of `State`s is `Copy`: every component that reads it shares the same states, which makes it a store, in the style of Pinia, without any other API.
+- Dynamic regions and lists created inside `provide` keep the values: their content can call `use_context` each time it is rebuilt.
+- Call `use_context` while building the view, not in an event handler or an effect, which run later: read the value once and move it into the closures.
+- Like states, provided values do not cross islands: each island is its own app.
 
 ## On the server
 

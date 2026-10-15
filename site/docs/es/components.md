@@ -112,6 +112,24 @@ assert_eq!(
 
 Los atributos, las clases e incluso los atributos booleanos pueden seguir el estado de la página: consulta [Estado](../state/#vincular-el-estado-a-la-vista).
 
+### Estilos dinámicos
+
+`style_dyn(propiedad, f)` fija una propiedad CSS a partir de estados, como `:style="{ width: … }"` en Vue. Se combina con un `style` puesto antes y con otros `style_dyn`; una cadena vacía omite la propiedad. Para las clases, `class_if(clase, f)` cumple el papel de `:class="{ active: … }"`.
+
+```rust
+use active::prelude::*;
+
+let progress = use_state(40);
+let bar = div()
+    .class("bar")
+    .style("height: 4px")
+    .style_dyn("width", move || format!("{}%", progress.get()));
+assert_eq!(
+    Node::from(bar).render(),
+    r#"<div class="bar" style="height: 4px; width: 40%"></div>"#
+);
+```
+
 ## Hijos
 
 `.child(x)` agrega un hijo y `.children(iter)` agrega varios. Cualquier cosa que se convierta en un `Node` puede ser un hijo:

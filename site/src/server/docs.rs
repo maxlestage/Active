@@ -11,7 +11,7 @@ use crate::search::{Entry, norm};
 /// Categories (in reading order) and their pages. Titles come from the i18n dictionary
 /// (`docs.categories`, same order) and from each page's frontmatter.
 pub const CATEGORIES: [&[&str]; 7] = [
-    &["introduction", "installation", "quick-start"],
+    &["introduction", "installation", "quick-start", "from-vue"],
     &["components", "state", "events"],
     &["seo", "documents", "structured-data"],
     &["islands", "client-app", "client-build", "performance"],

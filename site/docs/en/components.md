@@ -112,6 +112,24 @@ assert_eq!(
 
 Attributes, classes and even boolean attributes can follow the page's state: see [State](../state/#binding-state-to-the-view).
 
+### Dynamic styles
+
+`style_dyn(property, f)` sets one CSS property from states, like Vue's `:style="{ width: … }"`. It combines with a `style` set before it and with other `style_dyn`; an empty string leaves the property out. For classes, `class_if(class, f)` plays the role of Vue's `:class="{ active: … }"`.
+
+```rust
+use active::prelude::*;
+
+let progress = use_state(40);
+let bar = div()
+    .class("bar")
+    .style("height: 4px")
+    .style_dyn("width", move || format!("{}%", progress.get()));
+assert_eq!(
+    Node::from(bar).render(),
+    r#"<div class="bar" style="height: 4px; width: 40%"></div>"#
+);
+```
+
 ## Children
 
 `.child(x)` appends one child and `.children(iter)` appends several. Anything that converts into a `Node` can be a child:

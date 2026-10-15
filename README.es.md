@@ -42,6 +42,7 @@ Los mismos componentes también sirven para **aplicaciones del lado del cliente*
 - **SEO primero.** El servidor siempre renderiza la página completa. `Seo` cubre título, descripción, robots, canonical, hreflang, Open Graph, Twitter y JSON-LD; pon uno en un layout, otro en una página y otro en un componente, y se fusionan sin ninguna etiqueta duplicada.
 - **Rápido.** El renderizado en el servidor escribe directamente en un `String`. En el navegador solo se hidratan las islas, con vínculos de grano fino: un cambio de estado actualiza exactamente el texto, el atributo o la clase que depende de él. Consulta los [benchmarks](#benchmarks).
 - **Ligero.** La compilación para el servidor no tiene dependencias. El bundle del navegador usa `wasm-bindgen` y `web-sys`, nada más.
+- **Familiar para quien viene de Vue.** `watch`, `provide` / `use_context`, `bind_value` al estilo de `v-model`, modificadores de eventos (`on_submit`, `on_key`), `style_dyn` y una tabla de rutas con `:params` y rutas anidadas (`Routes`) ([guía](site/docs/es/from-vue.md)).
 - **Instalable.** `active::pwa` escribe el manifiesto de la app web y un service worker sin conexión, y `Document::manifest` / `Document::service_worker` añaden sus etiquetas: tu sitio se instala en la pantalla de inicio y funciona sin red, sin escribir JavaScript. El sitio web del proyecto es una PWA ([guía](site/docs/es/pwa.md)).
 
 ## Benchmarks

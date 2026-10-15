@@ -210,6 +210,41 @@ assert!(pages(path).render().contains("hello-rust</h1>"));
 
 En la aplicación, pasa `active::location()` como `path`. El estado que recibe una página solo contiene rutas de ese tipo de página, así que la página lee sus parámetros sin tener que gestionar las demás rutas. Dentro de la página, sigue los parámetros como cualquier estado: `use_state`/`effect` para los datos que hay que recargar, `text_dyn` para lo que los muestra.
 
+### Tablas de rutas
+
+A partir de unas pocas páginas, `active::Routes` compara la ruta con patrones, como Vue Router:
+
+```rust
+use active::prelude::*;
+use active::{Params, Routes};
+
+fn post(params: State<Params>) -> Node {
+    let id = move || params.with(|p| p.get("id").unwrap_or_default().to_string());
+    article().child(h1().text_dyn(move || format!("Post {}", id()))).into()
+}
+
+fn routes() -> Routes {
+    Routes::new()
+        .route("/", |_| h1().text("Blog").into())
+        .route("/posts/:id", post)
+        .route("/docs/*rest", |params| {
+            p().text_dyn(move || params.with(|p| p.get("rest").unwrap_or_default().to_string()))
+                .into()
+        })
+        .fallback(|_| h1().text("Not found").into())
+}
+
+assert!(routes().render("/posts/42").render().contains("Post 42"));
+assert!(routes().matches("/posts/42") && !routes().matches("/nope"));
+```
+
+- Patrones: `posts` coincide con ese segmento, `:id` con cualquier segmento, `:id?` con uno opcional, `*rest` (al final) con todo lo demás. Los valores se decodifican (`%20` pasa a ser un espacio); `params.parse::<u32>("id")` convierte uno.
+- Gana la primera ruta que coincide; el `fallback` se muestra cuando ninguna coincide (su parámetro `path` contiene toda la ruta).
+- En la aplicación, `routes().view(move || active::location().get())` muestra la página actual. Como `switch`, conserva la página mientras coincida la misma ruta: pasar de `/posts/1` a `/posts/2` solo actualiza el `State<Params>` con el que se construyó la página.
+- En el servidor, `routes.render(ruta)` construye la página de una ruta, y `routes.matches(ruta)` indica si hay que responder 404.
+- Rutas anidadas: termina el patrón padre con `*rest` (`"/settings/*rest"`) y construye la página hija con otro `Routes`, renderizado a partir de `rest`.
+- `active::match_path(patrón, ruta)` compara un solo patrón y devuelve sus `Params`, para tu propio enrutamiento.
+
 ### Cadenas de consulta
 
 `active::query()` devuelve la cadena de consulta sin el `?` (`"q=rust&page=2"`) como un estado, y `active::query_param(name)` devuelve un parámetro, decodificado, o `None`. Ambos siguen al enrutador: los enlaces, `navigate` y los botones del historial los actualizan. Pasar de `/search?q=a` a `/search?q=b` reconstruye las regiones que leen la consulta, mientras que las que solo leen la ruta se quedan como están.

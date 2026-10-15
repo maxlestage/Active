@@ -32,6 +32,30 @@ impl Event {
         self.raw.prevent_default();
     }
 
+    /// Stops the event from reaching the listeners of the parent elements (Vue's `.stop`).
+    pub fn stop_propagation(&self) {
+        #[cfg(feature = "client")]
+        self.raw.stop_propagation();
+    }
+
+    /// Whether the checkbox or radio button that fired the event is checked (`false` for any
+    /// other target, and on the server).
+    pub fn checked(&self) -> bool {
+        #[cfg(feature = "client")]
+        {
+            use wasm_bindgen::JsCast;
+            if let Some(input) = self
+                .raw
+                .target()
+                .as_ref()
+                .and_then(|t| t.dyn_ref::<web_sys::HtmlInputElement>())
+            {
+                return input.checked();
+            }
+        }
+        false
+    }
+
     /// The current value of the `<input>`, `<textarea>` or `<select>` that fired the event.
     pub fn value(&self) -> String {
         #[cfg(feature = "client")]
