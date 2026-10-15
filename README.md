@@ -89,12 +89,9 @@ cargo run -p hello   # http://localhost:3000
 | [`site`](site) | Presentation website and documentation (en/fr/es): Vitesse server, WebAssembly animations, search and playground, installable and offline (PWA) |
 | [`bench`](bench) | Benchmarks against Leptos, Dioxus, Yew, Sycamore, maud and hand-written HTML |
 
-## Publish the site on GitHub Pages (free)
+## Publish your own site on GitHub Pages (free)
 
-1. On GitHub, open **Settings → Pages** and set **Source** to **GitHub Actions** (once; the GitHub app or the mobile website works).
-2. That's all. After every green CI run, which merges the branch into `master`, the [`pages.yml`](.github/workflows/pages.yml) workflow exports the site to static files with `active-site export` and publishes it at `https://maxlestage.github.io/Active/`. To publish right away: **Actions → Pages → Run workflow**.
-
-Guide: [`site/docs/en/deploy-pages.md`](site/docs/en/deploy-pages.md).
+A site built with `active` can be exported to static files and hosted for free on GitHub Pages, from a phone: see [`site/docs/en/static-site.md`](site/docs/en/static-site.md) and [`site/docs/en/deploy-pages.md`](site/docs/en/deploy-pages.md). This project's own website is served by Heroku only.
 
 ## Deploy the site on Heroku from a phone
 
@@ -118,7 +115,7 @@ cargo run -p active --example page         # print a complete page
 cargo run -p active-site                   # the website on http://localhost:3000
 ```
 
-The website's browser bundle is built like the example above (`-p active-site`, output in `site/pkg`); see [`heroku-build.sh`](heroku-build.sh) or the [`Dockerfile`](Dockerfile). Every branch that passes CI is merged into `master` automatically, except branches named `wip/…` ([`ci.yml`](.github/workflows/ci.yml)); `master` is then published on GitHub Pages ([`pages.yml`](.github/workflows/pages.yml)).
+The website's browser bundle is built like the example above (`-p active-site`, output in `site/pkg`); see [`heroku-build.sh`](heroku-build.sh) or the [`Dockerfile`](Dockerfile). Every branch that passes CI is merged into `master` automatically, except branches named `wip/…` ([`ci.yml`](.github/workflows/ci.yml)). The website is served by Heroku only, at <https://active-c1883a966650.herokuapp.com/>; GitHub only hosts the code.
 
 ## License
 

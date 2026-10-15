@@ -255,4 +255,4 @@ Le site que vous lisez fait tout cela, dans `site/src/server/pwa.rs` :
 - `/manifest.webmanifest` ouvre l'application sur `/en/`, avec les icônes PNG 192, 512 et maskable, et le logo SVG ;
 - `/sw.js` met en cache d'avance les trois pages d'accueil, la feuille de style et le bundle WebAssembly avec leurs URL en `?v=`, les polices et les icônes ; sa version est un hash de tout cela ;
 - `/offline/` est la page hors ligne, en trois langues puisque le worker n'en a qu'une ;
-- chaque page appelle `.manifest(...)` et `.service_worker(...)`, et l'export statique pour GitHub Pages écrit `manifest.webmanifest`, `sw.js` et `offline/index.html` avec `/Active` dans chaque URL.
+- chaque page appelle `.manifest(...)` et `.service_worker(...)`, et son export statique (`active-site export`) écrit `manifest.webmanifest`, `sw.js` et `offline/index.html` avec `/Active` dans chaque URL.

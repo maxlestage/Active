@@ -100,4 +100,4 @@ Only the files listed in the crate's `include` (`src`, `README.md`, `LICENSE`) a
 
 The last step catches packaging problems (a missing file, invalid metadata) before a release does.
 
-The workflow also has a `merge` job: when a branch is pushed and every check above passes, it merges that branch into `master` and pushes the result. Branches whose name starts with `wip/` and pull requests are only checked, never merged automatically. After the merge, [`pages.yml`](../deploy-pages/) publishes `master` on GitHub Pages, and with Heroku's automatic deploys enabled the change goes online there too.
+The workflow also has a `merge` job: when a branch is pushed and every check above passes, it merges that branch into `master` and pushes the result. Branches whose name starts with `wip/` and pull requests are only checked, never merged automatically. After the merge, with Heroku's automatic deploys enabled, the change goes online on Heroku, which serves the website.
