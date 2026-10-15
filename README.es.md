@@ -89,12 +89,9 @@ cargo run -p hello   # http://localhost:3000
 | [`site`](site) | Sitio web de presentación y documentación (en/fr/es): servidor Vitesse, animaciones en WebAssembly, búsqueda y área de pruebas interactiva, instalable y sin conexión (PWA) |
 | [`bench`](bench) | Benchmarks frente a Leptos, Dioxus, Yew, Sycamore, maud y HTML escrito a mano |
 
-## Publicar el sitio en GitHub Pages (gratis)
+## Publicar tu propio sitio en GitHub Pages (gratis)
 
-1. En GitHub, abre **Settings → Pages** y cambia **Source** a **GitHub Actions** (una sola vez; la app de GitHub o el sitio móvil sirven).
-2. Eso es todo. Tras cada CI en verde, que fusiona la rama en `master`, el workflow [`pages.yml`](.github/workflows/pages.yml) exporta el sitio a archivos estáticos con `active-site export` y lo publica en `https://maxlestage.github.io/Active/`. Para publicar enseguida: **Actions → Pages → Run workflow**.
-
-Guía: [`site/docs/es/deploy-pages.md`](site/docs/es/deploy-pages.md).
+Un sitio hecho con `active` se puede exportar a archivos estáticos y alojar gratis en GitHub Pages, desde un teléfono: consulta [`site/docs/es/static-site.md`](site/docs/es/static-site.md) y [`site/docs/es/deploy-pages.md`](site/docs/es/deploy-pages.md). El sitio de este proyecto lo sirve únicamente Heroku.
 
 ## Desplegar el sitio en Heroku desde un teléfono
 
@@ -118,7 +115,7 @@ cargo run -p active --example page         # print a complete page
 cargo run -p active-site                   # the website on http://localhost:3000
 ```
 
-El bundle del navegador del sitio web se compila como el del ejemplo anterior (`-p active-site`, con la salida en `site/pkg`); consulta [`heroku-build.sh`](heroku-build.sh) o el [`Dockerfile`](Dockerfile). Cada rama que pasa la CI se fusiona automáticamente en `master`, salvo las ramas llamadas `wip/…` ([`ci.yml`](.github/workflows/ci.yml)); después `master` se publica en GitHub Pages ([`pages.yml`](.github/workflows/pages.yml)).
+El bundle del navegador del sitio web se compila como el del ejemplo anterior (`-p active-site`, con la salida en `site/pkg`); consulta [`heroku-build.sh`](heroku-build.sh) o el [`Dockerfile`](Dockerfile). Cada rama que pasa la CI se fusiona automáticamente en `master`, salvo las ramas llamadas `wip/…` ([`ci.yml`](.github/workflows/ci.yml)). El sitio web lo sirve únicamente Heroku, en <https://active-c1883a966650.herokuapp.com/>; GitHub solo aloja el código.
 
 ## Licencia
 

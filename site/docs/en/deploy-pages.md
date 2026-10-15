@@ -1,9 +1,9 @@
 ---
 title: Deploy on GitHub Pages
-description: Publish the active website for free on GitHub Pages from a phone: switch Pages on once, then every merge into master is online a few minutes later.
+description: Publish a site built with active for free on GitHub Pages from a phone: export it to static files, switch Pages on once, then every push to master is online a few minutes later.
 ---
 
-GitHub Pages hosts static files for free, at `https://<owner>.github.io/<repository>/`. This repository publishes its website there automatically: the `pages.yml` workflow turns the Rust server's pages into files with `active-site export`, then deploys them. Everything below can be done from a phone.
+GitHub Pages hosts static files for free, at `https://<owner>.github.io/<repository>/`. A site built with `active` can be published there: its pages are written to files (see [Static sites](../static-site/)), then a GitHub Actions workflow deploys them. Everything below can be done from a phone. The examples use this repository's website, which has an `export` command; the website itself is served by Heroku, at <https://active-c1883a966650.herokuapp.com/>.
 
 Unlike [Heroku](../deploy-heroku/), Pages runs no server: no cost, no machine to keep running, but also no code on the server side. The export replaces the few things the server computed for each request (see [What changes on a static host](#what-changes-on-a-static-host)).
 
@@ -13,37 +13,34 @@ Unlike [Heroku](../deploy-heroku/), Pages runs no server: no cost, no machine to
 2. Go to **Settings**, then **Pages**.
 3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
 
-That's all: there is no branch or folder to choose, the workflow uploads the site itself. For a fork, do the same in your fork; its address becomes `https://<you>.github.io/Active/`.
+That's all: there is no branch or folder to choose, the workflow uploads the site itself.
 
-> **Tip:** to publish right away, open the **Actions** tab, choose **Pages**, then **Run workflow**. Otherwise the next merge into `master` publishes the site.
+> **Tip:** add `workflow_dispatch:` to the workflow's `on:` to publish right away from the **Actions** tab (**Pages**, then **Run workflow**). Otherwise the next push to `master` publishes the site.
 
 ## How publishing works
 
-1. You push a branch, or Claude does.
-2. The CI workflow checks it (format, lints, tests, builds, export) and, when everything is green, merges it into `master`. Branches whose name starts with `wip/` are checked but never merged.
-3. When CI succeeds, the **Pages** workflow starts: it builds the WebAssembly bundle, exports the site and deploys it. A few minutes later, the new version is online.
+1. Add a workflow that builds the site, exports it and deploys it, such as the one in [Static sites](../static-site/#github-pages), as `.github/workflows/pages.yml`.
+2. Push to `master` (from the GitHub app too): the workflow builds the WebAssembly bundle, exports the site and deploys it. A few minutes later, the new version is online.
 
-A red CI publishes nothing: the site online always comes from a version that passed every check. The Actions tab shows each run and, for Pages, the address of the published site.
+A failed build publishes nothing: the site online always comes from a version that built. The Actions tab shows each run and, for Pages, the address of the published site.
 
-> **Note:** Pages waits for CI instead of listening to pushes on `master`, because a push made by a workflow (the automatic merge) does not start other workflows.
-
-Until Pages is switched on, the Pages workflow stops at its first job with a warning instead of failing.
+> **Note:** if your CI merges branches into `master` itself, start the Pages workflow when CI succeeds (`workflow_run`) instead of on pushes to `master`, because a push made by a workflow does not start other workflows.
 
 ## The export command
 
-The workflow runs the same command you can run on your computer:
+The build and the export are commands you can also run on your computer. For this repository's website:
 
 ```sh
 cargo build -p active-site --lib --target wasm32-unknown-unknown --profile wasm-release
 wasm-bindgen --target web --no-typescript --out-dir site/pkg target/wasm32-unknown-unknown/wasm-release/active_site.wasm
-BASE_PATH=/Active SITE_URL=https://maxlestage.github.io/Active cargo run --release -p active-site -- export dist
+BASE_PATH=/Active SITE_URL=https://<owner>.github.io/Active cargo run --release -p active-site -- export dist
 ```
 
 `dist/` then holds every page in the three languages (`en/docs/seo/index.html`…), the static files, the browser bundle, `404.html`, `sitemap.xml`, `robots.txt` and the search indexes. Each file comes from the server's own handlers, so the static site and the server send the same HTML.
 
 | Variable | Role | On GitHub Pages |
 | --- | --- | --- |
-| `BASE_PATH` | Prefix of every link, because a project site lives under `/<repository>/` | `/Active` (given by `actions/configure-pages`) |
+| `BASE_PATH` | Prefix of every link, because a project site lives under `/<repository>/` | `/<repository>`, here `/Active` (given by `actions/configure-pages`) |
 | `SITE_URL` | Public address, for canonical URLs, Open Graph, hreflang and the sitemap | `https://<owner>.github.io/Active` |
 
 Leave `BASE_PATH` empty for a site served at the root of its domain (a custom domain, or another static host).
@@ -71,8 +68,8 @@ The docs search works the same way in both: the browser downloads the index of i
 
 ## A custom domain
 
-In **Settings**, **Pages**, enter your domain under **Custom domain** and follow GitHub's DNS instructions. The site is then served at the root of the domain: `actions/configure-pages` gives an empty base path and your domain as the address, with no change to the workflow.
+In **Settings**, **Pages**, enter your domain under **Custom domain** and follow GitHub's DNS instructions. The site is then served at the root of the domain: export it with an empty base path and your domain as the address (a workflow that reads them from `actions/configure-pages` needs no change).
 
 ## Your own site
 
-For an `active` project of your own, generate the pages with a small `main` (see [Static sites](../static-site/)) and reuse its workflow, or copy `pages.yml` and replace the build and export steps with your own commands.
+For an `active` project of your own, generate the pages with a small `main` (see [Static sites](../static-site/)) and use its workflow, replacing the build and export steps with your own commands if your site has a server, as this repository's website does.
