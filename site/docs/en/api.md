@@ -9,7 +9,7 @@ This page lists every public item of the `active` crate, grouped by topic, with 
 
 | Feature | Default | Adds |
 | --- | --- | --- |
-| `client` | off | The browser runtime: [`hydrate`](#hydrate), [`mount`](#mount), [`mount_to`](#mount-to), [`location`](#location), [`query`](#query), [`query_param`](#query-param), [`navigate`](#navigate), [`update_head`](#update-head), `Event::raw`, real event listeners, effects and `on_mount` callbacks. Depends on `wasm-bindgen` and `web-sys`. |
+| `client` | off | The browser runtime: [`hydrate`](#hydrate), [`mount`](#mount), [`mount_to`](#mount-to), [`location`](#location), [`query`](#query), [`query_param`](#query-param), [`navigate`](#navigate), [`navigate_replace`](#navigate-replace), [`update_head`](#update-head), `Event::raw`, real event listeners, effects, `on_mount` callbacks, transitions, portals, futures run by resources and the island hydration strategies. Depends on `wasm-bindgen`, `wasm-bindgen-futures`, `js-sys` and `web-sys`. |
 
 Without `client`, the crate has no dependencies. Event handlers, effects and `on_mount` callbacks are accepted and ignored, so the same components compile on the server. Enable `client` only for the `wasm32` build (see [Installation](../installation/#one-crate-two-targets)).
 
@@ -21,10 +21,11 @@ The crate uses the 2024 edition and needs Rust 1.85 or newer. It contains no `un
 | --- | --- |
 | `active::*` | every item below |
 | `active::html` | one function per HTML and SVG tag |
+| `active::forms` | [`Form`](#form), [`Field`](#field), [`Rule`](#rule) and the rules: validated forms |
 | `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) and [`register_script`](#register-script) and [`version`](#version): installable, offline sites |
 | `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state`, `watch`, `watch_immediate`, `provide`, `use_context`, `expect_context`, `match_path`; with `client`, also `location`, `navigate` and `query_param` |
 
-Not in the prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `Watcher`, `Params`, `Routes`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Use them as `active::hydrate`, etc.
+Not in the prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `Watcher`, `Params`, `Routes`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`, and the items added for other frameworks' strengths: `batch`, `resource`, `Resource`, `suspense`, `error_boundary`, `ErrorBoundary`, `report_error`, `portal`, `island_with`, `Hydrate`, `before_navigate`, `Navigation`, `navigate_replace` and the `forms` module. Use them as `active::hydrate`, etc.
 
 ## Views
 
@@ -108,6 +109,8 @@ An HTML element under construction, created by a [tag function](#tag-functions) 
 | `pub fn on_submit(self, handler: impl Fn(Event) + 'static) -> Self` | `on("submit", …)` that first calls `prevent_default`. |
 | `pub fn on_key(self, key: &'static str, handler: impl Fn(Event) + 'static) -> Self` | `keydown` listener called only for `key` (`"Enter"`, `"Escape"`…). |
 | `pub fn on_mount(self, f: impl Fn(&Dom) + 'static) -> Self` | Runs `f` with the DOM element once it is in the page. |
+| `pub fn transition(self, name: &'static str, when: impl Fn() -> bool + 'static) -> Self` | Shown while `when` is true, hidden (`hidden`) otherwise, with `{name}-enter-*` / `{name}-leave-*` classes during each change; the server renders `hidden` when false. See [Components](../components/#transitions). |
+| `pub fn transition_in(self, name: &'static str) -> Self` | Plays `{name}-enter-*` when the element is added to the page (not when hydrated). |
 
 **Two-way binding** (the value is rendered on the server; the listener only exists with `client`)
 
@@ -116,6 +119,7 @@ An HTML element under construction, created by a [tag function](#tag-functions) 
 | `pub fn bind_value(self, state: State<String>) -> Self` | Field value ⇄ state: `<input>` and `<textarea>` written on `input`, `<select>` on `change`. A `<textarea>` renders the state as its text. |
 | `pub fn bind_checked(self, state: State<bool>) -> Self` | Checkbox ⇄ state, written on `change`. |
 | `pub fn bind_parsed<T>(self, state: State<T>) -> Self` (`T: FromStr + Display + PartialEq`) | Field ⇄ state of a parsed type (numbers): written when the text parses, the text typed is kept otherwise. |
+| `pub fn bind_field(self, field: forms::Field) -> Self` | `bind_value` on the field's value, touched on `blur`, `aria-invalid="true"` while its error is shown. See [Forms](../forms/). |
 
 ### Free functions
 
@@ -129,6 +133,7 @@ An HTML element under construction, created by a [tag function](#tag-functions) 
 | `pub fn keyed<T, K>(items: impl Fn() -> Vec<T> + 'static, key: impl Fn(&T) -> K + 'static, row: impl Fn(&T) -> Node + 'static) -> Node` (`T: PartialEq`, `K: Hash`) | A list whose rows are kept by key: in the browser, rows whose key is still there and whose item is equal keep their DOM, states, listeners and focus (and move if the order changed); new or changed rows are built, removed ones released. Rendered like `fragment_dyn` on the server. See [State](../state/#long-lists-keyed-rows). |
 | `pub fn indexed<T>(items: impl Fn() -> Vec<T> + 'static, row: impl Fn(State<T>) -> Node + 'static) -> Node` (`T: Clone + PartialEq`) | A list whose rows are kept by position: row `i` is built once with a `State` of the `i`-th item and updated in place; rows are added or removed at the end. See [State](../state/#rows-by-position-indexed). |
 | `pub fn switch<V, K>(value: impl Fn() -> V + 'static, kind: impl Fn(&V) -> K + 'static, view: impl Fn(State<V>) -> Node + 'static) -> Node` (`V: Clone + PartialEq`, `K: PartialEq`) | Shows `view` for `value()`, rebuilt only when `kind` changes; otherwise the view's `State<V>` receives the new value. See [Client-side apps](../client-app/#keeping-a-page-when-its-parameters-change). |
+| `pub fn portal(target: &'static str, view: impl Into<Node>) -> Node` | Renders `view` at the end of the element matching `target` (browser only; nothing on the server), removed with the portal. See [Components](../components/#portals). |
 
 ### Str
 
@@ -235,6 +240,14 @@ impl Watcher { pub fn stop(self) }
 
 Stops a watcher before its component is released. Stopping twice does nothing.
 
+### batch
+
+```rust
+pub fn batch<R>(f: impl FnOnce() -> R) -> R
+```
+
+Runs `f`, holding back the effects its writes trigger until it returns: each then runs once. Nested batches wait for the outermost one. See [State](../state/#grouping-writes-batch).
+
 ### provide, use_context and expect_context
 
 ```rust
@@ -244,6 +257,103 @@ pub fn expect_context<T: Clone + 'static>() -> T
 ```
 
 `provide` gives `value` to everything built by `f`, dynamic regions and keyed lists included (they keep it when they rebuild). `use_context` returns the closest provided value of type `T`, cloned; `expect_context` panics, naming the type, when there is none. Call them while building the view. See [State](../state/).
+
+## Async data and errors
+
+See [Async data and errors](../async-data/).
+
+### resource and Resource
+
+```rust
+pub fn resource<S, T, F>(source: impl Fn() -> S + 'static, fetch: impl Fn(S) -> F + 'static) -> Resource<T>
+where S: Clone + PartialEq + 'static, T: 'static, F: Future<Output = T> + 'static
+
+pub struct Resource<T> { /* … */ } // Copy
+```
+
+Loads `fetch(source())` and loads again when `source` changes; a result older than the latest request is ignored. In the browser the future runs on the event loop; on the server it is polled once (a ready value is rendered, otherwise it stays loading).
+
+| Method | Description |
+| --- | --- |
+| `pub fn get(self) -> Option<T>` (`T: Clone`) | The latest value, `None` before the first one. |
+| `pub fn with<R>(self, f: impl FnOnce(Option<&T>) -> R) -> R` | Reads it through a reference. |
+| `pub fn loading(self) -> bool` | Whether a load is in progress. |
+| `pub fn refetch(self)` | Loads again with the current source. |
+| `pub fn set(self, value: T)` | Replaces the value now (optimistic update). |
+| `pub fn state(self) -> State<Option<T>>` | The state holding the value. |
+
+### suspense
+
+```rust
+pub fn suspense(fallback: impl Into<Node>, view: impl FnOnce() -> Node) -> Node
+```
+
+Builds `view` once and shows `fallback` in its place while a resource created inside has not loaded its first value. Later reloads keep the view.
+
+### error_boundary, ErrorBoundary and report_error
+
+```rust
+pub fn error_boundary(view: impl Fn() -> Node + 'static, fallback: impl Fn(ErrorBoundary) -> Node + 'static) -> Node
+pub fn report_error(error: impl Display) -> bool
+
+#[derive(Clone, Copy, Debug)]
+pub struct ErrorBoundary { /* … */ }
+impl<T: Into<Node>, E: Display> From<Result<T, E>> for Node
+```
+
+Shows `fallback` instead of `view` once an error is reported inside: an `Err` converted into a `Node`, `report_error` while building (returns `false` and logs when there is no boundary), or `ErrorBoundary::report` later. `ErrorBoundary` has `report(error)`, `errors() -> Vec<String>`, `has_errors() -> bool` and `reset()` (forgets the errors and builds the view again); the view gets it with `use_context::<ErrorBoundary>()`.
+
+## Forms
+
+The `active::forms` module. See [Forms and validation](../forms/).
+
+### Form
+
+```rust
+#[derive(Clone, Copy, Debug)]
+pub struct Form { /* … */ }
+```
+
+| Method | Description |
+| --- | --- |
+| `pub fn new() -> Self` | A form without fields (also `Default`). |
+| `pub fn field(self, value: State<String>, rules: impl IntoIterator<Item = Rule>) -> Field` | Adds a field checked by `rules`, in order. |
+| `pub fn is_valid(self) -> bool` | Whether every field is valid. |
+| `pub fn submit(self) -> bool` | Shows every error from now on; returns whether the form is valid. |
+| `pub fn submitted(self) -> bool` | Whether `submit` was called since the last reset. |
+| `pub fn reset(self)` | Hides the errors again (values are left alone). |
+
+### Field
+
+```rust
+#[derive(Clone, Copy, Debug)]
+pub struct Field { /* … */ }
+```
+
+| Method | Description |
+| --- | --- |
+| `pub fn value(self) -> State<String>` | The field's state. |
+| `pub fn error(self) -> Option<String>` | The current error. |
+| `pub fn is_valid(self) -> bool` | Whether there is no error. |
+| `pub fn message(self) -> Option<String>` | The error to show: once touched or submitted. |
+| `pub fn touched(self) -> bool` / `pub fn touch(self)` | Whether the visitor has left the field; mark it as left. |
+
+### Rule
+
+```rust
+#[derive(Clone)]
+pub struct Rule { /* … */ }
+impl Rule { pub fn check(&self, value: &str) -> Option<String> }
+
+pub fn rule(valid: impl Fn(&str) -> bool + 'static, message: impl Into<Cow<'static, str>>) -> Rule
+pub fn required(message: impl Into<Cow<'static, str>>) -> Rule
+pub fn min_length(n: usize, message: impl Into<Cow<'static, str>>) -> Rule
+pub fn max_length(n: usize, message: impl Into<Cow<'static, str>>) -> Rule
+pub fn email(message: impl Into<Cow<'static, str>>) -> Rule
+pub fn range(min: f64, max: f64, message: impl Into<Cow<'static, str>>) -> Rule
+```
+
+`check` returns the message when `value` is not valid. All rules but `required` accept an empty value.
 
 ## Events
 
@@ -450,6 +560,17 @@ pub struct Routes { /* … */ }
 | `pub fn render(&self, path: &str) -> Node` | The page of one path. |
 | `pub fn view(self, path: impl Fn() -> String + 'static) -> Node` | The page of a changing path: kept while the same route matches (its `State<Params>` is updated), rebuilt when another does. |
 
+### before_navigate and Navigation
+
+```rust
+pub fn before_navigate(guard: impl Fn(&str) -> Navigation + 'static)
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Navigation { Continue, Cancel, Redirect(String) }
+```
+
+Registers a guard asked before the browser router goes to an address (links, `navigate`, `navigate_replace`, back and forward). Guards run in registration order; a redirect is checked again (ten in a row cancel). Removed with the component that registered it. Never called on the server. See [Client-side apps](../client-app/#navigation-guards).
+
 ## Islands
 
 ### island
@@ -459,6 +580,18 @@ pub fn island(name: &'static str, props: impl Into<Str>, component: IslandFn) ->
 ```
 
 Calls `component(&props)` and wraps its view in `<active-island data-island="name" data-props="props">`, to be hydrated in the browser by the component registered under `name`.
+
+### island_with and Hydrate
+
+```rust
+pub fn island_with(name: &'static str, props: impl Into<Str>, component: IslandFn, when: Hydrate) -> Node
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Hydrate { #[default] Load, Idle, Visible, Media(Str), Interaction }
+```
+
+Like `island`, hydrated when `when` says: at once, when the browser is idle, when visible, while a media query matches, or at the first interaction. Adds `data-hydrate="idle|visible|media:…|interaction"` (nothing for `Load`). See [Islands](../islands/#when-islands-hydrate).
 
 ### IslandFn
 
@@ -526,7 +659,15 @@ One parameter of the query string, decoded (`query_param("q")` on `/search?q=caf
 pub fn navigate(to: &str)
 ```
 
-Adds a history entry for `to` (`"/about"`, `"/search?q=rust"`, `"/docs#install"`), updates `location()` and `query()` (only the ones that changed, so only the views that depend on them are rebuilt), then scrolls to the top, or to the element whose id is the `#fragment`.
+Adds a history entry for `to` (`"/about"`, `"/search?q=rust"`, `"/docs#install"`), updates `location()` and `query()` (only the ones that changed, so only the views that depend on them are rebuilt), then scrolls to the top, or to the element whose id is the `#fragment`. The guards registered with [`before_navigate`](#before-navigate-and-navigation) are asked first; the scroll position of the page left is kept for the back button.
+
+### navigate_replace
+
+```rust
+pub fn navigate_replace(to: &str)
+```
+
+Like `navigate`, replacing the current history entry instead of adding one.
 
 ### update_head
 
@@ -546,6 +687,7 @@ The server output contains a few markers that hydration relies on. They are part
 | `<!---->` | separator between two adjacent texts |
 | `<!--[-->` … `<!--]-->` | a dynamic region |
 | `<active-island data-island data-props>` | an island; gets `data-hydrated` once hydrated |
+| `data-hydrate="…"` on an island | its hydration strategy (`island_with`) |
 
 ## Panics
 

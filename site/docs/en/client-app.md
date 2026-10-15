@@ -135,6 +135,38 @@ fn save_button() -> Element {
 
 It adds an entry to the browser history, updates `location()` and `query()`, then scrolls to the top of the page, or to the element whose `id` matches a `#fragment` (`navigate("/docs#install")`).
 
+`navigate_replace(to)` does the same but **replaces** the current history entry instead of adding one (Vue Router's `router.replace`): after a sign-in, for a redirect, or to keep filters in the URL without filling the history.
+
+### Navigation guards
+
+`before_navigate(guard)` registers a function called before the router goes to another address: a link clicked, `navigate`, `navigate_replace`, the back and forward buttons. It receives the address (`"/account?tab=2"`) and returns a `Navigation`: `Continue`, `Cancel`, or `Redirect(to)`. This is Vue Router's `beforeEach`, or a Next.js middleware running in the browser:
+
+```rust
+use active::prelude::*;
+use active::{before_navigate, Navigation};
+
+fn app(signed_in: State<bool>) -> Element {
+    before_navigate(move |to| {
+        if to.starts_with("/account") && !signed_in.get() {
+            Navigation::Redirect(format!("/login?next={to}"))
+        } else {
+            Navigation::Continue
+        }
+    });
+    div() // … the app
+}
+```
+
+- Guards run in the order they were registered; a redirect is checked by every guard again (ten redirects in a row cancel the navigation).
+- A guard registered while building a component is removed with it. A form page can hold the visitor while it has unsaved changes: `if dirty.get() { Navigation::Cancel } else { Navigation::Continue }`.
+- With the back and forward buttons, the browser has already changed the address: a cancel puts the current page's address back, a redirect replaces the entry.
+- `before_navigate` exists on the server too, where nothing navigates: shared components compile on both sides.
+- Guards protect the interface, not the data: the server must still check who can read what.
+
+### Scroll positions
+
+The router keeps the scroll position of each page left. The back and forward buttons bring it back once the page is rebuilt; a new page starts at the top, or at its `#fragment`.
+
 ### Paths with parameters
 
 Match on the path's segments to extract parameters:

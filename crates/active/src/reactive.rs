@@ -889,6 +889,53 @@ pub fn untrack<R>(f: impl FnOnce() -> R) -> R {
     result
 }
 
+/// Runs `f`, holding back the effects its writes trigger until it returns: each effect then
+/// runs **once**, with every change made, instead of once per write. Solid's `batch` (React
+/// batches the updates of an event handler the same way).
+///
+/// Use it when one action writes several states that the same view reads: a form reset, a
+/// "load more" that sets the items and the page, a drag that moves `x` and `y`. Without
+/// `batch`, the view re-runs after each write and briefly shows the states half updated.
+///
+/// Reads inside `f` see the new values at once. A [`memo`] read inside `f` is recomputed on
+/// the spot. Nested `batch`es, and a `batch` inside an effect, wait for the outermost one.
+/// On the server, effects do not run: `batch` simply runs `f`.
+///
+/// ```
+/// use active::{batch, effect, use_state};
+/// use std::{cell::RefCell, rc::Rc};
+///
+/// let (x, y) = (use_state(0), use_state(0));
+/// let seen = Rc::new(RefCell::new(Vec::new()));
+/// let log = seen.clone();
+/// effect(move || log.borrow_mut().push((x.get(), y.get())));
+/// batch(|| {
+///     x.set(3);
+///     y.set(4);
+/// });
+/// # #[cfg(feature = "client")]
+/// assert_eq!(*seen.borrow(), [(0, 0), (3, 4)]); // never (3, 0)
+/// ```
+pub fn batch<R>(f: impl FnOnce() -> R) -> R {
+    /// Lets the propagation go, even when `f` panicked.
+    struct Release;
+    impl Drop for Release {
+        fn drop(&mut self) {
+            RUNTIME.with(|rt| rt.propagating.set(false));
+        }
+    }
+    // Already propagating (inside an effect, or an outer batch): writes are queued anyway.
+    if RUNTIME.with(|rt| rt.propagating.replace(true)) {
+        return f();
+    }
+    let result = {
+        let _release = Release;
+        f()
+    };
+    RUNTIME.with(|rt| rt.propagate());
+    result
+}
+
 /// Everything created while running [`scope`]: dispose it to release states, effects and
 /// event closures.
 #[must_use = "a scope frees its states and effects only when disposed"]
@@ -939,6 +986,50 @@ pub(crate) fn render_guard<R>(f: impl FnOnce() -> R) -> R {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn batch_runs_each_effect_once_with_every_change() {
+        let (x, y) = (use_state(0), use_state(0));
+        let sum = memo(move || x.get() + y.get());
+        let seen = Rc::new(RefCell::new(Vec::new()));
+        let log = seen.clone();
+        effect(move || log.borrow_mut().push((x.get(), y.get(), sum.get())));
+        let inside = batch(|| {
+            x.set(1);
+            batch(|| y.set(2));
+            // Reads see the new values, memos included, before the effects run.
+            assert_eq!(sum.get(), 3);
+            assert_eq!(seen.borrow().len(), 1);
+            "done"
+        });
+        assert_eq!(inside, "done");
+        assert_eq!(*seen.borrow(), [(0, 0, 0), (1, 2, 3)]);
+        // Without batch: one run per write.
+        x.set(5);
+        y.set(5);
+        assert_eq!(seen.borrow().len(), 4);
+    }
+
+    #[test]
+    fn a_panic_inside_batch_lets_later_changes_propagate() {
+        let n = use_state(0);
+        let runs = Rc::new(Cell::new(0));
+        let r = runs.clone();
+        effect(move || {
+            n.get();
+            r.set(r.get() + 1);
+        });
+        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            batch(|| {
+                n.set(1);
+                panic!("in batch");
+            })
+        }));
+        assert!(caught.is_err());
+        n.set(2);
+        assert_eq!(n.get(), 2);
+        assert!(runs.get() >= 2);
+    }
 
     #[test]
     fn cleanups_run_once_at_dispose_and_can_read_their_states() {

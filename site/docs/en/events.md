@@ -301,6 +301,11 @@ This needs `wasm-bindgen-futures = "0.4"` and the web-sys features `Response` an
 
 > **Warning:** When the future completes, the state must still exist. If the component may be removed meanwhile (it sits in a dynamic region that can be rebuilt), create the state above that region.
 
+## Validation and async results
+
+- To check fields (required, email, length…) and show an error per field, see [Forms and validation](../forms/).
+- To load data, show a fallback while it loads and handle failures, prefer `resource`, `suspense` and `error_boundary` to hand-written futures: see [Async data and errors](../async-data/).
+
 ## Links
 
 Links are plain `a().href(...)` elements. In a [client-side app](../client-app/), the router started by `active::location()` follows same-site links without reloading the page, and `active::navigate("/path")` changes page from a handler.

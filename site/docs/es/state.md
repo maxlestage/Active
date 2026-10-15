@@ -272,6 +272,24 @@ fn search() -> Element {
 - Ambos devuelven un `Watcher`: `watcher.stop()` lo detiene antes de que se libere su componente. El handle es `Copy`, así que el propio callback puede detenerlo.
 - Como los efectos, los watchers solo se ejecutan en el navegador y se liberan con su componente.
 
+## Agrupar escrituras: batch
+
+Cada escritura vuelve a ejecutar de inmediato los efectos y vistas que leen el estado. Cuando una acción escribe varios estados leídos por la misma vista, `batch` retiene los efectos hasta que termina, así que cada uno se ejecuta **una vez**, con todos los cambios hechos (el `batch` de Solid; React agrupa igual las actualizaciones de un manejador de eventos):
+
+```rust
+use active::prelude::*;
+
+fn reset(name: State<String>, age: State<u32>, saved: State<bool>) {
+    active::batch(|| {
+        name.set(String::new());
+        age.set(0);
+        saved.set(false);
+    });
+}
+```
+
+Las lecturas dentro del batch ven los nuevos valores de inmediato, `memo` incluidos. Los batch se pueden anidar; un batch dentro de un efecto espera a que el efecto termine. En el servidor, los efectos no se ejecutan y `batch` simplemente ejecuta su closure.
+
 ## Limpiar
 
 A veces un componente pone en marcha algo que vive fuera de la vista: un temporizador, un WebSocket, un bucle de animación, un listener en `window`. `on_cleanup(f)` ejecuta `f` cuando el componente se libera, es decir, cuando la región dinámica que lo construyó se reconstruye o el router muestra otra página:

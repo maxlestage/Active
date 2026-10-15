@@ -27,6 +27,11 @@ If you know Vue 3 and its Composition API, you already know how `active` works: 
 | `v-for` with `:key` | `.children_keyed(items, key, row)` |
 | `v-model` | `.bind_value(state)`, `.bind_checked(state)` |
 | `v-model.number` | `.bind_parsed(state)` |
+| `<Transition>` with `v-show` | `.transition("fade", move \|\| shown.get())` ([Components](../components/#transitions)) |
+| `<Teleport to="body">` | `portal("body", view)` |
+| `<Suspense>` and async setup | `suspense(fallback, \|\| view)` and `resource(source, fetch)` ([Async data](../async-data/)) |
+| `router.replace`, `beforeEach` | `navigate_replace(to)`, `before_navigate(guard)` |
+| VeeValidate, `useField` | `active::forms` ([Forms](../forms/)) |
 | `:class="{ active: on }"` | `.class_if("active", move \|\| …)` |
 | `:style="{ width: w }"` | `.style_dyn("width", move \|\| …)` |
 | `:attr="value"` | `.attr_dyn("attr", move \|\| …)` |
@@ -110,7 +115,7 @@ fn todo_list() -> Element {
 
 ## Not built in yet
 
-- **`<Transition>`**: toggle classes with `class_if` and use CSS transitions; for an element that leaves, delay the state change with a timer.
-- **`<Teleport>`**: render dialogs with the native `<dialog>` element (its top layer escapes `overflow` and `z-index`), or reach another node in `on_mount`.
+- **`<TransitionGroup>`, and leave transitions of elements removed by a dynamic region**: `.transition` animates an element that stays in the page (shown and hidden); keep a leaving element with `.transition(name, …)` and remove it afterwards.
 - **`<KeepAlive>`**: `switch` and `Routes::view` keep a page while only its parameters change; keep data that must survive a page change in a state created above the router.
-- **`<Suspense>` and async components**: start the request in the component, show a placeholder from a `State<Option<T>>`, and check `is_alive()` before writing the result (see State).
+
+For React, Svelte, Solid, Angular, Astro and the others, see [Coming from other frameworks](../from-others/).

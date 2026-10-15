@@ -27,6 +27,11 @@ Si conoces Vue 3 y su Composition API, ya sabes cómo funciona `active`: un comp
 | `v-for` con `:key` | `.children_keyed(items, key, row)` |
 | `v-model` | `.bind_value(state)`, `.bind_checked(state)` |
 | `v-model.number` | `.bind_parsed(state)` |
+| `<Transition>` con `v-show` | `.transition("fade", move \|\| shown.get())` ([Componentes](../components/#transiciones)) |
+| `<Teleport to="body">` | `portal("body", view)` |
+| `<Suspense>` y setup asíncrono | `suspense(fallback, \|\| view)` y `resource(source, fetch)` ([Datos asíncronos](../async-data/)) |
+| `router.replace`, `beforeEach` | `navigate_replace(to)`, `before_navigate(guard)` |
+| VeeValidate, `useField` | `active::forms` ([Formularios](../forms/)) |
 | `:class="{ active: on }"` | `.class_if("active", move \|\| …)` |
 | `:style="{ width: w }"` | `.style_dyn("width", move \|\| …)` |
 | `:attr="value"` | `.attr_dyn("attr", move \|\| …)` |
@@ -110,7 +115,7 @@ fn todo_list() -> Element {
 
 ## Aún no integrado
 
-- **`<Transition>`**: alterna clases con `class_if` y usa transiciones CSS; para un elemento que sale, retrasa el cambio de estado con un temporizador.
-- **`<Teleport>`**: muestra los diálogos con el elemento nativo `<dialog>` (su capa superior escapa de `overflow` y `z-index`), o alcanza otro nodo en `on_mount`.
+- **`<TransitionGroup>`, y transiciones de salida de elementos que retira una región dinámica**: `.transition` anima un elemento que permanece en la página (mostrado y oculto); conserva un elemento que sale con `.transition(name, …)` y elimínalo después.
 - **`<KeepAlive>`**: `switch` y `Routes::view` conservan una página mientras solo cambian sus parámetros; guarda los datos que deben sobrevivir a un cambio de página en un estado creado por encima del router.
-- **`<Suspense>` y componentes asíncronos**: lanza la petición en el componente, muestra un contenido provisional a partir de un `State<Option<T>>`, y comprueba `is_alive()` antes de escribir el resultado (ver Estado).
+
+Para React, Svelte, Solid, Angular, Astro y los demás, ver [Si vienes de otros frameworks](../from-others/).

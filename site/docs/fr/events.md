@@ -301,6 +301,11 @@ Il faut pour cela `wasm-bindgen-futures = "0.4"` et les fonctionnalités web-sys
 
 > **Attention :** Quand la future se termine, l'état doit toujours exister. Si le composant risque d'être retiré entre-temps (il se trouve dans une région dynamique susceptible d'être reconstruite), créez l'état au-dessus de cette région.
 
+## Validation et résultats asynchrones
+
+- Pour vérifier des champs (obligatoire, email, longueur…) et afficher une erreur par champ, voir [Formulaires et validation](../forms/).
+- Pour charger des données, afficher un repli pendant le chargement et gérer les échecs, préférez `resource`, `suspense` et `error_boundary` aux futures écrits à la main : voir [Données asynchrones et erreurs](../async-data/).
+
 ## Liens
 
 Les liens sont de simples éléments `a().href(...)`. Dans une [application côté client](../client-app/), le routeur démarré par `active::location()` suit les liens internes au site sans recharger la page, et `active::navigate("/path")` change de page depuis un gestionnaire.

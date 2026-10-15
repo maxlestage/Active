@@ -293,6 +293,63 @@ let page = layout("About", p().text("We make furniture."));
 assert!(page.render().contains("<main><h1>About</h1><p>We make furniture.</p></main>"));
 ```
 
+## Transitions
+
+`.transition(name, when)` shows an element while `when` returns `true` and hides it (`hidden`) otherwise, playing CSS transitions as it appears and disappears, like Vue's `<Transition>` or Svelte's `transition:`. During each phase the element gets classes named after `name`:
+
+| Phase | Classes |
+| --- | --- |
+| appearing | `{name}-enter-from`, `{name}-enter-active`, then `{name}-enter-to` |
+| disappearing | `{name}-leave-from`, `{name}-leave-active`, then `{name}-leave-to`; `hidden` once it is over |
+
+```rust
+use active::prelude::*;
+
+fn menu() -> Element {
+    let open = use_state(false);
+    div()
+        .child(button().text("Menu").on_click(move |_| open.update(|o| *o = !*o)))
+        .child(nav().class("menu").transition("fade", move || open.get()).text("…"))
+}
+```
+
+```css
+.fade-enter-active, .fade-leave-active { transition: opacity .2s ease, transform .2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(-.5rem); }
+```
+
+The first state is shown without a transition, and the server renders `hidden` when `when` is `false`. The duration is read from the element's CSS (`transition-duration`, `animation-duration` and their delays), so keyframe animations work too.
+
+`.transition_in(name)` plays only the enter phase, when the element is added to the page: rows added to a list, a page shown by the router, a toast. It does nothing when the page is hydrated or an app first mounted.
+
+## Portals
+
+`portal(target, view)` renders `view` at the end of the element matching the CSS selector `target`, rather than where the portal sits: Vue's `<Teleport>`, React's `createPortal`. Dialogs, toasts and tooltips need it to escape an `overflow: hidden` or the stacking context of their parents.
+
+```rust
+use active::prelude::*;
+use active::portal;
+
+fn delete_button() -> Element {
+    let confirm = use_state(false);
+    div()
+        .child(button().text("Delete").on_click(move |_| confirm.set(true)))
+        .children_dyn(move || {
+            if !confirm.get() {
+                return vec![];
+            }
+            vec![portal(
+                "body",
+                div().class("dialog").attr("role", "dialog")
+                    .child(p().text("Delete this file?"))
+                    .child(button().text("Cancel").on_click(move |_| confirm.set(false))),
+            )]
+        })
+}
+```
+
+The view keeps the context of where the portal is (`use_context` works inside), and is removed with it. Portals are rendered in the browser only: the server renders nothing in their place, so use them for what appears after an interaction.
+
 ## Raw HTML
 
 `.html(...)` sets an element's content to a string of HTML that is inserted without escaping, for example Markdown rendered by another crate:

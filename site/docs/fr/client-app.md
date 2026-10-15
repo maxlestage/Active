@@ -135,6 +135,38 @@ fn save_button() -> Element {
 
 La fonction ajoute une entrée à l'historique du navigateur, met à jour `location()` et `query()`, puis fait défiler la page jusqu'en haut, ou jusqu'à l'élément dont l'`id` correspond à un `#fragment` (`navigate("/docs#install")`).
 
+`navigate_replace(to)` fait la même chose mais **remplace** l'entrée actuelle de l'historique au lieu d'en ajouter une (le `router.replace` de Vue Router) : après une connexion, pour une redirection, ou pour garder des filtres dans l'URL sans remplir l'historique.
+
+### Gardes de navigation
+
+`before_navigate(guard)` enregistre une fonction appelée avant que le routeur aille à une autre adresse : un lien cliqué, `navigate`, `navigate_replace`, les boutons précédent et suivant. Elle reçoit l'adresse (`"/account?tab=2"`) et renvoie une `Navigation` : `Continue`, `Cancel` ou `Redirect(to)`. C'est le `beforeEach` de Vue Router, ou un middleware Next.js exécuté dans le navigateur :
+
+```rust
+use active::prelude::*;
+use active::{before_navigate, Navigation};
+
+fn app(signed_in: State<bool>) -> Element {
+    before_navigate(move |to| {
+        if to.starts_with("/account") && !signed_in.get() {
+            Navigation::Redirect(format!("/login?next={to}"))
+        } else {
+            Navigation::Continue
+        }
+    });
+    div() // … l'application
+}
+```
+
+- Les gardes s'exécutent dans l'ordre d'enregistrement ; une redirection est revérifiée par chaque garde (dix redirections d'affilée annulent la navigation).
+- Une garde enregistrée pendant la construction d'un composant disparaît avec lui. Une page de formulaire peut retenir le visiteur tant qu'elle a des modifications non enregistrées : `if dirty.get() { Navigation::Cancel } else { Navigation::Continue }`.
+- Avec les boutons précédent et suivant, le navigateur a déjà changé l'adresse : une annulation remet l'adresse de la page affichée, une redirection remplace l'entrée.
+- `before_navigate` existe aussi côté serveur, où rien ne navigue : les composants partagés compilent des deux côtés.
+- Les gardes protègent l'interface, pas les données : le serveur doit toujours vérifier qui peut lire quoi.
+
+### Positions de défilement
+
+Le routeur garde la position de défilement de chaque page quittée. Les boutons précédent et suivant la rendent une fois la page reconstruite ; une nouvelle page commence en haut, ou à son `#fragment`.
+
 ### Chemins avec paramètres
 
 Faites un `match` sur les segments du chemin pour en extraire des paramètres :

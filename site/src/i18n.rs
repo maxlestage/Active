@@ -289,7 +289,7 @@ static EN: Dict = Dict {
             },
             Item {
                 title: "Components & state",
-                text: "Views, components, use_state, effects and events.",
+                text: "Views, components, use_state, effects, events, forms and async data.",
             },
             Item {
                 title: "SEO",
@@ -503,7 +503,7 @@ static FR: Dict = Dict {
             },
             Item {
                 title: "Composants et état",
-                text: "Vues, composants, use_state, effets et événements.",
+                text: "Vues, composants, use_state, effets, événements, formulaires et données asynchrones.",
             },
             Item {
                 title: "SEO",
@@ -717,7 +717,7 @@ static ES: Dict = Dict {
             },
             Item {
                 title: "Componentes y estado",
-                text: "Vistas, componentes, use_state, efectos y eventos.",
+                text: "Vistas, componentes, use_state, efectos, eventos, formularios y datos asíncronos.",
             },
             Item {
                 title: "SEO",

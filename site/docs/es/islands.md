@@ -130,6 +130,35 @@ El visitante ya ve el contenido de la isla antes de que se cargue el bundle; la 
 
 `<active-island>` es un elemento personalizado. `Document` añade el estilo `active-island{display:contents}` a cada página, así que el contenedor no afecta a tu diseño: sus hijos se comportan como si estuvieran directamente en el padre. Si renderizas páginas sin `Document`, añade esa regla a tu CSS.
 
+## Cuándo se hidratan las islas
+
+Por defecto, una isla se hidrata en cuanto arranca el bundle. `island_with` lo retrasa, como las directivas `client:*` de Astro:
+
+```rust
+use active::prelude::*;
+use active::{island_with, Hydrate};
+
+fn comments(post: &str) -> Node {
+    section().text(format!("Comentarios del artículo {post}")).into()
+}
+
+fn post_page() -> Element {
+    article()
+        .child(h1().text("Hola"))
+        .child(island_with("comments", "42", comments, Hydrate::Visible))
+}
+```
+
+| `Hydrate` | Se hidrata | Astro / Qwik |
+| --- | --- | --- |
+| `Load` | en cuanto arranca el bundle (lo que hace `island`) | `client:load` |
+| `Idle` | cuando el navegador está inactivo (`requestIdleCallback`, o tras 200 ms) | `client:idle` |
+| `Visible` | cuando la isla entra en pantalla | `client:visible` |
+| `Media(query)` | mientras la media query coincide, desde la primera vez | `client:media` |
+| `Interaction` | al primer paso del puntero, toque o foco, antes del clic que sigue | la resumabilidad de Qwik |
+
+El servidor renderiza el mismo HTML, más un atributo `data-hydrate` que lee `hydrate`; nada cambia en el código del navegador. Hasta que se hidrata, una isla es el HTML del servidor: legible, con sus enlaces funcionando y sus botones aún sin hacer nada. Deja `Load` para lo que el visitante usa enseguida, y retrasa lo que está más abajo en la página, se usa poco o solo sirve en algunas pantallas.
+
 ## Discrepancias de hidratación
 
 La hidratación espera que el HTML coincida con la vista que el componente construye en el navegador. Si no coincide (un elemento donde se esperaba texto, una etiqueta distinta), `active` muestra una advertencia en la consola del navegador:
