@@ -113,21 +113,28 @@ impl Rng {
 }
 
 /// Points of the word "Active" drawn in the display font, in canvas pixels.
-fn word_points(width: u32, height: u32, mobile: bool) -> Vec<f32> {
+/// `band`: on a phone, the vertical centre and the largest size of the word, in canvas
+/// pixels, so that it stays in the free space above the text of the hero.
+fn word_points(width: u32, height: u32, mobile: bool, band: Option<(f64, f64)>) -> Vec<f32> {
     let doc = window().document().unwrap();
     let canvas: HtmlCanvasElement = doc.create_element("canvas").unwrap().unchecked_into();
     canvas.set_width(width);
     canvas.set_height(height);
     let ctx: CanvasRenderingContext2d = canvas.get_context("2d").unwrap().unwrap().unchecked_into();
     let (w, h) = (width as f64, height as f64);
-    let size = (w / if mobile { 3.5 } else { 3.6 }).min(h * if mobile { 0.2 } else { 0.3 });
+    let mut size = (w / if mobile { 3.5 } else { 3.6 }).min(h * if mobile { 0.2 } else { 0.3 });
+    let mut centre = h * if mobile { 0.25 } else { 0.28 };
+    if let Some((y, largest)) = band {
+        size = size.min(largest);
+        centre = y;
+    }
     ctx.set_font(&format!(
         "600 {}px \"Geist\", system-ui, sans-serif",
         size as u32
     ));
     ctx.set_text_align("center");
     ctx.set_text_baseline("middle");
-    let _ = ctx.fill_text("Active", w / 2.0, h * if mobile { 0.25 } else { 0.28 });
+    let _ = ctx.fill_text("Active", w / 2.0, centre);
     let Ok(image) = ctx.get_image_data(0.0, 0.0, w, h) else {
         return Vec::new();
     };
@@ -188,9 +195,25 @@ impl Scene {
         };
         dust.width = w as f32;
         dust.height = h as f32;
-        dust.set_home(&word_points(w, h, mobile));
+        // On a phone the text of the hero rises high: the word goes between the header
+        // and the text instead of under it.
+        let band = if mobile { self.free_band(&rect) } else { None };
+        dust.set_home(&word_points(w, h, mobile, band));
         self.dust = Some(dust);
         particles.set(count);
+    }
+
+    /// The free space between the header and the text of the hero, as the centre and
+    /// the largest size of the word, in canvas pixels.
+    fn free_band(&self, canvas: &web_sys::DomRect) -> Option<(f64, f64)> {
+        const HEADER: f64 = 72.0;
+        let content = window()
+            .document()?
+            .query_selector(".hero-content")
+            .ok()??;
+        let text_top = content.get_bounding_client_rect().top() - canvas.top();
+        let room = text_top - HEADER;
+        (room > 48.0).then(|| ((HEADER + room / 2.0) * self.dpr, room * 0.7 * self.dpr))
     }
 
     fn draw(&self) {
