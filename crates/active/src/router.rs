@@ -296,6 +296,89 @@ impl Routes {
     }
 }
 
+/// What a guard registered with [`before_navigate`] decides about a navigation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Navigation {
+    /// Let it happen (the next guard decides in turn).
+    Continue,
+    /// Stay on the current page.
+    Cancel,
+    /// Go to this address instead (`"/login?next=/account"`); the guards check it in turn.
+    Redirect(String),
+}
+
+type Guard = Rc<dyn Fn(&str) -> Navigation>;
+
+thread_local! {
+    static GUARDS: std::cell::RefCell<Vec<(u64, Guard)>> = const { std::cell::RefCell::new(Vec::new()) };
+    static NEXT_GUARD: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// Registers a navigation guard (Vue Router's `beforeEach`, a Next.js middleware run in the
+/// browser): before the router goes to another address — a link clicked,
+/// [`navigate`](crate::navigate), the back and forward buttons — `guard` gets the address
+/// (`"/account?tab=2"`) and lets it happen, cancels it or redirects it.
+///
+/// Guards run in the order they were registered; a redirect is checked by every guard again
+/// (ten redirects in a row cancel the navigation). A guard registered while building a
+/// component is removed with it, so a page can hold the visitor while a form has unsaved
+/// changes. On the server, where nothing navigates, guards are never called.
+///
+/// With the back and forward buttons, the browser has already changed the address: a cancel
+/// puts the current page's address back (as a new history entry), a redirect replaces the
+/// entry.
+///
+/// ```
+/// use active::{before_navigate, use_state, Navigation};
+///
+/// let signed_in = use_state(false);
+/// before_navigate(move |to| {
+///     if to.starts_with("/account") && !signed_in.get() {
+///         Navigation::Redirect(format!("/login?next={to}"))
+///     } else {
+///         Navigation::Continue
+///     }
+/// });
+/// ```
+pub fn before_navigate(guard: impl Fn(&str) -> Navigation + 'static) {
+    let id = NEXT_GUARD.with(|n| {
+        let id = n.get();
+        n.set(id + 1);
+        id
+    });
+    GUARDS.with(|g| g.borrow_mut().push((id, Rc::new(guard))));
+    crate::reactive::on_cleanup(move || {
+        GUARDS.with(|g| g.borrow_mut().retain(|(i, _)| *i != id));
+    });
+}
+
+/// The address to go to after the guards: `to`, a redirect, or `None` when cancelled.
+#[cfg_attr(not(any(feature = "client", test)), allow(dead_code))]
+pub(crate) fn check_navigation(to: &str) -> Option<String> {
+    let mut to = to.to_string();
+    for _ in 0..10 {
+        let guards: Vec<Guard> =
+            GUARDS.with(|g| g.borrow().iter().map(|(_, g)| g.clone()).collect());
+        let mut redirect = None;
+        for guard in guards {
+            match untrack(|| guard(&to)) {
+                Navigation::Continue => {}
+                Navigation::Cancel => return None,
+                Navigation::Redirect(next) => {
+                    redirect = Some(next);
+                    break;
+                }
+            }
+        }
+        match redirect {
+            None => return Some(to),
+            Some(next) if next == to => return Some(to),
+            Some(next) => to = next,
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -407,5 +490,36 @@ mod tests {
             routes.render("/settings/profile/").render(),
             "<p>profile</p>"
         );
+    }
+
+    #[test]
+    fn guards_continue_cancel_redirect_and_leave_with_their_component() {
+        use crate::reactive::scope;
+        assert_eq!(check_navigation("/a").as_deref(), Some("/a"));
+        let ((), owner) = scope(|| {
+            before_navigate(|to| match to {
+                "/private" => Navigation::Redirect("/login".into()),
+                "/loop" => Navigation::Redirect("/loop2".into()),
+                "/loop2" => Navigation::Redirect("/loop".into()),
+                "/stay" => Navigation::Cancel,
+                _ => Navigation::Continue,
+            });
+            before_navigate(|to| {
+                if to == "/login" {
+                    Navigation::Redirect("/login?from=guard".into())
+                } else {
+                    Navigation::Continue
+                }
+            });
+        });
+        assert_eq!(check_navigation("/").as_deref(), Some("/"));
+        assert_eq!(
+            check_navigation("/private").as_deref(),
+            Some("/login?from=guard")
+        );
+        assert_eq!(check_navigation("/stay"), None);
+        assert_eq!(check_navigation("/loop"), None);
+        owner.dispose();
+        assert_eq!(check_navigation("/stay").as_deref(), Some("/stay"));
     }
 }

@@ -135,6 +135,38 @@ fn save_button() -> Element {
 
 Añade una entrada al historial del navegador, actualiza `location()` y `query()`, y después se desplaza al principio de la página, o al elemento cuyo `id` coincide con un `#fragment` (`navigate("/docs#install")`).
 
+`navigate_replace(to)` hace lo mismo pero **sustituye** la entrada actual del historial en lugar de añadir una (el `router.replace` de Vue Router): tras iniciar sesión, para una redirección, o para mantener filtros en la URL sin llenar el historial.
+
+### Guardas de navegación
+
+`before_navigate(guard)` registra una función que se llama antes de que el router vaya a otra dirección: un enlace pulsado, `navigate`, `navigate_replace`, los botones atrás y adelante. Recibe la dirección (`"/account?tab=2"`) y devuelve una `Navigation`: `Continue`, `Cancel` o `Redirect(to)`. Es el `beforeEach` de Vue Router, o un middleware de Next.js ejecutado en el navegador:
+
+```rust
+use active::prelude::*;
+use active::{before_navigate, Navigation};
+
+fn app(signed_in: State<bool>) -> Element {
+    before_navigate(move |to| {
+        if to.starts_with("/account") && !signed_in.get() {
+            Navigation::Redirect(format!("/login?next={to}"))
+        } else {
+            Navigation::Continue
+        }
+    });
+    div() // … la aplicación
+}
+```
+
+- Las guardas se ejecutan en el orden en que se registraron; cada guarda vuelve a comprobar una redirección (diez redirecciones seguidas cancelan la navegación).
+- Una guarda registrada al construir un componente se elimina con él. Una página de formulario puede retener al visitante mientras tenga cambios sin guardar: `if dirty.get() { Navigation::Cancel } else { Navigation::Continue }`.
+- Con los botones atrás y adelante, el navegador ya ha cambiado la dirección: una cancelación vuelve a poner la dirección de la página mostrada, una redirección sustituye la entrada.
+- `before_navigate` también existe en el servidor, donde nada navega: los componentes compartidos compilan en ambos lados.
+- Las guardas protegen la interfaz, no los datos: el servidor debe seguir comprobando quién puede leer qué.
+
+### Posiciones de desplazamiento
+
+El router guarda la posición de desplazamiento de cada página que se abandona. Los botones atrás y adelante la recuperan una vez reconstruida la página; una página nueva empieza arriba, o en su `#fragment`.
+
 ### Rutas con parámetros
 
 Haz `match` sobre los segmentos de la ruta para extraer parámetros:

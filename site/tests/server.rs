@@ -539,3 +539,70 @@ async fn the_vue_guide_is_in_the_docs_in_every_language() {
         hits[0]
     );
 }
+
+#[tokio::test]
+async fn the_guides_borrowed_from_other_frameworks_are_in_every_language() {
+    let pages = [
+        (
+            "from-others",
+            [
+                "Coming from other frameworks",
+                "Venir d'autres frameworks",
+                "Si vienes de otros frameworks",
+            ],
+            "island_with",
+        ),
+        (
+            "forms",
+            [
+                "Forms and validation",
+                "Formulaires et validation",
+                "Formularios y validación",
+            ],
+            "bind_field",
+        ),
+        (
+            "async-data",
+            [
+                "Async data and errors",
+                "Données asynchrones et erreurs",
+                "Datos asíncronos y errores",
+            ],
+            "error_boundary",
+        ),
+    ];
+    for (slug, titles, code) in pages {
+        for (lang, title) in ["en", "fr", "es"].into_iter().zip(titles) {
+            let index = text(get(&format!("/{lang}/docs/"), &[]).await).await;
+            assert!(
+                index.contains(&format!(r#"href="/{lang}/docs/{slug}/""#)),
+                "{lang} {slug}"
+            );
+            let page = get(&format!("/{lang}/docs/{slug}/"), &[]).await;
+            assert_eq!(page.status(), StatusCode::OK, "{lang} {slug}");
+            let html = text(page).await;
+            // An apostrophe may be escaped.
+            let escaped = title.replace('\'', "&#x27;");
+            assert!(
+                [title, escaped.as_str()]
+                    .iter()
+                    .any(|t| html.contains(&format!("<title>{t} — Active docs</title>"))),
+                "{lang} {slug}"
+            );
+            assert!(html.contains(code), "{lang} {slug}");
+        }
+    }
+    let entries: Vec<_> = text(get("/search/fr.txt", &[]).await)
+        .await
+        .lines()
+        .map(|l| active_site::search::Entry::parse(l).expect("an index line"))
+        .collect();
+    let hits = active_site::search::search(&entries, "formulaires validation");
+    assert!(
+        hits.iter()
+            .take(3)
+            .any(|h| h.href.starts_with("/fr/docs/forms/")),
+        "{:?}",
+        hits.first()
+    );
+}

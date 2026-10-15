@@ -130,6 +130,35 @@ Le visiteur voit déjà le contenu de l'îlot avant le chargement du bundle ; l'
 
 `<active-island>` est un élément personnalisé. `Document` ajoute le style `active-island{display:contents}` à chaque page, si bien que le conteneur n'affecte pas votre mise en page : ses enfants se comportent comme s'ils étaient directement dans le parent. Si vous rendez des pages sans `Document`, ajoutez cette règle à votre CSS.
 
+## Quand les îlots s'hydratent
+
+Par défaut, un îlot est hydraté dès que le bundle démarre. `island_with` retarde ce moment, comme les directives `client:*` d'Astro :
+
+```rust
+use active::prelude::*;
+use active::{island_with, Hydrate};
+
+fn comments(post: &str) -> Node {
+    section().text(format!("Commentaires de l'article {post}")).into()
+}
+
+fn post_page() -> Element {
+    article()
+        .child(h1().text("Bonjour"))
+        .child(island_with("comments", "42", comments, Hydrate::Visible))
+}
+```
+
+| `Hydrate` | Hydraté | Astro / Qwik |
+| --- | --- | --- |
+| `Load` | dès que le bundle démarre (ce que fait `island`) | `client:load` |
+| `Idle` | quand le navigateur est inoccupé (`requestIdleCallback`, ou après 200 ms) | `client:idle` |
+| `Visible` | quand l'îlot entre à l'écran | `client:visible` |
+| `Media(query)` | tant que la media query correspond, dès la première fois | `client:media` |
+| `Interaction` | au premier survol, toucher ou focus, avant le clic qui suit | la résumabilité de Qwik |
+
+Le serveur rend le même HTML, plus un attribut `data-hydrate` que lit `hydrate` ; rien ne change dans le code du navigateur. Tant qu'il n'est pas hydraté, un îlot est le HTML du serveur : lisible, ses liens fonctionnent, ses boutons ne font encore rien. Gardez `Load` pour ce que le visiteur utilise tout de suite, et retardez ce qui est sous la ligne de flottaison, rarement utilisé ou réservé à certains écrans.
+
 ## Incohérences d'hydratation
 
 L'hydratation s'attend à ce que le HTML corresponde à la vue que le composant construit dans le navigateur. Si ce n'est pas le cas (un élément là où un texte était attendu, une balise différente), `active` affiche un avertissement dans la console du navigateur :

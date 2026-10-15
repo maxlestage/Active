@@ -293,6 +293,63 @@ let page = layout("About", p().text("We make furniture."));
 assert!(page.render().contains("<main><h1>About</h1><p>We make furniture.</p></main>"));
 ```
 
+## Transiciones
+
+`.transition(name, when)` muestra un elemento mientras `when` devuelve `true` y lo oculta (`hidden`) en caso contrario, reproduciendo transiciones CSS al aparecer y desaparecer, como el `<Transition>` de Vue o el `transition:` de Svelte. Durante cada fase el elemento recibe clases con el nombre `name`:
+
+| Fase | Clases |
+| --- | --- |
+| aparición | `{name}-enter-from`, `{name}-enter-active` y luego `{name}-enter-to` |
+| desaparición | `{name}-leave-from`, `{name}-leave-active` y luego `{name}-leave-to`; `hidden` al terminar |
+
+```rust
+use active::prelude::*;
+
+fn menu() -> Element {
+    let open = use_state(false);
+    div()
+        .child(button().text("Menú").on_click(move |_| open.update(|o| *o = !*o)))
+        .child(nav().class("menu").transition("fade", move || open.get()).text("…"))
+}
+```
+
+```css
+.fade-enter-active, .fade-leave-active { transition: opacity .2s ease, transform .2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(-.5rem); }
+```
+
+El primer estado se muestra sin transición, y el servidor renderiza `hidden` cuando `when` es `false`. La duración se lee del CSS del elemento (`transition-duration`, `animation-duration` y sus retardos), así que las animaciones con keyframes también funcionan.
+
+`.transition_in(name)` solo reproduce la fase de entrada, cuando el elemento se añade a la página: filas añadidas a una lista, una página mostrada por el router, un aviso. No hace nada cuando la página se hidrata o una aplicación se monta por primera vez.
+
+## Portales
+
+`portal(target, view)` renderiza `view` al final del elemento que coincide con el selector CSS `target`, en lugar de donde está el portal: el `<Teleport>` de Vue, el `createPortal` de React. Los diálogos, avisos y tooltips lo necesitan para escapar de un `overflow: hidden` o del contexto de apilamiento de sus padres.
+
+```rust
+use active::prelude::*;
+use active::portal;
+
+fn delete_button() -> Element {
+    let confirm = use_state(false);
+    div()
+        .child(button().text("Eliminar").on_click(move |_| confirm.set(true)))
+        .children_dyn(move || {
+            if !confirm.get() {
+                return vec![];
+            }
+            vec![portal(
+                "body",
+                div().class("dialog").attr("role", "dialog")
+                    .child(p().text("¿Eliminar este archivo?"))
+                    .child(button().text("Cancelar").on_click(move |_| confirm.set(false))),
+            )]
+        })
+}
+```
+
+La vista conserva el contexto del lugar del portal (`use_context` funciona dentro), y se elimina con él. Los portales solo se renderizan en el navegador: el servidor no renderiza nada en su lugar, así que úsalos para lo que aparece tras una interacción.
+
 ## HTML sin escapar
 
 `.html(...)` define el contenido de un elemento como una cadena de HTML que se inserta sin escapar, por ejemplo Markdown renderizado por otro crate:

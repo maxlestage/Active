@@ -27,6 +27,11 @@ Si vous connaissez Vue 3 et sa Composition API, vous savez déjà comment foncti
 | `v-for` avec `:key` | `.children_keyed(items, key, row)` |
 | `v-model` | `.bind_value(state)`, `.bind_checked(state)` |
 | `v-model.number` | `.bind_parsed(state)` |
+| `<Transition>` avec `v-show` | `.transition("fade", move \|\| shown.get())` ([Composants](../components/#transitions)) |
+| `<Teleport to="body">` | `portal("body", view)` |
+| `<Suspense>` et setup asynchrone | `suspense(fallback, \|\| view)` et `resource(source, fetch)` ([Données asynchrones](../async-data/)) |
+| `router.replace`, `beforeEach` | `navigate_replace(to)`, `before_navigate(guard)` |
+| VeeValidate, `useField` | `active::forms` ([Formulaires](../forms/)) |
 | `:class="{ active: on }"` | `.class_if("active", move \|\| …)` |
 | `:style="{ width: w }"` | `.style_dyn("width", move \|\| …)` |
 | `:attr="value"` | `.attr_dyn("attr", move \|\| …)` |
@@ -110,7 +115,7 @@ fn todo_list() -> Element {
 
 ## Pas encore intégré
 
-- **`<Transition>`** : basculez des classes avec `class_if` et utilisez les transitions CSS ; pour un élément qui disparaît, retardez le changement d'état avec un minuteur.
-- **`<Teleport>`** : affichez les dialogues avec l'élément natif `<dialog>` (sa couche supérieure échappe à `overflow` et `z-index`), ou atteignez un autre nœud dans `on_mount`.
+- **`<TransitionGroup>`, et transitions de sortie des éléments retirés par une région dynamique** : `.transition` anime un élément qui reste dans la page (affiché puis caché) ; gardez un élément qui part avec `.transition(name, …)` et retirez-le ensuite.
 - **`<KeepAlive>`** : `switch` et `Routes::view` gardent une page tant que seuls ses paramètres changent ; gardez les données qui doivent survivre à un changement de page dans un état créé au-dessus du routeur.
-- **`<Suspense>` et composants asynchrones** : lancez la requête dans le composant, affichez un contenu provisoire à partir d'un `State<Option<T>>`, et vérifiez `is_alive()` avant d'écrire le résultat (voir État).
+
+Pour React, Svelte, Solid, Angular, Astro et les autres, voir [Venir d'autres frameworks](../from-others/).

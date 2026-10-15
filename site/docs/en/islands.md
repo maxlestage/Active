@@ -130,6 +130,35 @@ The visitor already sees the island's content before the bundle loads; hydration
 
 `<active-island>` is a custom element. `Document` adds the style `active-island{display:contents}` to every page, so the wrapper does not affect your layout: its children behave as if they were directly in the parent. If you render pages without `Document`, add that rule to your CSS.
 
+## When islands hydrate
+
+By default an island is hydrated as soon as the bundle starts. `island_with` delays it, like Astro's `client:*` directives:
+
+```rust
+use active::prelude::*;
+use active::{island_with, Hydrate};
+
+fn comments(post: &str) -> Node {
+    section().text(format!("Comments of post {post}")).into()
+}
+
+fn post_page() -> Element {
+    article()
+        .child(h1().text("Hello"))
+        .child(island_with("comments", "42", comments, Hydrate::Visible))
+}
+```
+
+| `Hydrate` | Hydrated | Astro / Qwik |
+| --- | --- | --- |
+| `Load` | as soon as the bundle starts (what `island` does) | `client:load` |
+| `Idle` | when the browser is idle (`requestIdleCallback`, or after 200 ms) | `client:idle` |
+| `Visible` | when the island scrolls into view | `client:visible` |
+| `Media(query)` | while the media query matches, from the first time it does | `client:media` |
+| `Interaction` | at the first pointer over it, touch or focus, before the click that follows | Qwik's resumability |
+
+The server renders the same HTML, plus a `data-hydrate` attribute that `hydrate` reads; nothing changes in the browser code. Until it is hydrated, an island is the HTML from the server: readable, its links working, its buttons doing nothing yet. Keep `Load` for what the visitor uses at once, and delay what is below the fold, rarely used or only for some screens.
+
 ## Hydration mismatches
 
 Hydration expects the HTML to match the view the component builds in the browser. If it does not (an element where text was expected, a different tag), `active` prints a warning in the browser console:

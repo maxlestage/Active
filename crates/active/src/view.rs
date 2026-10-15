@@ -366,6 +366,44 @@ where
     })
 }
 
+/// Renders `view` at the end of the element matching `target` (`"body"`, `"#modals"`)
+/// rather than where the portal is: Vue's `<Teleport>`, React's `createPortal`. Use it for
+/// dialogs, toasts and tooltips, which must escape the `overflow: hidden` or the stacking
+/// context of their parents. The view keeps the context ([`provide`](crate::provide)) of
+/// where the portal is, and is removed with it.
+///
+/// In the browser only: the server renders nothing in its place (as React does), so put
+/// in a portal what appears after an interaction.
+///
+/// ```
+/// use active::{html::*, portal, use_state, Node};
+///
+/// let open = use_state(true);
+/// let page = div().children_dyn(move || {
+///     if open.get() {
+///         vec![portal("body", div().class("dialog").text("Saved"))]
+///     } else {
+///         vec![]
+///     }
+/// });
+/// assert_eq!(Node::from(page).render(), "<div><!--[--><!--[--><!--]--><!--]--></div>");
+/// ```
+pub fn portal(target: &'static str, view: impl Into<Node>) -> Node {
+    let view = view.into();
+    #[cfg(feature = "client")]
+    {
+        fragment_dyn(move || {
+            untrack(|| crate::client::portal(target, &view));
+            Vec::new()
+        })
+    }
+    #[cfg(not(feature = "client"))]
+    {
+        let _ = (target, view);
+        fragment_dyn(Vec::new)
+    }
+}
+
 impl Element {
     /// Sets an attribute; setting the same name again replaces the value.
     /// `attr("class", …)` adds classes, like [`class`](Element::class).
@@ -773,6 +811,90 @@ impl Element {
         self
     }
 
+    /// Binds a text field to a validated [`Field`](crate::forms::Field) of a
+    /// [`Form`](crate::forms::Form): [`bind_value`](Element::bind_value) on its value, the
+    /// field marked as touched when the visitor leaves it (`blur`, from then on its error
+    /// shows), and `aria-invalid="true"` while its error is shown, for screen readers and for
+    /// CSS (`input[aria-invalid] { border-color: red }`).
+    ///
+    /// ```
+    /// use active::forms::{Form, required};
+    /// use active::{html::*, use_state, Node};
+    ///
+    /// let name = use_state(String::new());
+    /// let field = Form::new().field(name, [required("Enter your name")]);
+    /// let html = Node::from(input().bind_field(field)).render();
+    /// assert_eq!(html, r#"<input value=""/>"#); // no error shown before the visitor leaves it
+    /// ```
+    #[must_use]
+    pub fn bind_field(self, field: crate::forms::Field) -> Self {
+        self.bind_value(field.value())
+            .on("blur", move |_| field.touch())
+            .set_attr(
+                Cow::Borrowed("aria-invalid"),
+                Attr::Dyn(Rc::new(move || {
+                    field.message().is_some().then(|| "true".to_string())
+                })),
+            )
+    }
+
+    /// Shows the element while `when` is `true`, and hides it (`hidden`) otherwise, playing
+    /// CSS transitions each time it appears or disappears: Vue's `<Transition>` with `v-show`,
+    /// Svelte's `transition:`.
+    ///
+    /// As in Vue, the element gets classes named after `name` during each phase:
+    /// `{name}-enter-from`, `{name}-enter-active` and `{name}-enter-to` while it appears,
+    /// `{name}-leave-from`, `{name}-leave-active` and `{name}-leave-to` while it disappears;
+    /// `hidden` is set once the leave transition (or animation) is over. The first state is
+    /// shown without a transition, and the server renders `hidden` when `when` is `false`.
+    ///
+    /// ```css
+    /// .fade-enter-active, .fade-leave-active { transition: opacity .2s ease; }
+    /// .fade-enter-from, .fade-leave-to { opacity: 0; }
+    /// ```
+    ///
+    /// ```
+    /// use active::{html::*, use_state, Node};
+    ///
+    /// let open = use_state(false);
+    /// let menu = nav().transition("fade", move || open.get()).text("Menu");
+    /// assert_eq!(Node::from(menu).render(), r#"<nav hidden="">Menu</nav>"#);
+    /// ```
+    #[must_use]
+    pub fn transition(self, name: &'static str, when: impl Fn() -> bool + 'static) -> Self {
+        #[cfg(feature = "client")]
+        {
+            let when: Rc<dyn Fn() -> bool> = Rc::new(when);
+            self.on_mount(move |dom| crate::client::transition(dom, name, when.clone()))
+        }
+        #[cfg(not(feature = "client"))]
+        {
+            let _ = name;
+            self.bool_attr("hidden", move || !when())
+        }
+    }
+
+    /// Plays the `{name}-enter-*` transition when the element is added to the page (not when
+    /// the page is hydrated): rows added to a list, a page shown by the router, a toast. See
+    /// [`transition`](Element::transition) for the classes; Svelte's `in:`.
+    ///
+    /// ```css
+    /// .slide-enter-active { transition: transform .25s ease-out; }
+    /// .slide-enter-from { transform: translateY(1rem); }
+    /// ```
+    #[must_use]
+    pub fn transition_in(self, name: &'static str) -> Self {
+        #[cfg(feature = "client")]
+        {
+            self.on_mount(move |dom| crate::client::transition_in(dom, name))
+        }
+        #[cfg(not(feature = "client"))]
+        {
+            let _ = name;
+            self
+        }
+    }
+
     /// Writes ` class="…"` (static classes, then the reactive ones that are on), or nothing.
     fn write_class(&self, out: &mut String) {
         let toggles = self.class_toggles().iter().filter(|(_, on)| on());
@@ -1062,6 +1184,44 @@ mod tests {
     use super::html::*;
     use super::*;
     use crate::use_state;
+
+    #[test]
+    fn transitions_render_hidden_and_portals_render_an_empty_region() {
+        let open = use_state(true);
+        let panel = || {
+            Node::from(
+                div()
+                    .transition("fade", move || open.get())
+                    .transition_in("slide"),
+            )
+            .render()
+        };
+        assert_eq!(panel(), "<div></div>");
+        open.set(false);
+        assert_eq!(panel(), r#"<div hidden=""></div>"#);
+        assert_eq!(
+            portal("#modals", p().text("Hi")).render(),
+            "<!--[--><!--]-->"
+        );
+    }
+
+    #[test]
+    fn islands_carry_their_hydration_strategy() {
+        use crate::{Hydrate, island, island_with};
+        fn widget(props: &str) -> Node {
+            span().text(props.to_string()).into()
+        }
+        let html = |when| island_with("w", "1", widget, when).render();
+        assert_eq!(html(Hydrate::Load), island("w", "1", widget).render());
+        assert!(!html(Hydrate::Load).contains("data-hydrate"));
+        assert!(html(Hydrate::Idle).contains(r#" data-hydrate="idle">"#));
+        assert!(html(Hydrate::Interaction).contains(r#" data-hydrate="interaction">"#));
+        assert!(
+            html(Hydrate::Media("(max-width: 50em) and (hover: none)".into()))
+                .contains(r#" data-hydrate="media:(max-width: 50em) and (hover: none)">"#)
+        );
+        assert!(html(Hydrate::Media("\"><x".into())).contains("media:&quot;&gt;&lt;x"));
+    }
 
     #[test]
     fn renders_elements_attributes_and_escaped_text() {

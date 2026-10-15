@@ -37,8 +37,17 @@ in the style of React hooks. Then ship them the way your project needs:
   `on_submit` / `on_key` / `Event::stop_propagation` play the event modifiers, `style_dyn`
   binds one CSS property, and `Routes` / `match_path` match routes such as `/posts/:id`,
   `/docs/:lang?` or `/files/*rest`, keeping a page while only its parameters change.
+- **The best of the other frameworks**: `resource` loads async data from a source that
+  changes and `suspense` shows a fallback until it is there (Solid, React); `error_boundary`
+  replaces a failed part of the page (React); `batch` runs effects once for several writes
+  (Solid); `before_navigate` guards and redirects navigations, and the back button restores
+  the scroll position (Vue Router, Next); `Element::transition` plays enter/leave classes
+  (Vue, Svelte); `active::forms` validates fields with rules and per-field errors (Angular);
+  `portal` renders a dialog at the end of `body` (Vue's Teleport).
 - **Islands**: `island("counter", props, counter)` on the server, `hydrate(&[("counter",
   counter)])` in the browser. Static content is never re-rendered or downloaded twice.
+  `island_with(…, Hydrate::Visible)` delays hydration until the island is idle, visible,
+  matches a media query or is interacted with (Astro's `client:*`, Qwik).
 - **Client-side apps**: `mount_to("#app", app())`, `location()` and `navigate()` for
   routing without reloads; each page's `Seo` updates the title and meta tags.
 - **Installable apps (PWA)**: `pwa::Manifest` writes the web app manifest,
@@ -46,7 +55,7 @@ in the style of React hooks. Then ship them the way your project needs:
   `Document::service_worker` add their tags: the site goes on the home screen and keeps
   working offline.
 - **Small**: no macros, no `unsafe`. The server build depends on nothing; the `client`
-  feature adds `wasm-bindgen` and `web-sys`.
+  feature adds `wasm-bindgen`, `wasm-bindgen-futures`, `js-sys` and `web-sys`.
 
 ## Install
 

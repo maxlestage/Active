@@ -18,13 +18,16 @@ include = ["src", "examples", "tests", "README.md", "LICENSE"]
 default = []
 # Browser side (compile for wasm32): hydrate islands, mount client-side apps, run effects,
 # listen to events, route and update the <head>.
-client = ["dep:wasm-bindgen", "dep:web-sys"]
+client = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys"]
 
 [dependencies]
 wasm-bindgen = { version = "0.2.100", optional = true }
+wasm-bindgen-futures = { version = "0.4.50", optional = true }
+js-sys = { version = "0.3.77", optional = true }
 web-sys = { version = "0.3.77", optional = true, features = [
   "CharacterData",
   "Comment",
+  "CssStyleDeclaration",
   "console",
   "Document",
   "DomTokenList",
@@ -40,8 +43,11 @@ web-sys = { version = "0.3.77", optional = true, features = [
   "HtmlInputElement",
   "HtmlSelectElement",
   "HtmlTextAreaElement",
+  "IntersectionObserver",
+  "IntersectionObserverEntry",
   "KeyboardEvent",
   "Location",
+  "MediaQueryList",
   "MouseEvent",
   "Node",
   "NodeList",

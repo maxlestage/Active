@@ -14,6 +14,7 @@ use web_sys::{
 use crate::event::Event;
 use crate::island::IslandFn;
 use crate::reactive::{Scope, State, effect, keep_alive, on_cleanup, root_state, scope, untrack};
+use crate::router::check_navigation;
 use crate::seo::Seo;
 use crate::view::{Attr, Content, DynNodes, DynText, Element, Keyed, Node, collect_seo};
 
@@ -38,6 +39,16 @@ thread_local! {
     /// Set by [`fragment_dyn`](crate::fragment_dyn). Called through a pointer so that bundles
     /// without dynamic regions do not contain the focus code.
     static KEEP_FOCUS: Cell<Option<KeepFocus>> = const { Cell::new(None) };
+    /// While an island is hydrated or an app first mounted: `transition_in` plays nothing.
+    static FIRST_RENDER: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Runs `f` as a first render (see `FIRST_RENDER`).
+fn first_render<R>(f: impl FnOnce() -> R) -> R {
+    let previous = FIRST_RENDER.with(|r| r.replace(true));
+    let result = f();
+    FIRST_RENDER.with(|r| r.set(previous));
+    result
 }
 
 type HeadUpdate = fn(&Seo, &[Node], &Cell<bool>) -> Seo;
@@ -102,12 +113,120 @@ pub fn hydrate(islands: &[(&str, IslandFn)]) {
         let Some((_, component)) = islands.iter().find(|(n, _)| *n == name) else {
             continue;
         };
-        let props = root.get_attribute("data-props").unwrap_or_default();
-        hydrate_island(&root, component(&props));
+        let component = *component;
+        let when = root.get_attribute("data-hydrate").unwrap_or_default();
+        let start = {
+            let root = root.clone();
+            move || {
+                if root.has_attribute("data-hydrated") {
+                    return;
+                }
+                let props = root.get_attribute("data-props").unwrap_or_default();
+                hydrate_island(&root, component(&props));
+            }
+        };
+        if when.is_empty() {
+            start();
+        } else if !root.has_attribute("data-hydrate-pending") {
+            let _ = root.set_attribute("data-hydrate-pending", "");
+            schedule(&root, &when, Rc::new(once(start)));
+        }
+    }
+}
+
+/// `f`, callable many times, run the first time only.
+fn once(f: impl FnOnce() + 'static) -> impl Fn() + 'static {
+    let f = RefCell::new(Some(f));
+    move || {
+        let f = f.borrow_mut().take();
+        if let Some(f) = f {
+            f();
+        }
+    }
+}
+
+/// Calls `f` once, after `ms` milliseconds.
+fn set_timeout(f: impl FnOnce() + 'static, ms: i32) {
+    let f = Closure::once_into_js(f);
+    let _ = window().set_timeout_with_callback_and_timeout_and_arguments_0(f.unchecked_ref(), ms);
+}
+
+/// Calls `f` once, at the next animation frame.
+fn next_frame(f: impl FnOnce() + 'static) {
+    let f = Closure::once_into_js(f);
+    let _ = window().request_animation_frame(f.unchecked_ref());
+}
+
+/// Runs `start` when the island's `data-hydrate` strategy says (see
+/// [`Hydrate`](crate::Hydrate)).
+fn schedule(root: &DomElement, when: &str, start: Rc<dyn Fn()>) {
+    match when {
+        "idle" => {
+            let run = start.clone();
+            let f = Closure::once_into_js(move || run());
+            if window().request_idle_callback(f.unchecked_ref()).is_err() {
+                set_timeout(move || start(), 200);
+            }
+        }
+        "visible" => {
+            let run = start.clone();
+            let seen = Closure::<dyn Fn(js_sys::Array, web_sys::IntersectionObserver)>::new(
+                move |entries: js_sys::Array, observer: web_sys::IntersectionObserver| {
+                    let visible = entries.iter().any(|e| {
+                        e.unchecked_into::<web_sys::IntersectionObserverEntry>()
+                            .is_intersecting()
+                    });
+                    if visible {
+                        observer.disconnect();
+                        run();
+                    }
+                },
+            );
+            // `<active-island>` is `display: contents` (no box of its own): its children are
+            // observed.
+            let children = root.children();
+            let children: Vec<DomElement> = (0..children.length())
+                .filter_map(|i| children.item(i))
+                .collect();
+            match web_sys::IntersectionObserver::new(seen.as_ref().unchecked_ref()) {
+                Ok(observer) if !children.is_empty() => {
+                    for child in &children {
+                        observer.observe(child);
+                    }
+                    seen.forget();
+                }
+                _ => start(),
+            }
+        }
+        "interaction" => {
+            for event in ["pointerover", "touchstart", "focusin"] {
+                let run = start.clone();
+                listen(root, event, move |_| run());
+            }
+        }
+        _ => match when
+            .strip_prefix("media:")
+            .and_then(|query| window().match_media(query).ok().flatten())
+        {
+            Some(media) if !media.matches() => {
+                let watched = media.clone();
+                listen(&media, "change", move |_| {
+                    if watched.matches() {
+                        start();
+                    }
+                });
+            }
+            // Matching now, or an unknown strategy: at once.
+            _ => start(),
+        },
     }
 }
 
 fn hydrate_island(root: &DomElement, view: Node) {
+    first_render(|| hydrate_island_now(root, view));
+}
+
+fn hydrate_island_now(root: &DomElement, view: Node) {
     let (result, attempt) = scope(|| hydrate_children(std::slice::from_ref(&view), root));
     if let Err(Mismatch(what)) = result {
         // The HTML does not match the view (props changed, HTML edited…): start over.
@@ -135,7 +254,7 @@ pub fn mount(view: &Node, parent: &DomElement) {
         update_head(&head);
     }
     let previous = HEAD.with(|h| h.replace(Some(Rc::new(head))));
-    mount_node(view, parent, None, &document());
+    first_render(|| mount_node(view, parent, None, &document()));
     HEAD.with(|h| *h.borrow_mut() = previous);
 }
 
@@ -276,9 +395,126 @@ fn router() -> (State<String>, State<String>) {
     let (path, search) = current_url();
     let router = (root_state(path), root_state(search));
     ROUTER.with(|r| r.set(Some(router)));
-    listen(&window(), "popstate", |_| sync_router());
+    // Each history entry gets an id, under which its scroll position is kept.
+    if let Ok(history) = window().history() {
+        match history.state().ok().and_then(|s| s.as_f64()) {
+            Some(id) => ENTRY.with(|e| e.set(id)),
+            None => {
+                let id = new_entry_id();
+                ENTRY.with(|e| e.set(id));
+                let _ = history.replace_state(&JsValue::from_f64(id), "");
+            }
+        }
+    }
+    // The last position seen, for popstate: by then the browser may have scrolled already.
+    listen(&window(), "scroll", |_| {
+        LAST_Y.with(|y| y.set(window().scroll_y().unwrap_or(0.0)));
+    });
+    listen(&window(), "popstate", |_| went_back_or_forward());
     listen(&document(), "click", follow_link);
     router
+}
+
+thread_local! {
+    /// The id of the current history entry (see [`router`]).
+    static ENTRY: Cell<f64> = const { Cell::new(0.0) };
+    /// The scroll position of each history entry left, by id.
+    static SCROLLS: RefCell<Vec<(f64, f64)>> = const { RefCell::new(Vec::new()) };
+    static ENTRIES: Cell<f64> = const { Cell::new(0.0) };
+    /// The scroll position at the last `scroll` event.
+    static LAST_Y: Cell<f64> = const { Cell::new(0.0) };
+}
+
+/// An id unlikely to be in the history already (after a reload, the ids of the previous
+/// visit are still there).
+fn new_entry_id() -> f64 {
+    let n = ENTRIES.with(|n| {
+        n.set(n.get() + 1.0);
+        n.get()
+    });
+    js_sys::Date::now() * 1000.0 + n
+}
+
+/// Notes `y`, the scroll position of the current entry, about to be left.
+fn save_scroll(y: f64) {
+    let id = ENTRY.with(Cell::get);
+    SCROLLS.with(|s| {
+        let mut s = s.borrow_mut();
+        s.retain(|(i, _)| *i != id);
+        s.push((id, y));
+        // A long session keeps the last 200 positions.
+        if s.len() > 200 {
+            s.remove(0);
+        }
+    });
+}
+
+/// The address of the current page (path, query string and fragment).
+fn current_address() -> String {
+    let location = window().location();
+    format!(
+        "{}{}{}",
+        location.pathname().unwrap_or_default(),
+        location.search().unwrap_or_default(),
+        location.hash().unwrap_or_default()
+    )
+}
+
+/// popstate: the guards decide, then the page follows the URL and gets its scroll position
+/// back.
+fn went_back_or_forward() {
+    save_scroll(LAST_Y.with(Cell::get));
+    let to = current_address();
+    let Ok(history) = window().history() else {
+        sync_router();
+        return;
+    };
+    let id = history.state().ok().and_then(|s| s.as_f64());
+    match check_navigation(&to) {
+        None => {
+            // Cancelled: the address of the page still shown comes back.
+            if let Some((path, search)) = ROUTER.with(Cell::get) {
+                let search = search.get();
+                let back = if search.is_empty() {
+                    path.get()
+                } else {
+                    format!("{}?{search}", path.get())
+                };
+                let id = new_entry_id();
+                ENTRY.with(|e| e.set(id));
+                let _ = history.push_state_with_url(&JsValue::from_f64(id), "", Some(&back));
+            }
+        }
+        Some(next) if next != to => {
+            let id = new_entry_id();
+            ENTRY.with(|e| e.set(id));
+            let _ = history.replace_state_with_url(&JsValue::from_f64(id), "", Some(&next));
+            sync_router();
+            scroll_to_target(&next);
+        }
+        Some(_) => {
+            let id = id.unwrap_or_else(new_entry_id);
+            ENTRY.with(|e| e.set(id));
+            sync_router();
+            let saved = SCROLLS.with(|s| s.borrow().iter().find(|(i, _)| *i == id).map(|p| p.1));
+            match saved {
+                Some(y) => window().scroll_to_with_x_and_y(0.0, y),
+                None => scroll_to_target(&to),
+            }
+        }
+    }
+}
+
+/// Scrolls to the element of the `#fragment` of `to`, or to the top.
+fn scroll_to_target(to: &str) {
+    match to.split_once('#') {
+        Some((_, id)) if !id.is_empty() => {
+            if let Some(target) = document().get_element_by_id(id) {
+                target.scroll_into_view();
+            }
+        }
+        _ => window().scroll_to_with_x_and_y(0.0, 0.0),
+    }
 }
 
 /// Copies the browser's URL into the router's states (only what changed, so only the views
@@ -299,20 +535,44 @@ fn sync_router() {
 /// Goes to `to` (`"/about"`, `"/search?q=rust"`, `"/docs#install"`) without reloading the
 /// page: adds a browser history entry, updates [`location`] and [`query`], then scrolls to
 /// the top, or to the element whose id is the `#fragment`.
+///
+/// The guards registered with [`before_navigate`](crate::before_navigate) are asked first:
+/// they can cancel the navigation or redirect it. The scroll position of the page left is
+/// kept: the back button brings it back.
 pub fn navigate(to: &str) {
+    go(to, false);
+}
+
+/// Like [`navigate`], replacing the current history entry instead of adding one (Vue
+/// Router's `router.replace`): after a sign-in, a redirect, or to keep filters in the URL
+/// without filling the history.
+pub fn navigate_replace(to: &str) {
+    go(to, true);
+}
+
+fn go(to: &str, replace: bool) {
+    router(); // started, so that the entries have ids
+    let Some(to) = check_navigation(to) else {
+        return;
+    };
     let window = window();
     if let Ok(history) = window.history() {
-        let _ = history.push_state_with_url(&JsValue::NULL, "", Some(to));
+        let id = if replace {
+            ENTRY.with(Cell::get)
+        } else {
+            save_scroll(window.scroll_y().unwrap_or(0.0));
+            new_entry_id()
+        };
+        ENTRY.with(|e| e.set(id));
+        let state = JsValue::from_f64(id);
+        let _ = if replace {
+            history.replace_state_with_url(&state, "", Some(&to))
+        } else {
+            history.push_state_with_url(&state, "", Some(&to))
+        };
     }
     sync_router();
-    match to.split_once('#') {
-        Some((_, id)) if !id.is_empty() => {
-            if let Some(target) = document().get_element_by_id(id) {
-                target.scroll_into_view();
-            }
-        }
-        _ => window.scroll_to_with_x_and_y(0.0, 0.0),
-    }
+    scroll_to_target(&to);
 }
 
 /// The path and the query string (without `?`) of the browser's URL.
@@ -1005,4 +1265,161 @@ fn mount_node(node: &Node, parent: &DomElement, before: Option<&DomNode>, doc: &
             }
         }
     }
+}
+
+/// Mounts `view` at the end of the element matching `selector` (see
+/// [`portal`](crate::portal)); what it created is removed with the current scope.
+pub(crate) fn portal(selector: &str, view: &Node) {
+    let Ok(Some(target)) = document().query_selector(selector) else {
+        web_sys::console::warn_1(&format!("active: no element matches {selector:?}").into());
+        return;
+    };
+    let doc = document();
+    let (start, end) = (doc.create_comment("portal"), doc.create_comment("/portal"));
+    let _ = target.append_child(&start);
+    let _ = target.append_child(&end);
+    let end_node: DomNode = end.clone().into();
+    mount_node(view, &target, Some(&end_node), &doc);
+    on_cleanup(move || {
+        while let Some(node) = start.next_sibling() {
+            if node.is_same_node(Some(&end)) {
+                break;
+            }
+            let _ = target.remove_child(&node);
+        }
+        start.remove();
+        end.remove();
+    });
+}
+
+/// The classes of the phases of a transition named `name`.
+fn transition_classes(name: &str) -> [String; 6] {
+    [
+        "enter-from",
+        "enter-active",
+        "enter-to",
+        "leave-from",
+        "leave-active",
+        "leave-to",
+    ]
+    .map(|phase| format!("{name}-{phase}"))
+}
+
+/// The longest transition or animation (delay included) of `dom`, in milliseconds.
+fn transition_ms(dom: &DomElement) -> f64 {
+    let Ok(Some(style)) = window().get_computed_style(dom) else {
+        return 0.0;
+    };
+    let seconds = |property: &str| -> Vec<f64> {
+        style
+            .get_property_value(property)
+            .unwrap_or_default()
+            .split(',')
+            .map(|t| {
+                let t = t.trim();
+                if let Some(ms) = t.strip_suffix("ms") {
+                    ms.parse().unwrap_or(0.0)
+                } else {
+                    t.strip_suffix('s')
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0.0)
+                        * 1000.0
+                }
+            })
+            .collect()
+    };
+    let longest = |duration: &str, delay: &str| {
+        let (durations, delays) = (seconds(duration), seconds(delay));
+        durations
+            .iter()
+            .enumerate()
+            .map(|(i, d)| d + delays.get(i % delays.len().max(1)).copied().unwrap_or(0.0))
+            .fold(0.0, f64::max)
+    };
+    longest("transition-duration", "transition-delay")
+        .max(longest("animation-duration", "animation-delay"))
+}
+
+/// Plays the `enter` or `leave` phase of a transition on `dom`, then calls `done` unless
+/// another phase started meanwhile (`run` changed).
+fn play(
+    dom: &DomElement,
+    name: &str,
+    enter: bool,
+    run: Rc<Cell<u32>>,
+    done: impl FnOnce() + 'static,
+) {
+    let classes = transition_classes(name);
+    let list = dom.class_list();
+    for class in &classes {
+        let _ = list.remove_1(class);
+    }
+    let (from, active, to) = if enter {
+        (&classes[0], &classes[1], &classes[2])
+    } else {
+        (&classes[3], &classes[4], &classes[5])
+    };
+    let _ = list.add_2(from, active);
+    let current = run.get();
+    let (dom, from, active, to) = (dom.clone(), from.clone(), active.clone(), to.clone());
+    // Two frames: the first state is painted before the second one is set.
+    next_frame(move || {
+        next_frame(move || {
+            if run.get() != current {
+                return;
+            }
+            let list = dom.class_list();
+            let _ = list.remove_1(&from);
+            let _ = list.add_1(&to);
+            let wait = transition_ms(&dom);
+            set_timeout(
+                move || {
+                    if run.get() == current {
+                        let _ = list.remove_2(&active, &to);
+                        done();
+                    }
+                },
+                wait.ceil() as i32,
+            );
+        });
+    });
+}
+
+/// Shows or hides `dom` with the transitions named `name` as `when` changes (see
+/// [`Element::transition`]).
+pub(crate) fn transition(dom: &DomElement, name: &'static str, when: Rc<dyn Fn() -> bool>) {
+    let dom = dom.clone();
+    let first = Cell::new(true);
+    let run = Rc::new(Cell::new(0u32));
+    effect(move || {
+        let show = when();
+        untrack(|| {
+            if first.replace(false) {
+                let _ = if show {
+                    dom.remove_attribute("hidden")
+                } else {
+                    dom.set_attribute("hidden", "")
+                };
+                return;
+            }
+            run.set(run.get() + 1);
+            if show {
+                let _ = dom.remove_attribute("hidden");
+                play(&dom, name, true, run.clone(), || {});
+            } else {
+                let hide = dom.clone();
+                play(&dom, name, false, run.clone(), move || {
+                    let _ = hide.set_attribute("hidden", "");
+                });
+            }
+        });
+    });
+}
+
+/// Plays the enter transition of an element just added to the page (not hydrated).
+pub(crate) fn transition_in(dom: &DomElement, name: &'static str) {
+    if FIRST_RENDER.with(Cell::get) {
+        return;
+    }
+    play(dom, name, true, Rc::new(Cell::new(0)), || {});
 }

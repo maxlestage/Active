@@ -272,6 +272,24 @@ fn search() -> Element {
 - Both return a `Watcher`: `watcher.stop()` stops it before its component is released. The handle is `Copy`, so the callback itself can stop it.
 - Like effects, watchers run only in the browser and are released with their component.
 
+## Grouping writes: batch
+
+Each write re-runs, at once, the effects and views that read the state. When one action writes several states read by the same view, `batch` holds the effects back until it returns, so each runs **once**, with every change made (Solid's `batch`; React batches an event handler's updates the same way):
+
+```rust
+use active::prelude::*;
+
+fn reset(name: State<String>, age: State<u32>, saved: State<bool>) {
+    active::batch(|| {
+        name.set(String::new());
+        age.set(0);
+        saved.set(false);
+    });
+}
+```
+
+Reads inside the batch see the new values at once, `memo`s included. Batches can be nested; a batch inside an effect waits for the effect to finish. On the server, effects do not run and `batch` simply runs its closure.
+
 ## Cleaning up
 
 A component sometimes starts something that lives outside the view: a timer, a WebSocket, an animation loop, a listener on `window`. `on_cleanup(f)` runs `f` when the component is released, that is when the dynamic region that built it re-renders or the router shows another page:

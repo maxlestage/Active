@@ -301,6 +301,11 @@ Esto requiere `wasm-bindgen-futures = "0.4"` y las features `Response` y `Window
 
 > **Advertencia:** Cuando el future termina, el estado todavía debe existir. Si el componente puede eliminarse mientras tanto (porque está en una región dinámica que puede reconstruirse), crea el estado por encima de esa región.
 
+## Validación y resultados asíncronos
+
+- Para comprobar campos (obligatorio, email, longitud…) y mostrar un error por campo, ver [Formularios y validación](../forms/).
+- Para cargar datos, mostrar un respaldo mientras cargan y gestionar los fallos, prefiere `resource`, `suspense` y `error_boundary` a los futures escritos a mano: ver [Datos asíncronos y errores](../async-data/).
+
 ## Enlaces
 
 Los enlaces son elementos `a().href(...)` normales. En una [aplicación del lado del cliente](../client-app/), el enrutador que inicia `active::location()` sigue los enlaces del mismo sitio sin recargar la página, y `active::navigate("/path")` cambia de página desde un manejador.
