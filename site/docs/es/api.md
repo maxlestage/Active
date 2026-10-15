@@ -22,9 +22,9 @@ El crate usa la edición 2024 y necesita Rust 1.85 o posterior. No contiene cód
 | `active::*` | todos los elementos de abajo |
 | `active::html` | una función por etiqueta HTML y SVG |
 | `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) y [`register_script`](#register-script) y [`version`](#version): sitios instalables y sin conexión |
-| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state`; con `client`, también `location`, `navigate` y `query_param` |
+| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state`, `watch`, `watch_immediate`, `provide`, `use_context`, `expect_context`, `match_path`; con `client`, también `location`, `navigate` y `query_param` |
 
-No están en el prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Úsalos como `active::hydrate`, etc.
+No están en el prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `Watcher`, `Params`, `Routes`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`. Úsalos como `active::hydrate`, etc.
 
 ## Vistas
 
@@ -81,6 +81,7 @@ Un elemento HTML en construcción, creado por una [función de etiqueta](#funcio
 | `pub fn class(self, class: impl Into<Str>) -> Self` | Añade clases (separadas por espacios); las cadenas vacías se ignoran. |
 | `pub fn class_if(self, class: impl Into<Str>, f: impl Fn() -> bool + 'static) -> Self` | Añade `class` mientras `f()` sea true. |
 | `pub fn style(self, style: impl Into<Str>) -> Self` | `style="…"` (reemplaza un estilo anterior). |
+| `pub fn style_dyn(self, property: &'static str, f: impl Fn() -> String + 'static) -> Self` | Una propiedad CSS recalculada a partir de estados, añadida al `style` puesto antes; un valor vacío la omite. Un `style` puesto después la reemplaza. |
 | `pub fn href(self, href: impl Into<Str>) -> Self` | `href="…"` (reemplaza un href anterior). |
 
 **Contenido**
@@ -104,7 +105,17 @@ Un elemento HTML en construcción, creado por una [función de etiqueta](#funcio
 | `pub fn on(self, event: &'static str, handler: impl Fn(Event) + 'static) -> Self` | Escucha un evento del DOM. |
 | `pub fn on_click(self, handler: impl Fn(Event) + 'static) -> Self` | `on("click", …)`. |
 | `pub fn on_input(self, handler: impl Fn(Event) + 'static) -> Self` | `on("input", …)`. |
+| `pub fn on_submit(self, handler: impl Fn(Event) + 'static) -> Self` | `on("submit", …)` que primero llama a `prevent_default`. |
+| `pub fn on_key(self, key: &'static str, handler: impl Fn(Event) + 'static) -> Self` | Listener de `keydown` llamado solo para `key` (`"Enter"`, `"Escape"`…). |
 | `pub fn on_mount(self, f: impl Fn(&Dom) + 'static) -> Self` | Ejecuta `f` con el elemento del DOM en cuanto está en la página. |
+
+**Enlace bidireccional** (el valor se renderiza en el servidor; el listener solo existe con `client`)
+
+| Método | Descripción |
+| --- | --- |
+| `pub fn bind_value(self, state: State<String>) -> Self` | Valor del campo ⇄ estado: `<input>` y `<textarea>` se escriben en `input`, `<select>` en `change`. Un `<textarea>` renderiza el estado como texto. |
+| `pub fn bind_checked(self, state: State<bool>) -> Self` | Casilla ⇄ estado, se escribe en `change`. |
+| `pub fn bind_parsed<T>(self, state: State<T>) -> Self` (`T: FromStr + Display + PartialEq`) | Campo ⇄ estado de un tipo convertido (números): se escribe cuando el texto se convierte; si no, se conserva el texto escrito. |
 
 ### Funciones libres
 
@@ -205,6 +216,35 @@ impl Scope { pub fn dispose(self) }
 
 `scope` ejecuta `f` y devuelve su resultado con un `Scope` que posee los estados, los efectos y los listeners de eventos creados dentro. `dispose` los libera. `Scope` es `#[must_use]`. En el servidor, un renderizado dentro de un scope abierto no vacía el almacén de estados.
 
+### watch y watch_immediate
+
+```rust
+pub fn watch<T: Clone + PartialEq + 'static>(source: impl Fn() -> T + 'static, callback: impl Fn(&T, &T) + 'static) -> Watcher
+pub fn watch_immediate<T: Clone + PartialEq + 'static>(source: impl Fn() -> T + 'static, callback: impl Fn(&T, Option<&T>) + 'static) -> Watcher
+```
+
+Llama a `callback(&nuevo, &anterior)` cada vez que cambia el valor devuelto por `source` (`PartialEq`). `source` se sigue como un efecto, `callback` no. `watch` omite el primer valor; `watch_immediate` llama enseguida a `callback(&primero, None)`. Solo en el navegador, como `effect`; se libera con el componente.
+
+### Watcher
+
+```rust
+#[derive(Clone, Copy, Debug)]
+pub struct Watcher { /* … */ }
+impl Watcher { pub fn stop(self) }
+```
+
+Detiene un watcher antes de que se libere su componente. Detenerlo dos veces no hace nada.
+
+### provide, use_context y expect_context
+
+```rust
+pub fn provide<T: 'static, R>(value: T, f: impl FnOnce() -> R) -> R
+pub fn use_context<T: Clone + 'static>() -> Option<T>
+pub fn expect_context<T: Clone + 'static>() -> T
+```
+
+`provide` da `value` a todo lo que construye `f`, incluidas las regiones dinámicas y las listas por clave (lo conservan al reconstruirse). `use_context` devuelve el valor de tipo `T` proporcionado más cercano, clonado; `expect_context` entra en pánico, nombrando el tipo, si no hay ninguno. Llámalas mientras construyes la vista. Ver [Estado](../state/).
+
 ## Eventos
 
 ### Event
@@ -218,6 +258,8 @@ Un evento del DOM que se pasa a los manejadores. Implementa `Debug` y `Clone`.
 | `pub fn prevent_default(&self)` | Cancela la acción por defecto del navegador. |
 | `pub fn current_target(&self) -> Option<Dom>` | El elemento al que está conectado el listener. `None` en el servidor. |
 | `pub fn raw(&self) -> &web_sys::Event` | El evento subyacente. Solo con `client`. |
+| `pub fn stop_propagation(&self)` | Impide que el evento llegue a los elementos padre. |
+| `pub fn checked(&self) -> bool` | Si la casilla o el botón de radio que disparó el evento está marcado; `false` en otro caso. |
 
 ### Dom
 
@@ -364,6 +406,49 @@ where
 ```
 
 Un hash corto de `parts` (10 caracteres hexadecimales, FNV-1a), para `ServiceWorker::new`: calcula el hash de lo que guarda el worker, y cada despliegue que lo cambie instala un worker nuevo.
+
+## Enrutamiento
+
+Disponible en el servidor y en el navegador. Ver [Aplicaciones del lado del cliente](../client-app/).
+
+### match_path
+
+```rust
+pub fn match_path(pattern: &str, path: &str) -> Option<Params>
+```
+
+Compara `path` (sin su cadena de consulta, su fragmento ni las barras de más) con `pattern`: `posts` coincide con ese segmento, `:id` con un segmento, `:id?` con un segmento opcional, `*rest` (al final) con todo lo demás (`*` solo no captura nada). Los valores se decodifican.
+
+### Params
+
+```rust
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Params { /* … */ }
+```
+
+| Método | Descripción |
+| --- | --- |
+| `pub fn get(&self, name: &str) -> Option<&str>` | El valor de un parámetro. |
+| `pub fn parse<T: FromStr>(&self, name: &str) -> Option<T>` | El valor convertido; `None` si falta o no es válido. |
+| `pub fn iter(&self) -> impl Iterator<Item = (&str, &str)>` | Los parámetros, en el orden del patrón. |
+| `pub fn is_empty(&self) -> bool` | Si no hay ninguno. |
+
+### Routes
+
+```rust
+#[derive(Clone, Default)]
+pub struct Routes { /* … */ }
+```
+
+| Método | Descripción |
+| --- | --- |
+| `pub fn new() -> Self` | Una tabla vacía. |
+| `pub fn route(self, pattern: impl Into<String>, view: impl Fn(State<Params>) -> Node + 'static) -> Self` | Añade una ruta; gana el primer patrón que coincide. |
+| `pub fn fallback(self, view: impl Fn(State<Params>) -> Node + 'static) -> Self` | La página que se muestra cuando nada coincide; su parámetro `path` contiene toda la ruta. |
+| `pub fn resolve(&self, path: &str) -> Option<Params>` | Los parámetros de la ruta que coincide (o del fallback). |
+| `pub fn matches(&self, path: &str) -> bool` | Si coincide una ruta distinta del fallback. |
+| `pub fn render(&self, path: &str) -> Node` | La página de una ruta. |
+| `pub fn view(self, path: impl Fn() -> String + 'static) -> Node` | La página de una ruta que cambia: se conserva mientras coincida la misma ruta (su `State<Params>` se actualiza) y se reconstruye cuando coincide otra. |
 
 ## Islas
 

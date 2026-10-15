@@ -210,6 +210,41 @@ assert!(pages(path).render().contains("hello-rust</h1>"));
 
 In the app, pass `active::location()` as `path`. The state given to a page only ever holds routes of that page's kind, so the page can read its parameters without handling other routes. Inside the page, follow the parameters like any state: `use_state`/`effect` for data to reload, `text_dyn` for what shows them.
 
+### Route tables
+
+For more than a few pages, `active::Routes` matches the path against patterns, like Vue Router:
+
+```rust
+use active::prelude::*;
+use active::{Params, Routes};
+
+fn post(params: State<Params>) -> Node {
+    let id = move || params.with(|p| p.get("id").unwrap_or_default().to_string());
+    article().child(h1().text_dyn(move || format!("Post {}", id()))).into()
+}
+
+fn routes() -> Routes {
+    Routes::new()
+        .route("/", |_| h1().text("Blog").into())
+        .route("/posts/:id", post)
+        .route("/docs/*rest", |params| {
+            p().text_dyn(move || params.with(|p| p.get("rest").unwrap_or_default().to_string()))
+                .into()
+        })
+        .fallback(|_| h1().text("Not found").into())
+}
+
+assert!(routes().render("/posts/42").render().contains("Post 42"));
+assert!(routes().matches("/posts/42") && !routes().matches("/nope"));
+```
+
+- Patterns: `posts` matches that segment, `:id` any one segment, `:id?` an optional one, `*rest` (last) everything left. Values are percent-decoded; `params.parse::<u32>("id")` parses one.
+- The first route that matches wins; the `fallback` shows when none does (its `path` parameter holds the whole path).
+- In the app, `routes().view(move || active::location().get())` shows the current page. Like `switch`, it keeps the page while the same route matches: going from `/posts/1` to `/posts/2` only updates the `State<Params>` the page was built with.
+- On the server, `routes.render(path)` builds the page of one path, and `routes.matches(path)` tells whether to answer 404.
+- Nested routes: end the parent pattern with `*rest` (`"/settings/*rest"`) and build the child page with another `Routes`, rendered from `rest`.
+- `active::match_path(pattern, path)` matches a single pattern and returns its `Params`, for your own routing.
+
 ### Query strings
 
 `active::query()` returns the query string without the `?` (`"q=rust&page=2"`) as a state, and `active::query_param(name)` returns one parameter, decoded, or `None`. Both follow the router: links, `navigate` and the history buttons update them. Going from `/search?q=a` to `/search?q=b` rebuilds the regions that read the query, while those that read only the path stay as they are.

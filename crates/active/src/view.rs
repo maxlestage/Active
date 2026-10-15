@@ -174,7 +174,13 @@ pub fn fragment_dyn(f: impl Fn() -> Vec<Node> + 'static) -> Node {
     // only apps with dynamic regions contain this code.
     #[cfg(feature = "client")]
     crate::client::keep_focus_in_regions();
-    Node::Dynamic(Rc::new(f))
+    // The values given by `provide` around the region stay readable when it rebuilds.
+    match crate::context::capture() {
+        None => Node::Dynamic(Rc::new(f)),
+        Some(context) => {
+            Node::Dynamic(Rc::new(move || crate::context::with_captured(&context, &f)))
+        }
+    }
 }
 
 /// A list whose rows are kept by key. When the [`State`](crate::State)s read by `items`
@@ -211,6 +217,12 @@ where
     fn same<T: PartialEq + 'static>(a: &dyn Any, b: &dyn Any) -> bool {
         a.downcast_ref::<T>() == b.downcast_ref::<T>()
     }
+    // The values given by `provide` around the list stay readable when rows are built.
+    let context = crate::context::capture();
+    let row = move |item: &T| match &context {
+        Some(context) => crate::context::with_captured(context, || row(item)),
+        None => row(item),
+    };
     Node::Keyed(Rc::new(Keyed {
         items: Rc::new(move || {
             items()
@@ -568,6 +580,187 @@ impl Element {
     #[must_use]
     pub fn on_input(self, handler: impl Fn(Event) + 'static) -> Self {
         self.on("input", handler)
+    }
+
+    /// Shorthand for `on("submit", …)` that first cancels the browser's default action
+    /// (Vue's `@submit.prevent`): the page is not reloaded, `handler` does the work.
+    #[must_use]
+    pub fn on_submit(self, handler: impl Fn(Event) + 'static) -> Self {
+        self.on("submit", move |e| {
+            e.prevent_default();
+            handler(e);
+        })
+    }
+
+    /// Calls `handler` on `keydown` when the key pressed is `key` (`"Enter"`, `"Escape"`,
+    /// `"ArrowDown"`, `"k"`…), like Vue's `@keydown.enter`. Several `on_key` on the same
+    /// element each listen to their own key.
+    #[must_use]
+    pub fn on_key(self, key: &'static str, handler: impl Fn(Event) + 'static) -> Self {
+        self.on("keydown", move |e| {
+            if e.key() == key {
+                handler(e);
+            }
+        })
+    }
+
+    /// Binds a text field to `state` in both directions (Vue's `v-model`): the field shows
+    /// the state, and what the user types is written back into it on each `input` event.
+    ///
+    /// Works with `<input>`, `<textarea>` and `<select>`. The server renders the state as the
+    /// field's `value` (as the text of a `<textarea>`); for a `<select>`, also mark the
+    /// matching `<option>` with `bool_attr("selected", …)` so the page shows it before the
+    /// WebAssembly has loaded.
+    ///
+    /// ```
+    /// use active::{html::*, use_state, Node};
+    ///
+    /// let name = use_state(String::from("Ada"));
+    /// let field = input().attr("type", "text").bind_value(name);
+    /// assert_eq!(Node::from(field).render(), r#"<input type="text" value="Ada"/>"#);
+    ///
+    /// let notes = use_state(String::from("1 < 2"));
+    /// assert_eq!(Node::from(textarea().bind_value(notes)).render(), "<textarea>1 &lt; 2</textarea>");
+    /// ```
+    #[must_use]
+    pub fn bind_value(self, state: State<String>) -> Self {
+        let event = if self.tag == "select" {
+            "change"
+        } else {
+            "input"
+        };
+        let field = if self.tag == "textarea" {
+            // A `<textarea>` shows its content; in the browser, the `value` binding follows.
+            let first = untrack(|| state.get());
+            let field = self.text(first);
+            if cfg!(feature = "client") {
+                field.attr_dyn("value", move || state.get())
+            } else {
+                field
+            }
+        } else {
+            self.attr_dyn("value", move || state.get())
+        };
+        field.on(event, move |e| {
+            let value = e.value();
+            if state.with(|current| *current != value) {
+                state.set(value);
+            }
+        })
+    }
+
+    /// Binds a checkbox to `state` in both directions (Vue's `v-model` on a checkbox): it is
+    /// checked while the state is `true`, and clicking it writes the new value.
+    ///
+    /// ```
+    /// use active::{html::*, use_state, Node};
+    ///
+    /// let newsletter = use_state(true);
+    /// let checkbox = input().attr("type", "checkbox").bind_checked(newsletter);
+    /// assert_eq!(Node::from(checkbox).render(), r#"<input type="checkbox" checked=""/>"#);
+    /// ```
+    #[must_use]
+    pub fn bind_checked(self, state: State<bool>) -> Self {
+        self.bool_attr("checked", move || state.get())
+            .on("change", move |e| state.set(e.checked()))
+    }
+
+    /// Binds a field to a state of any type that parses from and displays as text, such as a
+    /// number (Vue's `v-model.number`). What the user types is written into the state when it
+    /// parses; while it does not (an empty field, `"1."`, `"-"`), the state keeps its last
+    /// value and the text typed is left alone.
+    ///
+    /// ```
+    /// use active::{html::*, use_state, Node};
+    ///
+    /// let quantity = use_state(3u32);
+    /// let field = input().attr("type", "number").bind_parsed(quantity);
+    /// assert_eq!(Node::from(field).render(), r#"<input type="number" value="3"/>"#);
+    /// ```
+    #[must_use]
+    pub fn bind_parsed<T>(self, state: State<T>) -> Self
+    where
+        T: std::str::FromStr + fmt::Display + PartialEq + 'static,
+    {
+        // What the field shows: the user's text, replaced only when the state changes to a
+        // value that text does not already stand for.
+        let shown = use_state(untrack(|| state.with(ToString::to_string)));
+        effect(move || {
+            let text = state.with(ToString::to_string);
+            untrack(|| {
+                let same = shown.with(|s| {
+                    *s == text || state.with(|v| s.trim().parse::<T>().is_ok_and(|p| p == *v))
+                });
+                if !same {
+                    shown.set(text);
+                }
+            });
+        });
+        let event = if self.tag == "select" {
+            "change"
+        } else {
+            "input"
+        };
+        self.attr_dyn("value", move || shown.get())
+            .on(event, move |e| {
+                let text = e.value();
+                let parsed = text.trim().parse::<T>().ok();
+                shown.set(text);
+                if let Some(value) = parsed {
+                    if state.with(|current| *current != value) {
+                        state.set(value);
+                    }
+                }
+            })
+    }
+
+    /// One CSS property of the `style` attribute, recomputed from [`State`]s (Vue's
+    /// `:style="{ width: … }"`). `f` returns the value (`"40%"`, `"red"`); an empty string
+    /// leaves the property out. Combines with [`style`](Element::style) set before it and
+    /// with other `style_dyn`; a `style` set after replaces them all.
+    ///
+    /// ```
+    /// use active::{html::*, use_state, Node};
+    ///
+    /// let progress = use_state(40);
+    /// let color = use_state(String::new());
+    /// let bar = div()
+    ///     .style("height: 4px")
+    ///     .style_dyn("width", move || format!("{}%", progress.get()))
+    ///     .style_dyn("background", move || color.get());
+    /// assert_eq!(Node::from(bar).render(), r#"<div style="height: 4px; width: 40%"></div>"#);
+    /// ```
+    #[must_use]
+    pub fn style_dyn(self, property: &'static str, f: impl Fn() -> String + 'static) -> Self {
+        let base: Option<Rc<dyn Fn() -> Option<String>>> = self
+            .attrs
+            .iter()
+            .find(|(n, _)| n == "style")
+            .map(|(_, value)| match value {
+                Attr::Static(s) => {
+                    let s = s.clone();
+                    Rc::new(move || Some(s.to_string())) as Rc<dyn Fn() -> Option<String>>
+                }
+                Attr::Dyn(f) => f.clone(),
+            });
+        self.set_attr(
+            Cow::Borrowed("style"),
+            Attr::Dyn(Rc::new(move || {
+                let mut style = base.as_ref().and_then(|b| b()).unwrap_or_default();
+                let value = f();
+                if !value.is_empty() {
+                    let style_end = style.trim_end().trim_end_matches(';').len();
+                    style.truncate(style_end);
+                    if !style.is_empty() {
+                        style.push_str("; ");
+                    }
+                    style.push_str(property);
+                    style.push_str(": ");
+                    style.push_str(&value);
+                }
+                (!style.is_empty()).then_some(style)
+            })),
+        )
     }
 
     /// Runs `f` with the DOM element once it is in the page (browser only), e.g. to draw on
@@ -1025,6 +1218,60 @@ mod tests {
         route.set((2, "c")); // another kind: the old view never sees it
         assert_eq!(first.get(), (1, "b"));
         assert_eq!(built.get(), 1);
+    }
+
+    #[test]
+    fn two_way_bindings_render_the_state_and_follow_it() {
+        let name = use_state("Ada & Bob".to_string());
+        let on = use_state(false);
+        let size = use_state(1.5f64);
+        let view = form()
+            .on_submit(|_| panic!("never on the server"))
+            .child(input().bind_value(name).on_key("Enter", |_| panic!()))
+            .child(textarea().bind_value(name))
+            .child(input().attr("type", "checkbox").bind_checked(on))
+            .child(input().bind_parsed(size));
+        let view = Node::from(view);
+        assert_eq!(
+            view.render(),
+            concat!(
+                r#"<form><input value="Ada &amp; Bob"/><textarea>Ada &amp; Bob</textarea>"#,
+                r#"<input type="checkbox"/><input value="1.5"/></form>"#
+            )
+        );
+        on.set(true);
+        size.set(2.0);
+        name.set("Eve".into());
+        assert_eq!(
+            view.render(),
+            concat!(
+                r#"<form><input value="Eve"/><textarea>Ada &amp; Bob</textarea>"#,
+                r#"<input type="checkbox" checked=""/><input value="2"/></form>"#
+            )
+        );
+    }
+
+    #[test]
+    fn style_properties_combine_with_the_static_style() {
+        let width = use_state(10);
+        let color = use_state(String::new());
+        let bar = div()
+            .style("height: 2px;")
+            .style_dyn("width", move || format!("{}px", width.get()))
+            .style_dyn("color", move || color.get());
+        let bar = Node::from(bar);
+        assert_eq!(
+            bar.render(),
+            r#"<div style="height: 2px; width: 10px"></div>"#
+        );
+        color.set("red".into());
+        width.set(20);
+        assert_eq!(
+            bar.render(),
+            r#"<div style="height: 2px; width: 20px; color: red"></div>"#
+        );
+        let empty = div().style_dyn("color", String::new);
+        assert_eq!(Node::from(empty).render(), "<div></div>");
     }
 
     #[test]

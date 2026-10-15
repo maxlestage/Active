@@ -42,6 +42,7 @@ The same components also make **client-side apps**: `active::mount_to("#app", ap
 - **SEO first.** The server always renders the full page. `Seo` covers title, description, robots, canonical, hreflang, Open Graph, Twitter and JSON-LD; put one in a layout, a page and a component, they are merged with no duplicate tag.
 - **Fast.** Server rendering writes straight into a `String`. In the browser, only islands are hydrated, with fine-grained bindings: a state change updates the exact text, attribute or class that depends on it. See the [benchmarks](#benchmarks).
 - **Light.** The server build has no dependency. The browser bundle uses `wasm-bindgen` and `web-sys`, nothing else.
+- **Familiar to Vue developers.** `watch`, `provide` / `use_context`, `v-model`-style `bind_value`, event modifiers (`on_submit`, `on_key`), `style_dyn` and a route table with `:params` and nested routes (`Routes`) ([guide](site/docs/en/from-vue.md)).
 - **Installable.** `active::pwa` writes the web app manifest and an offline service worker, and `Document::manifest` / `Document::service_worker` add their tags: your site goes on the home screen and keeps working without a network, with no JavaScript to write. The project's website is a PWA ([guide](site/docs/en/pwa.md)).
 
 ## Benchmarks

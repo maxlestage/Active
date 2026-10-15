@@ -42,6 +42,7 @@ Les mêmes composants servent aussi à créer des **applications côté client**
 - **Le SEO d'abord.** Le serveur rend toujours la page entière. `Seo` couvre le titre, la description, robots, l'URL canonique, hreflang, Open Graph, Twitter et JSON-LD ; placez-en un dans une mise en page, une page et un composant : ils sont fusionnés sans aucune balise en double.
 - **Rapide.** Le rendu côté serveur écrit directement dans une `String`. Dans le navigateur, seuls les îlots sont hydratés, avec des liaisons à granularité fine : un changement d'état met à jour exactement le texte, l'attribut ou la classe qui en dépend. Voir les [benchmarks](#benchmarks).
 - **Léger.** La version serveur n'a aucune dépendance. Le bundle du navigateur utilise `wasm-bindgen` et `web-sys`, rien d'autre.
+- **Familier aux développeurs Vue.** `watch`, `provide` / `use_context`, `bind_value` à la manière de `v-model`, modificateurs d'événements (`on_submit`, `on_key`), `style_dyn` et une table de routes avec `:params` et routes imbriquées (`Routes`) ([guide](site/docs/fr/from-vue.md)).
 - **Installable.** `active::pwa` écrit le manifeste d'application web et un service worker hors ligne, et `Document::manifest` / `Document::service_worker` ajoutent leurs balises : votre site s'installe sur l'écran d'accueil et fonctionne sans réseau, sans une ligne de JavaScript. Le site web du projet est une PWA ([guide](site/docs/fr/pwa.md)).
 
 ## Benchmarks

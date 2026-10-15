@@ -503,3 +503,39 @@ async fn the_pwa_guide_is_in_the_docs_in_every_language() {
     let hits = active_site::search::search(&entries, "application installable hors ligne");
     assert!(hits[0].href.starts_with("/fr/docs/pwa/"), "{:?}", hits[0]);
 }
+
+#[tokio::test]
+async fn the_vue_guide_is_in_the_docs_in_every_language() {
+    for (lang, title) in [
+        ("en", "Coming from Vue"),
+        ("fr", "Venir de Vue"),
+        ("es", "Si vienes de Vue"),
+    ] {
+        let index = text(get(&format!("/{lang}/docs/"), &[]).await).await;
+        assert!(
+            index.contains(&format!(r#"href="/{lang}/docs/from-vue/""#)),
+            "{lang}"
+        );
+        let page = get(&format!("/{lang}/docs/from-vue/"), &[]).await;
+        assert_eq!(page.status(), StatusCode::OK);
+        let html = text(page).await;
+        assert!(
+            html.contains(&format!("<title>{title} — Active docs</title>")),
+            "{lang}"
+        );
+        // The mapping table and the side-by-side example are there.
+        assert!(html.contains("v-model"), "{lang}");
+        assert!(html.contains("bind_value"), "{lang}");
+    }
+    let entries: Vec<_> = text(get("/search/es.txt", &[]).await)
+        .await
+        .lines()
+        .map(|l| active_site::search::Entry::parse(l).expect("an index line"))
+        .collect();
+    let hits = active_site::search::search(&entries, "vienes de vue");
+    assert!(
+        hits[0].href.starts_with("/es/docs/from-vue/"),
+        "{:?}",
+        hits[0]
+    );
+}

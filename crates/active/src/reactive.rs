@@ -727,6 +727,110 @@ pub fn memo<T: Clone + PartialEq + 'static>(f: impl Fn() -> T + 'static) -> Stat
     })
 }
 
+/// A handle on a [`watch`]: [`stop`](Watcher::stop) it to stop calling the callback before
+/// its component is released. `Copy`, so it can be moved into the callback itself.
+#[derive(Clone, Copy, Debug)]
+pub struct Watcher {
+    #[cfg_attr(not(any(feature = "client", test)), allow(dead_code))]
+    key: Option<Key>,
+}
+
+impl Watcher {
+    /// Stops the watcher: the callback is never called again. Stopping twice does nothing.
+    pub fn stop(self) {
+        if let Some(key) = self.key {
+            RUNTIME.with(|rt| rt.dispose(vec![Owned::Effect(key)]));
+        }
+    }
+}
+
+/// Calls `callback(&new, &old)` each time the value computed by `source` changes
+/// (`PartialEq`): Vue's `watch`. `source` reads [`State`]s and is followed like an
+/// [`effect`]; `callback` is not (what it reads does not re-trigger it), and is **not** called
+/// for the first value: use [`watch_immediate`] for that.
+///
+/// Use it to react to a precise change with the previous value at hand: save a draft when the
+/// text changes, reload when an id changes, log a transition, reset a page number when the
+/// filter changes. An [`effect`] re-runs for any change of anything it reads; a watcher
+/// compares values and separates what it follows from what it does.
+///
+/// Like effects, watchers run only in the browser (crate feature `client`): on the server
+/// `watch` does nothing. A watcher created while building a component is released with it.
+///
+/// ```
+/// use active::{use_state, watch};
+///
+/// let query = use_state(String::from("rust"));
+/// let page = use_state(3);
+/// // A new search starts again from the first page.
+/// watch(move || query.get(), move |_new, _old| page.set(1));
+/// # #[cfg(feature = "client")] {
+/// query.set("wasm".into());
+/// assert_eq!(page.get(), 1);
+/// # }
+/// ```
+pub fn watch<T: Clone + PartialEq + 'static>(
+    source: impl Fn() -> T + 'static,
+    callback: impl Fn(&T, &T) + 'static,
+) -> Watcher {
+    new_watcher(source, move |new, old: Option<&T>| {
+        if let Some(old) = old {
+            callback(new, old);
+        }
+    })
+}
+
+/// Like [`watch`], but also calls `callback(&value, None)` right away with the first value
+/// (Vue's `{ immediate: true }`); later calls get `Some(&old)`. In the browser only, like
+/// [`watch`].
+///
+/// ```
+/// use active::{use_state, watch_immediate};
+/// use std::{cell::RefCell, rc::Rc};
+///
+/// let id = use_state(1);
+/// let loads = Rc::new(RefCell::new(Vec::new()));
+/// let log = loads.clone();
+/// watch_immediate(move || id.get(), move |id, _old| log.borrow_mut().push(*id));
+/// # #[cfg(feature = "client")] {
+/// id.set(2);
+/// assert_eq!(*loads.borrow(), [1, 2]);
+/// # }
+/// ```
+pub fn watch_immediate<T: Clone + PartialEq + 'static>(
+    source: impl Fn() -> T + 'static,
+    callback: impl Fn(&T, Option<&T>) + 'static,
+) -> Watcher {
+    new_watcher(source, callback)
+}
+
+#[cfg_attr(not(any(feature = "client", test)), allow(unused_variables))]
+fn new_watcher<T: Clone + PartialEq + 'static>(
+    source: impl Fn() -> T + 'static,
+    callback: impl Fn(&T, Option<&T>) + 'static,
+) -> Watcher {
+    #[cfg(not(any(feature = "client", test)))]
+    {
+        Watcher { key: None }
+    }
+    #[cfg(any(feature = "client", test))]
+    RUNTIME.with(|rt| {
+        let previous: RefCell<Option<T>> = RefCell::new(None);
+        let run = move || {
+            let next = source();
+            let old = previous.borrow_mut().take();
+            if old.as_ref() != Some(&next) {
+                untrack(|| callback(&next, old.as_ref()));
+            }
+            *previous.borrow_mut() = Some(next);
+        };
+        let key = rt.new_effect(Some(Rc::new(run)), None);
+        rt.own(Owned::Effect(key));
+        rt.run_effect(key);
+        Watcher { key: Some(key) }
+    })
+}
+
 /// Runs `f` when the component being built is released: the [`fragment_dyn`] region that
 /// created it re-renders, the router shows another page, or its [`Scope`] is disposed. Stop
 /// here what the component started outside the view: a timer, a socket, an animation loop, a
@@ -1065,6 +1169,82 @@ mod tests {
         let reused = use_state(9);
         assert_eq!(reused.get(), 9);
         assert!(std::panic::catch_unwind(|| inner.get()).is_err());
+    }
+
+    #[test]
+    fn watch_calls_back_with_new_and_old_values_only_on_real_changes() {
+        let n = use_state(1);
+        let other = use_state(0);
+        let log = Rc::new(RefCell::new(Vec::new()));
+        let l = log.clone();
+        watch(
+            move || n.get() / 10,
+            move |new, old| {
+                // Reads in the callback are not followed.
+                other.get();
+                l.borrow_mut().push((*new, *old));
+            },
+        );
+        assert!(log.borrow().is_empty(), "not called for the first value");
+        n.set(5); // 5 / 10 is still 0
+        other.set(1);
+        n.set(12);
+        n.set(31);
+        assert_eq!(*log.borrow(), [(1, 0), (3, 1)]);
+    }
+
+    #[test]
+    fn watch_immediate_starts_with_the_first_value() {
+        let n = use_state("a");
+        let log = Rc::new(RefCell::new(Vec::new()));
+        let l = log.clone();
+        watch_immediate(
+            move || n.get(),
+            move |new, old| l.borrow_mut().push((*new, old.copied())),
+        );
+        n.set("b");
+        assert_eq!(*log.borrow(), [("a", None), ("b", Some("a"))]);
+    }
+
+    #[test]
+    fn a_stopped_or_released_watcher_is_never_called_again() {
+        let n = use_state(0);
+        let calls = Rc::new(Cell::new(0));
+        let c = calls.clone();
+        let watcher = watch(move || n.get(), move |_, _| c.set(c.get() + 1));
+        n.set(1);
+        watcher.stop();
+        watcher.stop();
+        n.set(2);
+        assert_eq!(calls.get(), 1);
+
+        let c = calls.clone();
+        let (_, owner) = scope(|| watch(move || n.get(), move |_, _| c.set(c.get() + 10)));
+        n.set(3);
+        owner.dispose();
+        n.set(4);
+        assert_eq!(calls.get(), 11);
+    }
+
+    #[test]
+    fn a_watcher_can_stop_itself_from_its_callback() {
+        let n = use_state(0);
+        let calls = Rc::new(Cell::new(0));
+        let me: Rc<Cell<Option<Watcher>>> = Rc::default();
+        let (c, m) = (calls.clone(), me.clone());
+        let watcher = watch(
+            move || n.get(),
+            move |_, _| {
+                c.set(c.get() + 1);
+                if let Some(w) = m.get() {
+                    w.stop();
+                }
+            },
+        );
+        me.set(Some(watcher));
+        n.set(1);
+        n.set(2);
+        assert_eq!(calls.get(), 1);
     }
 
     #[test]

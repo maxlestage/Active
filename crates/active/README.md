@@ -31,6 +31,12 @@ in the style of React hooks. Then ship them the way your project needs:
   list by key (unchanged rows keep their DOM, states and focus); `children_indexed` /
   `indexed` keep rows by position and update them in place; `switch` keeps a view (a page)
   while only its parameters change.
+- **Familiar to Vue developers**: `watch` / `watch_immediate` call back with the new and old
+  values, `provide` / `use_context` hand a value (a theme, a store) to a whole subtree,
+  `bind_value` / `bind_checked` / `bind_parsed` bind form fields both ways like `v-model`,
+  `on_submit` / `on_key` / `Event::stop_propagation` play the event modifiers, `style_dyn`
+  binds one CSS property, and `Routes` / `match_path` match routes such as `/posts/:id`,
+  `/docs/:lang?` or `/files/*rest`, keeping a page while only its parameters change.
 - **Islands**: `island("counter", props, counter)` on the server, `hydrate(&[("counter",
   counter)])` in the browser. Static content is never re-rendered or downloaded twice.
 - **Client-side apps**: `mount_to("#app", app())`, `location()` and `navigate()` for
