@@ -1093,6 +1093,25 @@ impl Row {
         nodes
     }
 
+    /// Like [`release`](Row::release), the elements staying until their leave transition
+    /// is over.
+    fn leave(self, parent: &DomElement, name: &'static str) {
+        for node in self.nodes() {
+            match node.dyn_into::<DomElement>() {
+                Ok(dom) => {
+                    let gone = dom.clone();
+                    play(&dom, name, false, Rc::new(Cell::new(0)), move || {
+                        gone.remove()
+                    });
+                }
+                Err(node) => {
+                    let _ = parent.remove_child(&node);
+                }
+            }
+        }
+        self.scope.dispose();
+    }
+
     fn release(self, parent: &DomElement) {
         for node in self.nodes() {
             let _ = parent.remove_child(&node);
@@ -1130,6 +1149,21 @@ pub(crate) fn bind_keyed(parent: DomElement, start: DomNode, end: DomNode, list:
     let first_run = Cell::new(true);
     effect(move || {
         let items = (list.items)();
+        // `transition_group`: where each row was, to slide it from there.
+        let group = list.group.filter(|_| !first_run.get());
+        let before: Vec<(u64, f64, f64)> = match group {
+            Some(_) => rows
+                .borrow()
+                .iter()
+                .filter_map(|row| {
+                    let (first, _) = row.range.as_ref()?;
+                    let rect = first.dyn_ref::<DomElement>()?.get_bounding_client_rect();
+                    Some((row.key, rect.left(), rect.top()))
+                })
+                .collect(),
+            None => Vec::new(),
+        };
+        let mut added = Vec::new();
         if first_run.replace(false) {
             while let Some(old) = start.next_sibling() {
                 if old.is_same_node(Some(&end)) {
@@ -1170,6 +1204,9 @@ pub(crate) fn bind_keyed(parent: DomElement, start: DomNode, end: DomNode, list:
                         .or_else(|| start.next_sibling())
                         .filter(|n| !n.is_same_node(Some(&end)));
                     let range = first.zip(end.previous_sibling());
+                    if group.is_some() {
+                        added.push(key);
+                    }
                     Row {
                         key,
                         item,
@@ -1181,7 +1218,10 @@ pub(crate) fn bind_keyed(parent: DomElement, start: DomNode, end: DomNode, list:
             next.push(row);
         }
         for row in old.into_iter().flatten() {
-            row.release(&parent);
+            match group {
+                Some(name) => row.leave(&parent, name),
+                None => row.release(&parent),
+            }
         }
         // Rows already in place are skipped, the others are moved before the cursor.
         let mut cursor = start.next_sibling();
@@ -1197,8 +1237,54 @@ pub(crate) fn bind_keyed(parent: DomElement, start: DomNode, end: DomNode, list:
                 }
             }
         }
+        if let Some(name) = group {
+            for row in &next {
+                let Some(dom) = row
+                    .range
+                    .as_ref()
+                    .and_then(|(f, _)| f.dyn_ref::<DomElement>())
+                else {
+                    continue;
+                };
+                if added.contains(&row.key) {
+                    play(dom, name, true, Rc::new(Cell::new(0)), || {});
+                } else if let Some(&(_, x, y)) = before.iter().find(|(k, _, _)| *k == row.key) {
+                    let rect = dom.get_bounding_client_rect();
+                    flip(dom, name, x - rect.left(), y - rect.top());
+                }
+            }
+        }
         *rows.borrow_mut() = next;
     });
+}
+
+/// Slides `dom` from `(dx, dy)` away back to its place, with the `{name}-move` class (FLIP:
+/// first, last, invert, play).
+fn flip(dom: &DomElement, name: &str, dx: f64, dy: f64) {
+    if dx.abs() < 0.5 && dy.abs() < 0.5 {
+        return;
+    }
+    let Some(style) = dom.dyn_ref::<web_sys::HtmlElement>().map(|e| e.style()) else {
+        return;
+    };
+    // Invert: back where it was, at once.
+    let _ = style.set_property("transition-duration", "0s");
+    let _ = style.set_property("transform", &format!("translate({dx}px, {dy}px)"));
+    // Forces the browser to apply it before the transition starts.
+    let _ = dom.get_bounding_client_rect();
+    // Play: the `-move` class holds the transition to the new place.
+    let class = format!("{name}-move");
+    let _ = dom.class_list().add_1(&class);
+    let _ = style.remove_property("transition-duration");
+    let _ = style.remove_property("transform");
+    let wait = transition_ms(dom);
+    let dom = dom.clone();
+    set_timeout(
+        move || {
+            let _ = dom.class_list().remove_1(&class);
+        },
+        wait.ceil() as i32,
+    );
 }
 
 /// Creates the DOM for `node` and inserts it in `parent`, before `before` (at the end when
@@ -1422,4 +1508,126 @@ pub(crate) fn transition_in(dom: &DomElement, name: &'static str) {
         return;
     }
     play(dom, name, true, Rc::new(Cell::new(0)), || {});
+}
+
+/// The JSON sent by the server under `key` (see [`ssr::resource`](crate::ssr::resource)),
+/// taken out of the page: only the first load uses it.
+pub(crate) fn take_data(key: &str) -> Option<String> {
+    let found = document()
+        .query_selector_all("script[data-active-data]")
+        .ok()?;
+    for i in 0..found.length() {
+        let Some(script) = found.item(i).and_then(|n| n.dyn_into::<DomElement>().ok()) else {
+            continue;
+        };
+        if script.get_attribute("data-active-data").as_deref() == Some(key) {
+            let json = script.text_content();
+            script.remove();
+            return json;
+        }
+    }
+    None
+}
+
+fn storage(session: bool) -> Option<web_sys::Storage> {
+    let window = window();
+    let storage = if session {
+        window.session_storage()
+    } else {
+        window.local_storage()
+    };
+    storage.ok().flatten()
+}
+
+/// The value stored under `key` (see [`persisted`](crate::persisted)).
+pub(crate) fn storage_get(session: bool, key: &str) -> Option<String> {
+    storage(session)?.get_item(key).ok().flatten()
+}
+
+/// Stores `value` under `key` (a full storage is ignored).
+pub(crate) fn storage_set(session: bool, key: &str, value: &str) {
+    if let Some(storage) = storage(session) {
+        let _ = storage.set_item(key, value);
+    }
+}
+
+/// Calls `f` with the new value (`None` when removed) when another tab changes `key` in
+/// `localStorage`, as long as the current scope.
+pub(crate) fn on_storage(key: String, f: impl Fn(Option<String>) + 'static) {
+    let closure = Closure::<dyn Fn(web_sys::Event)>::new(move |event: web_sys::Event| {
+        let Some(event) = event.dyn_ref::<web_sys::StorageEvent>() else {
+            return;
+        };
+        // `None`: the whole storage was cleared.
+        if event.key().is_none_or(|k| k == key) {
+            f(event.new_value());
+        }
+    });
+    let target: web_sys::EventTarget = window().into();
+    let _ = target.add_event_listener_with_callback("storage", closure.as_ref().unchecked_ref());
+    keep_alive(Box::new(Listener {
+        target,
+        event: "storage",
+        closure,
+    }));
+}
+
+/// Calls `f` with the address of a same-site link (`"/posts/7?tab=2"`) when the visitor is
+/// about to follow it: the pointer over it, a touch, the focus. Once per address. Use it in a
+/// client-side app to start loading the next page's data before the click (Next's and
+/// TanStack Router's preloading); [`Document::prefetch`](crate::Document::prefetch) does
+/// the same for server-rendered pages.
+///
+/// Registered while building a component, it stops with it. Links with `download`,
+/// `rel="external"` or `rel="nofollow"`, or inside an element with `data-no-prefetch`, are
+/// ignored.
+///
+/// ```ignore
+/// let cache = expect_context::<PostCache>();
+/// active::on_link_hover(move |to| {
+///     if let Some(params) = active::match_path("/posts/:id", to) {
+///         cache.preload(params.parse("id").unwrap_or(0));
+///     }
+/// });
+/// ```
+pub fn on_link_hover(f: impl Fn(&str) + 'static) {
+    let seen: Rc<RefCell<Vec<String>>> = Rc::default();
+    let f: Rc<dyn Fn(&str)> = Rc::new(f);
+    for event in ["pointerover", "focusin", "touchstart"] {
+        let (seen, f) = (seen.clone(), f.clone());
+        let closure = Closure::<dyn Fn(web_sys::Event)>::new(move |event: web_sys::Event| {
+            let Some(link) = event
+                .target()
+                .and_then(|t| t.dyn_into::<DomElement>().ok())
+                .and_then(|t| t.closest("a[href]").ok().flatten())
+            else {
+                return;
+            };
+            let skip = link.has_attribute("download")
+                || link.get_attribute("rel").is_some_and(|r| {
+                    r.split_ascii_whitespace()
+                        .any(|r| r == "external" || r == "nofollow")
+                })
+                || link.closest("[data-no-prefetch]").ok().flatten().is_some();
+            let Ok(link) = link.dyn_into::<HtmlAnchorElement>() else {
+                return;
+            };
+            if skip || link.origin() != window().location().origin().unwrap_or_default() {
+                return;
+            }
+            let to = format!("{}{}", link.pathname(), link.search());
+            if seen.borrow().contains(&to) {
+                return;
+            }
+            seen.borrow_mut().push(to.clone());
+            untrack(|| f(&to));
+        });
+        let target: web_sys::EventTarget = document().into();
+        let _ = target.add_event_listener_with_callback(event, closure.as_ref().unchecked_ref());
+        keep_alive(Box::new(Listener {
+            target,
+            event,
+            closure,
+        }));
+    }
 }

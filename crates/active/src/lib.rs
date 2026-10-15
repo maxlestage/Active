@@ -4,16 +4,21 @@
 
 mod boundary;
 mod context;
+mod data;
+pub mod debug;
 mod document;
 mod escape;
 mod event;
 pub mod forms;
+pub mod i18n;
 mod island;
 pub mod pwa;
 mod reactive;
 mod resource;
 mod router;
 mod seo;
+pub mod ssr;
+mod store;
 mod view;
 
 #[cfg(feature = "client")]
@@ -24,7 +29,8 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use boundary::{ErrorBoundary, error_boundary, report_error};
 pub use context::{expect_context, provide, use_context};
-pub use document::Document;
+pub use data::Data;
+pub use document::{Document, Prefetch};
 pub use event::{Dom, Event};
 pub use island::{Hydrate, IslandFn, island, island_with};
 pub use reactive::{
@@ -32,16 +38,20 @@ pub use reactive::{
     watch_immediate,
 };
 pub use resource::{Resource, resource, suspense};
-pub use router::{Navigation, Params, Routes, before_navigate, match_path};
+pub use router::{
+    Navigation, PageResponse, Params, Routes, before_navigate, match_path, redirect, set_status,
+};
 pub use seo::Seo;
+pub use store::{Storage, persisted, persisted_in};
 pub use view::{
     Element, Node, Str, el, fragment, fragment_dyn, html, indexed, keyed, portal, switch, text,
-    text_dyn,
+    text_dyn, transition_group,
 };
 
 #[cfg(feature = "client")]
 pub use client::{
-    hydrate, location, mount, mount_to, navigate, navigate_replace, query, query_param, update_head,
+    hydrate, location, mount, mount_to, navigate, navigate_replace, on_link_hover, query,
+    query_param, update_head,
 };
 
 /// Everything a component file usually needs: `use active::prelude::*;`.

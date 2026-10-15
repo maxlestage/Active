@@ -97,6 +97,40 @@ impl Document {
         ))
     }
 
+    /// Loads the pages the visitor is about to open before they click, so that they show
+    /// at once: Next's `<Link prefetch>`, Astro's and SvelteKit's link prefetching.
+    ///
+    /// The page gets [speculation rules] (Chrome, Edge), which prefetch same-site links
+    /// following `when`, and a small inline script for the other browsers, which adds a
+    /// `<link rel="prefetch">` for each link once. Links with `rel="nofollow"`, `download`,
+    /// or inside an element with `data-no-prefetch` are left alone.
+    ///
+    /// For a client-side app, whose links do not load pages, use
+    /// [`on_link_hover`](crate::on_link_hover) to start loading a page's data instead.
+    ///
+    /// ```
+    /// use active::{html::*, Document, Prefetch};
+    ///
+    /// let html = Document::new(main().text("Hi")).prefetch(Prefetch::Hover).render();
+    /// assert!(html.contains(r#"<script type="speculationrules">"#));
+    /// assert!(html.contains(r#""eagerness":"moderate""#));
+    /// ```
+    ///
+    /// [speculation rules]: https://developer.mozilla.org/docs/Web/API/Speculation_Rules_API
+    #[must_use]
+    pub fn prefetch(self, when: Prefetch) -> Self {
+        self.head(speculation("prefetch", when, true))
+    }
+
+    /// Like [`prefetch`](Document::prefetch), with the pages **prerendered** where the
+    /// browser supports it (Chrome, Edge): the next page is loaded, run and painted in the
+    /// background, and appears instantly. Other browsers do nothing. Keep it for pages
+    /// without side effects on load (no analytics counted twice, no "mark as read").
+    #[must_use]
+    pub fn prerender(self, when: Prefetch) -> Self {
+        self.head(speculation("prerender", when, false))
+    }
+
     /// Loads the browser bundle produced by `wasm-bindgen --target web --no-typescript`: `js` is the
     /// generated module, `wasm` the binary. Both are preloaded from `<head>`, so the
     /// binary downloads in parallel with the HTML instead of after the JavaScript glue.
@@ -205,6 +239,43 @@ impl Document {
     }
 }
 
+/// When [`Document::prefetch`] and [`Document::prerender`] load a linked page.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Prefetch {
+    /// When the pointer rests on the link or it gets the focus (the usual choice).
+    #[default]
+    Hover,
+    /// When the visitor presses the link (mouse or finger down): only what will be opened,
+    /// a little earlier than the click.
+    Press,
+    /// As soon as the link is visible on screen (the most traffic; for a few key links).
+    Visible,
+}
+
+/// Inline script used where speculation rules do not exist (and for `Visible`).
+const PREFETCH_JS: &str = r##"(function(m){var s={},p=function(a){if(!a||!a.href||a.origin!==location.origin||a.hasAttribute("download")||a.closest("[data-no-prefetch]")||/(^|\s)nofollow(\s|$)/.test(a.rel))return;var u=a.href.split("#")[0];if(s[u]||u===location.href.split("#")[0])return;s[u]=1;var l=document.createElement("link");l.rel="prefetch";l.href=u;document.head.appendChild(l)};if(m==="visible"&&window.IntersectionObserver){var o=new IntersectionObserver(function(e){e.forEach(function(x){if(x.isIntersecting){o.unobserve(x.target);p(x.target)}})}),w=function(){document.querySelectorAll("a[href]").forEach(function(a){o.observe(a)})};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",w):w()}else if(!(HTMLScriptElement.supports&&HTMLScriptElement.supports("speculationrules"))){(m==="press"?["pointerdown","touchstart"]:["pointerover","focusin","touchstart"]).forEach(function(n){document.addEventListener(n,function(v){var t=v.target;p(t&&t.closest&&t.closest("a[href]"))},{passive:true,capture:true})})}})"##;
+
+/// The speculation rules (and, with `fallback`, the script) of `Document::prefetch`.
+fn speculation(action: &str, when: Prefetch, fallback: bool) -> String {
+    let (eagerness, mode) = match when {
+        Prefetch::Hover => ("moderate", "hover"),
+        Prefetch::Press => ("conservative", "press"),
+        Prefetch::Visible => ("eager", "visible"),
+    };
+    let mut out = format!(
+        r#"<script type="speculationrules">{{"{action}":[{{"where":{{"and":[{{"href_matches":"/*"}},{{"not":{{"selector_matches":"[rel~=nofollow],[download],[data-no-prefetch] a"}}}}]}},"eagerness":"{eagerness}"}}]}}</script>"#
+    );
+    if fallback {
+        out.push_str("<script>");
+        out.push_str(PREFETCH_JS);
+        out.push_str("(\"");
+        out.push_str(mode);
+        out.push_str("\")</script>");
+    }
+    out
+}
+
 fn attr(out: &mut String, name: &str, value: &str) {
     out.push(' ');
     out.push_str(name);
@@ -235,6 +306,25 @@ fn js_string(out: &mut String, s: &str) {
 mod tests {
     use super::*;
     use crate::html::{div, p};
+
+    #[test]
+    fn prefetch_and_prerender_add_speculation_rules() {
+        let html = Document::new(p().text("x"))
+            .prefetch(Prefetch::Visible)
+            .prerender(Prefetch::Press)
+            .render();
+        assert!(html.contains(r#"{"prefetch":[{"where""#));
+        assert!(html.contains(r#""eagerness":"eager""#));
+        assert!(html.contains(r#"{"prerender":[{"where""#));
+        assert!(html.contains(r#""eagerness":"conservative""#));
+        assert!(html.contains(r#"("visible")</script>"#));
+        assert_eq!(
+            html.matches("IntersectionObserver").count(),
+            2,
+            "one fallback script"
+        );
+        assert!(html.contains("</head><body><p>x</p>"));
+    }
 
     #[test]
     fn merges_every_seo_in_tree_order_without_duplicates() {

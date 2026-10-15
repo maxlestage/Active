@@ -37,6 +37,9 @@ pub struct Keyed {
     /// this code.
     #[cfg(feature = "client")]
     pub(crate) bind: crate::client::BindKeyed,
+    /// Set by [`transition_group`]: the name of the transitions of the rows.
+    #[cfg(feature = "client")]
+    pub(crate) group: Option<&'static str>,
 }
 
 /// One piece of a view: an element, text, a list of nodes, SEO data or an island.
@@ -238,7 +241,54 @@ where
         row: Rc::new(move |item| row(item.downcast_ref::<T>().expect("keyed: item type"))),
         #[cfg(feature = "client")]
         bind: crate::client::bind_keyed,
+        #[cfg(feature = "client")]
+        group: None,
     }))
+}
+
+/// Animates the rows of a [`keyed`] list (or [`indexed`], or `children_keyed`'s content):
+/// Vue's `<TransitionGroup>`, Svelte's `animate:flip`.
+///
+/// - an added row plays `{name}-enter-from` / `-enter-active` / `-enter-to`;
+/// - a removed row stays in the page while it plays `{name}-leave-from` / `-leave-active` /
+///   `-leave-to`, then goes;
+/// - a row that moves (sorting, filtering, an insertion above it) slides from its old place
+///   to its new one (the FLIP technique) with the class `{name}-move`, which holds the
+///   transition.
+///
+/// Nothing plays when the list first appears or is hydrated. Any other node is returned as
+/// it is; on the server, the list renders as usual.
+///
+/// ```css
+/// .list-enter-active, .list-leave-active, .list-move { transition: all .3s ease; }
+/// .list-enter-from, .list-leave-to { opacity: 0; transform: translateX(2rem); }
+/// /* Leaving rows leave the flow, so that the others can slide into their place. */
+/// .list-leave-active { position: absolute; }
+/// ```
+///
+/// ```
+/// use active::{html::*, keyed, transition_group, use_state, Node};
+///
+/// let items = use_state(vec![1, 2, 3]);
+/// let list = ul().child(transition_group(
+///     "list",
+///     keyed(move || items.get(), |n| *n, |n| li().text(n.to_string()).into()),
+/// ));
+/// assert_eq!(Node::from(list).render(), "<ul><!--[--><li>1</li><li>2</li><li>3</li><!--]--></ul>");
+/// ```
+pub fn transition_group(name: &'static str, list: Node) -> Node {
+    #[cfg(feature = "client")]
+    if let Node::Keyed(keyed) = &list {
+        return Node::Keyed(Rc::new(Keyed {
+            items: keyed.items.clone(),
+            same: keyed.same,
+            row: keyed.row.clone(),
+            bind: keyed.bind,
+            group: Some(name),
+        }));
+    }
+    let _ = name;
+    list
 }
 
 /// A list whose rows are kept by **position** and updated in place: row `i` is built once,
@@ -811,6 +861,49 @@ impl Element {
         self
     }
 
+    /// Attaches an **action** to the element: Svelte's `use:`, a Vue directive. `action` is
+    /// called with the DOM element once it is in the page (browser only) and returns what
+    /// undoes it, called when the element is removed (its region rebuilt, its row removed,
+    /// its page left).
+    ///
+    /// Actions package behaviour that needs the element and must be cleaned up: a tooltip, a
+    /// click-outside handler, an `IntersectionObserver`, a chart library, focus trapping.
+    /// Write one as a function and reuse it on any element; effects created inside follow
+    /// states and stop with the element.
+    ///
+    /// ```
+    /// use active::{html::*, Dom, Node};
+    ///
+    /// fn tooltip(text: &'static str) -> impl Fn(&Dom) -> Box<dyn FnOnce()> {
+    ///     move |dom: &Dom| {
+    ///         // Browser: create the tooltip, listen to `pointerenter` on `dom`…
+    ///         let _ = (dom, text);
+    ///         Box::new(|| { /* remove the tooltip */ })
+    ///     }
+    /// }
+    ///
+    /// // `use<>`: the returned cleanup does not borrow the element.
+    /// fn autofocus(dom: &Dom) -> impl FnOnce() + use<> {
+    ///     let _ = dom; // `dom.dyn_ref::<web_sys::HtmlElement>()` → `.focus()`
+    ///     || {}
+    /// }
+    ///
+    /// let saved = button().use_action(tooltip("Saved to your account")).text("Save");
+    /// assert_eq!(Node::from(saved).render(), "<button>Save</button>");
+    /// let field = input().use_action(autofocus);
+    /// assert_eq!(Node::from(field).render(), "<input/>");
+    /// ```
+    #[must_use]
+    pub fn use_action<C: FnOnce() + 'static>(
+        self,
+        action: impl Fn(&crate::event::Dom) -> C + 'static,
+    ) -> Self {
+        self.on_mount(move |dom| {
+            let undo = action(dom);
+            crate::reactive::on_cleanup(undo);
+        })
+    }
+
     /// Binds a text field to a validated [`Field`](crate::forms::Field) of a
     /// [`Form`](crate::forms::Form): [`bind_value`](Element::bind_value) on its value, the
     /// field marked as touched when the visitor leaves it (`blur`, from then on its error
@@ -836,6 +929,36 @@ impl Element {
                     field.message().is_some().then(|| "true".to_string())
                 })),
             )
+    }
+
+    /// Binds a checkbox to a `bool` [`Field`](crate::forms::Field) (see
+    /// [`Form::field_with`](crate::forms::Form::field_with)), like
+    /// [`bind_field`](Element::bind_field): [`bind_checked`](Element::bind_checked), touched
+    /// on `blur`, `aria-invalid` while its error shows.
+    #[must_use]
+    pub fn bind_checked_field(self, field: crate::forms::Field<bool>) -> Self {
+        self.bind_checked(field.value()).field_status(field)
+    }
+
+    /// Binds a number (or any value that parses from text) to a
+    /// [`Field`](crate::forms::Field), like [`bind_field`](Element::bind_field), with
+    /// [`bind_parsed`](Element::bind_parsed).
+    #[must_use]
+    pub fn bind_parsed_field<T>(self, field: crate::forms::Field<T>) -> Self
+    where
+        T: std::str::FromStr + fmt::Display + PartialEq + 'static,
+    {
+        self.bind_parsed(field.value()).field_status(field)
+    }
+
+    /// Touched on `blur`, `aria-invalid` while the field's error shows.
+    fn field_status<T: 'static>(self, field: crate::forms::Field<T>) -> Self {
+        self.on("blur", move |_| field.touch()).set_attr(
+            Cow::Borrowed("aria-invalid"),
+            Attr::Dyn(Rc::new(move || {
+                field.message().is_some().then(|| "true".to_string())
+            })),
+        )
     }
 
     /// Shows the element while `when` is `true`, and hides it (`hidden`) otherwise, playing

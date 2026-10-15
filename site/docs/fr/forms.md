@@ -120,6 +120,37 @@ fn submit_button(form: Form) -> Element {
 }
 ```
 
+## Des champs de tout type
+
+`form.field_with(état, vérification)` valide un état de n'importe quel type — le `bool` d'une case à cocher, un nombre, une date, une liste de choix — avec une fonction qui renvoie le message d'erreur ou `None`. Liez-le avec `bind_checked_field` (cases à cocher) ou `bind_parsed_field` (nombres et tout ce qui se lit depuis du texte), qui ajoutent `aria-invalid` et le champ touché au `blur`, comme `bind_field` :
+
+```rust
+let terms = use_state(false);
+let guests = use_state(2u32);
+let terms_field = form.field_with(terms, |ok| (!ok).then(|| "Acceptez les conditions".to_string()));
+let guests_field = form.field_with(guests, |n| (*n > 8).then(|| "8 invités au plus".to_string()));
+
+input().attr("type", "checkbox").bind_checked_field(terms_field);
+input().attr("type", "number").bind_parsed_field(guests_field);
+```
+
+## Vérifications asynchrones
+
+Certaines vérifications demandent le serveur : « ce nom d'utilisateur est pris », « ce code promo a expiré ». `validate_async` en ajoute une à un champ, lancée une fois ses autres règles respectées, à chaque changement de valeur (les validateurs asynchrones d'Angular) :
+
+```rust
+let field = form
+    .field(username, [required("Choisissez un nom d'utilisateur")])
+    .validate_async(|name: String| async move {
+        let taken = api::username_taken(&name).await;
+        taken.then(|| "Ce nom d'utilisateur est pris".to_string())
+    });
+
+span().class_if("spinner", move || field.is_pending());
+```
+
+Pendant la vérification, `field.is_pending()` et `form.is_pending()` valent `true` et le formulaire n'est pas valide : `form.submit()` répond `false`. Une réponse arrivée après un nouveau changement de valeur est ignorée. Attendez un peu dans le future avant la requête (un debounce) pour en envoyer moins.
+
 ## Côté serveur
 
 La validation dans le navigateur est un confort ; le serveur doit vérifier à nouveau ce qu'il reçoit. `Rule::check(value)` applique une règle à un simple `&str`, le serveur peut donc réutiliser les mêmes règles :

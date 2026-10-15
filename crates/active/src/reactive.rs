@@ -93,6 +93,11 @@ struct Runtime {
     propagating: Cell<bool>,
     /// Number of propagations started on this thread.
     propagations: Cell<u64>,
+    /// Server: streamed pages in progress on this thread (see [`hold_release`]); while there
+    /// is one, unused states are not released.
+    holds: Cell<usize>,
+    /// Effect and memo runs on this thread (see [`debug::stats`](crate::debug::stats)).
+    effect_runs: Cell<u64>,
 }
 
 thread_local! {
@@ -362,6 +367,7 @@ impl Runtime {
             Some(slot) if !slot.running => slot.run.clone(),
             _ => return,
         };
+        self.effect_runs.set(self.effect_runs.get() + 1);
         self.run_as(key, || {
             if let Some(run) = run {
                 run();
@@ -956,10 +962,39 @@ pub fn scope<R>(f: impl FnOnce() -> R) -> (R, Scope) {
     (result, Scope(items))
 }
 
-/// Number of states alive on this thread (tests).
-#[cfg(test)]
+/// Server: while the returned guard lives, renders release no state (a streamed page keeps
+/// its states between chunks, while other pages render on the same thread).
+#[cfg_attr(feature = "client", allow(dead_code))]
+pub(crate) fn hold_release() -> ReleaseHold {
+    RUNTIME.with(|rt| rt.holds.set(rt.holds.get() + 1));
+    ReleaseHold(())
+}
+
+/// See [`hold_release`].
+pub(crate) struct ReleaseHold(());
+
+impl Drop for ReleaseHold {
+    fn drop(&mut self) {
+        let _ = RUNTIME.try_with(|rt| rt.holds.set(rt.holds.get().saturating_sub(1)));
+    }
+}
+
+/// Number of states alive on this thread.
 pub(crate) fn live_states() -> usize {
     RUNTIME.with(|rt| rt.states.borrow().iter().filter(|s| s.version != 0).count())
+}
+
+/// Number of effects and memos alive on this thread, and of effect runs so far.
+pub(crate) fn effect_counts() -> (usize, u64) {
+    RUNTIME.with(|rt| {
+        let alive = rt
+            .effects
+            .borrow()
+            .iter()
+            .filter(|s| s.version != 0)
+            .count();
+        (alive, rt.effect_runs.get())
+    })
 }
 
 /// Called around renders. Server: the outermost one releases the states that are no longer
@@ -976,7 +1011,11 @@ pub(crate) fn render_guard<R>(f: impl FnOnce() -> R) -> R {
     RUNTIME.with(|rt| {
         let depth = rt.render_depth.get() - 1;
         rt.render_depth.set(depth);
-        if depth == 0 && !cfg!(feature = "client") && rt.owners.borrow().is_empty() {
+        if depth == 0
+            && !cfg!(feature = "client")
+            && rt.owners.borrow().is_empty()
+            && rt.holds.get() == 0
+        {
             rt.release_unused();
         }
     });

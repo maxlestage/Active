@@ -120,6 +120,37 @@ fn submit_button(form: Form) -> Element {
 }
 ```
 
+## Campos de cualquier tipo
+
+`form.field_with(estado, comprobación)` valida un estado de cualquier tipo — el `bool` de una casilla, un número, una fecha, una lista de opciones — con una función que devuelve el mensaje de error o `None`. Vincúlalo con `bind_checked_field` (casillas) o `bind_parsed_field` (números y todo lo que se lee desde texto), que añaden `aria-invalid` y el campo tocado en `blur`, como `bind_field`:
+
+```rust
+let terms = use_state(false);
+let guests = use_state(2u32);
+let terms_field = form.field_with(terms, |ok| (!ok).then(|| "Acepta las condiciones".to_string()));
+let guests_field = form.field_with(guests, |n| (*n > 8).then(|| "8 invitados como máximo".to_string()));
+
+input().attr("type", "checkbox").bind_checked_field(terms_field);
+input().attr("type", "number").bind_parsed_field(guests_field);
+```
+
+## Comprobaciones asíncronas
+
+Algunas comprobaciones necesitan el servidor: «este nombre de usuario está cogido», «este cupón ha caducado». `validate_async` añade una a un campo, lanzada cuando sus otras reglas se cumplen, cada vez que cambia el valor (los validadores asíncronos de Angular):
+
+```rust
+let field = form
+    .field(username, [required("Elige un nombre de usuario")])
+    .validate_async(|name: String| async move {
+        let taken = api::username_taken(&name).await;
+        taken.then(|| "Este nombre de usuario ya existe".to_string())
+    });
+
+span().class_if("spinner", move || field.is_pending());
+```
+
+Mientras se comprueba, `field.is_pending()` y `form.is_pending()` valen `true` y el formulario no es válido: `form.submit()` responde `false`. Una respuesta que llega después de otro cambio de valor se ignora. Espera un poco dentro del future antes de la petición (un debounce) para enviar menos.
+
 ## En el servidor
 
 La validación en el navegador es una comodidad; el servidor debe volver a comprobar lo que recibe. `Rule::check(value)` aplica una regla a un simple `&str`, así que el servidor puede usar las mismas reglas:

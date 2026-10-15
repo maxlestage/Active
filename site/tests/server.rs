@@ -606,3 +606,71 @@ async fn the_guides_borrowed_from_other_frameworks_are_in_every_language() {
         hits.first()
     );
 }
+
+#[tokio::test]
+async fn the_streaming_routing_i18n_animation_and_store_guides_are_in_every_language() {
+    let pages = [
+        (
+            "streaming",
+            [
+                "Streaming and server data",
+                "Streaming et données serveur",
+                "Streaming y datos del servidor",
+            ],
+            "ssr::stream",
+        ),
+        (
+            "routing",
+            [
+                "Layouts, data loading and prefetching",
+                "Layouts, chargement des données et préchargement",
+                "Layouts, carga de datos y precarga",
+            ],
+            "route_with_data",
+        ),
+        (
+            "i18n",
+            [
+                "Translations and formatting",
+                "Traductions et formatage",
+                "Traducciones y formato",
+            ],
+            "format_currency",
+        ),
+        (
+            "animations",
+            [
+                "Animated lists and actions",
+                "Listes animées et actions",
+                "Listas animadas y acciones",
+            ],
+            "transition_group",
+        ),
+        (
+            "stores",
+            [
+                "Persisted state and debugging",
+                "État persistant et débogage",
+                "Estado persistente y depuración",
+            ],
+            "persisted",
+        ),
+    ];
+    for (slug, titles, code) in pages {
+        for (lang, title) in ["en", "fr", "es"].into_iter().zip(titles) {
+            let index = text(get(&format!("/{lang}/docs/"), &[]).await).await;
+            assert!(
+                index.contains(&format!(r#"href="/{lang}/docs/{slug}/""#)),
+                "{lang} {slug}"
+            );
+            let page = get(&format!("/{lang}/docs/{slug}/"), &[]).await;
+            assert_eq!(page.status(), StatusCode::OK, "{lang} {slug}");
+            let html = text(page).await;
+            assert!(
+                html.contains(&format!("<title>{title} — Active docs</title>")),
+                "{lang} {slug}"
+            );
+            assert!(html.contains(code), "{lang} {slug}");
+        }
+    }
+}
