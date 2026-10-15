@@ -445,6 +445,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "regex-lite"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cab834c73d247e67f4fae452806d17d3c7501756d98c8808d7c9c7aa7d18f973"
+
+[[package]]
 name = "regex-syntax"
 version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -702,7 +708,7 @@ checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
 [[package]]
 name = "vitesse"
 version = "0.1.0"
-source = "git+https://github.com/maxlestage/Vitesse#4232e1c76c6d29cc08f1ba928a6bec93f1e77bc2"
+source = "git+https://github.com/maxlestage/Vitesse#76d3cb3853bac396bae44900d2db15d700ce9060"
 dependencies = [
  "brotli",
  "bytes",
@@ -714,6 +720,7 @@ dependencies = [
  "http-body-util",
  "httparse",
  "pin-project-lite",
+ "regex-lite",
  "serde",
  "serde_json",
  "serde_urlencoded",
