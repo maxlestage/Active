@@ -44,6 +44,17 @@ in the style of React hooks. Then ship them the way your project needs:
   the scroll position (Vue Router, Next); `Element::transition` plays enter/leave classes
   (Vue, Svelte); `active::forms` validates fields with rules and per-field errors (Angular);
   `portal` renders a dialog at the end of `body` (Vue's Teleport).
+- **Streaming and full-stack routing**: `active::ssr::stream` sends the page at once and each
+  `suspense` boundary as its data arrives (React 18), `ssr::resource` sends loaded values with
+  the HTML so hydration does not load them again (Next, Nuxt); `Routes::layout`, `nest`,
+  `route_with_data` and `respond` give layouts kept across pages, nested tables, per-route data
+  loading, HTTP statuses and redirects (SvelteKit); `Document::prefetch` / `prerender` load the
+  next page before the click.
+- **More tools**: `transition_group` animates keyed lists (enter, leave, FLIP moves),
+  `Element::use_action` attaches Svelte-style actions, `persisted` keeps a state in
+  `localStorage` across tabs, `active::i18n` translates ICU messages with plural rules and
+  formats numbers, currencies and dates, `active::forms` validates fields of any type and
+  asynchronously, and `active::debug` counts live states and effect runs.
 - **Islands**: `island("counter", props, counter)` on the server, `hydrate(&[("counter",
   counter)])` in the browser. Static content is never re-rendered or downloaded twice.
   `island_with(…, Hydrate::Visible)` delays hydration until the island is idle, visible,

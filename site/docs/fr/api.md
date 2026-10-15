@@ -677,6 +677,78 @@ pub fn update_head(seo: &Seo)
 
 Écrit `seo` dans le `<head>` de la page : définit `document.title` (avec un titre vide quand `seo` n'a ni titre ni nom de site) et remplace les balises de description, robots, canonical, alternatives `hreflang`, Open Graph, Twitter et JSON-LD, ainsi que toute balise meta portant le même nom ou la même propriété que l'une des balises meta supplémentaires. Les autres éléments du `<head>` ne sont pas touchés.
 
+## Streaming, routage, i18n et outils
+
+Aucun de ces éléments n'est dans le prélude : utilisez-les comme `active::ssr::stream`, `active::persisted`, `active::i18n::I18n`, etc. Les guides : [Streaming et données serveur](../streaming/), [Layouts, chargement des données et préchargement](../routing/), [Listes animées et actions](../animations/), [Formulaires et validation](../forms/), [État persistant et débogage](../stores/), [Traductions et formatage](../i18n/).
+
+```rust
+// active::ssr — see streaming
+pub fn render(build: impl FnOnce() -> Document) -> String
+pub fn stream(build: impl FnOnce() -> Document) -> Stream
+pub fn resource<S, T: Data, F>(key: impl Into<String>, source: impl Fn() -> S + 'static, fetch: impl Fn(S) -> F + 'static) -> Resource<T>
+impl Stream {
+    pub fn poll_chunk(&mut self, cx: &mut Context<'_>) -> Poll<Option<String>>
+    pub async fn next_chunk(&mut self) -> Option<String>
+    pub fn now_or_never_all(&mut self) -> String
+}
+pub trait Data: Sized {                 // active::Data
+    fn write_data(&self, out: &mut String);
+    fn read_data(json: &str) -> Option<Self>;
+    fn to_data(&self) -> String;
+}
+
+// Routes — see routing
+impl Routes {
+    pub fn layout(self, layout: impl Fn(Node) -> Node + 'static) -> Self
+    pub fn nest(self, prefix: &str, routes: Routes) -> Self
+    pub fn loading(self, view: impl Fn() -> Node + 'static) -> Self
+    pub fn route_with_data<T: Data + Clone + PartialEq, F>(self, pattern: impl Into<String>,
+        load: impl Fn(Params) -> F + 'static, page: impl Fn(State<T>, State<Params>) -> Node + 'static) -> Self
+    pub fn respond(&self, path: &str) -> PageResponse   // status, location, body
+}
+pub fn set_status(status: u16)
+pub fn redirect(to: impl Into<String>)
+impl Document {
+    pub fn prefetch(self, when: Prefetch) -> Self       // Prefetch::{Hover, Press, Visible}
+    pub fn prerender(self, when: Prefetch) -> Self
+}
+pub fn on_link_hover(f: impl Fn(&str) + 'static)       // feature `client`
+
+// Lists and elements — see animations
+pub fn transition_group(name: &'static str, list: Node) -> Node
+impl Element {
+    pub fn use_action<C: FnOnce() + 'static>(self, action: impl Fn(&Dom) -> C + 'static) -> Self
+    pub fn bind_checked_field(self, field: forms::Field<bool>) -> Self
+    pub fn bind_parsed_field<T: FromStr + Display + PartialEq>(self, field: forms::Field<T>) -> Self
+}
+
+// Forms — see forms
+impl Form { pub fn field_with<T>(self, value: State<T>, check: impl Fn(&T) -> Option<String> + 'static) -> Field<T>; pub fn is_pending(self) -> bool }
+impl<T> Field<T> { pub fn validate_async<F>(self, check: impl Fn(T) -> F + 'static) -> Self; pub fn is_pending(self) -> bool }
+
+// Stores and debugging — see stores
+pub fn persisted<T: Data>(key: impl Into<String>, initial: T) -> State<T>
+pub fn persisted_in<T: Data>(storage: Storage, key: impl Into<String>, initial: T) -> State<T>  // Storage::{Local, Session}
+// active::debug
+pub fn stats() -> Stats                  // states, effects, effect_runs
+pub fn effect(name: &'static str, f: impl Fn() + 'static)
+pub fn runs(name: &str) -> u64
+pub fn log(on: bool)
+pub fn log_stats(label: &str)
+
+// active::i18n — see i18n
+pub struct I18n;  // Copy: new, messages, locale, locale_state, set_locale, t, t_with, number, currency, percent, date, plural
+pub fn format_message(locale: &str, message: &str, args: &[(&str, Arg)]) -> String
+pub fn plural(locale: &str, n: f64) -> Plural
+pub fn format_number(locale: &str, n: f64) -> String
+pub fn format_fixed(locale: &str, n: f64, decimals: usize) -> String
+pub fn format_currency(locale: &str, amount: f64, currency: &str) -> String
+pub fn format_percent(locale: &str, ratio: f64, decimals: usize) -> String
+pub fn format_date(locale: &str, date: Date, style: DateStyle) -> String
+```
+
+Une page envoyée en streaming ajoute deux marqueurs : `<active-suspense data-suspense="n">` autour du fallback d'une frontière envoyée plus tard, et `<script type="application/json" data-active-data="clé">` qui contient la valeur d'une `ssr::resource`.
+
 ## Marqueurs HTML
 
 La sortie du serveur contient quelques marqueurs sur lesquels s'appuie l'hydratation. Ils font partie du format : ne supprimez pas les commentaires HTML des pages qui contiennent des îlots.

@@ -120,6 +120,37 @@ fn submit_button(form: Form) -> Element {
 }
 ```
 
+## Fields of any type
+
+`form.field_with(state, check)` validates a state of any type — a checkbox's `bool`, a number, a date, a list of choices — with a function that returns the error message or `None`. Bind it with `bind_checked_field` (checkboxes) or `bind_parsed_field` (numbers and anything that parses from text), which add `aria-invalid` and the touch on `blur` like `bind_field`:
+
+```rust
+let terms = use_state(false);
+let guests = use_state(2u32);
+let terms_field = form.field_with(terms, |ok| (!ok).then(|| "Accept the terms".to_string()));
+let guests_field = form.field_with(guests, |n| (*n > 8).then(|| "8 guests at most".to_string()));
+
+input().attr("type", "checkbox").bind_checked_field(terms_field);
+input().attr("type", "number").bind_parsed_field(guests_field);
+```
+
+## Asynchronous checks
+
+Some checks need the server: "this username is taken", "this coupon has expired". `validate_async` adds one to a field, run once its other rules pass, each time the value changes (Angular's async validators):
+
+```rust
+let field = form
+    .field(username, [required("Choose a username")])
+    .validate_async(|name: String| async move {
+        let taken = api::username_taken(&name).await;
+        taken.then(|| "This username is taken".to_string())
+    });
+
+span().class_if("spinner", move || field.is_pending());
+```
+
+While the check runs, `field.is_pending()` and `form.is_pending()` are `true` and the form is not valid, so `form.submit()` answers `false`. An answer that arrives after the value changed again is ignored. Wait a little inside the future before the request (a debounce) to send fewer of them.
+
 ## On the server
 
 Validation in the browser is for comfort; the server must check again what it receives. `Rule::check(value)` runs a rule on a plain `&str`, so the server can use the same rules:

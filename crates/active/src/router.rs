@@ -4,8 +4,12 @@
 use std::rc::Rc;
 use std::str::FromStr;
 
-use crate::reactive::{State, untrack, use_state};
-use crate::view::{Node, switch};
+use std::cell::RefCell;
+use std::future::Future;
+
+use crate::data::Data;
+use crate::reactive::{State, untrack, use_state, watch};
+use crate::view::{Node, fragment_dyn, switch};
 
 /// The parameters extracted from a path by [`match_path`] or [`Routes`]: `id` in
 /// `"/posts/:id"`, `rest` in `"/files/*rest"`. Values are percent-decoded.
@@ -163,6 +167,19 @@ pub fn match_path(pattern: &str, path: &str) -> Option<Params> {
 }
 
 type RouteView = Rc<dyn Fn(State<Params>) -> Node>;
+type Layout = Rc<dyn Fn(Node) -> Node>;
+type Loading = Rc<RefCell<Option<Rc<dyn Fn() -> Node>>>>;
+
+/// The name of the parameter holding the rest of the path of a nested table.
+const REST: &str = "__rest";
+
+#[derive(Clone)]
+struct Route {
+    pattern: String,
+    view: RouteView,
+    /// Set by [`Routes::nest`]: the table that handles the rest of the path.
+    nested: Option<Rc<Routes>>,
+}
 
 /// A route table: the first pattern (see [`match_path`]) that matches the path picks the
 /// page, built with a [`State<Params>`](Params) holding its parameters.
@@ -170,7 +187,13 @@ type RouteView = Rc<dyn Fn(State<Params>) -> Node>;
 /// [`view`](Routes::view) follows a path that changes, like Vue Router's `<router-view>`:
 /// going from `/posts/1` to `/posts/2` **keeps** the post page (its states, requests and
 /// DOM) and only updates its parameters state, while going to another route builds the
-/// other page. [`render`](Routes::render) builds the page of one path, for a server.
+/// other page. [`render`](Routes::render) builds the page of one path, for a server, and
+/// [`respond`](Routes::respond) adds the HTTP status and redirect the page asked for.
+///
+/// Pages can share a [`layout`](Routes::layout) (kept on screen while the page changes),
+/// tables can be [nested](Routes::nest) under a prefix with their own layout, and
+/// [`route_with_data`](Routes::route_with_data) loads a page's data before showing it
+/// (SvelteKit's `load`, Remix's and Nuxt's loaders).
 ///
 /// ```
 /// use active::{html::*, Node, Params, Routes, State};
@@ -189,12 +212,12 @@ type RouteView = Rc<dyn Fn(State<Params>) -> Node>;
 /// ```
 ///
 /// In a client-side app: `main().child(routes.view(move || active::location().get()))`.
-/// Nested routes end with a catch-all (`"/settings/*rest"`) and build their own `Routes`
-/// from `rest`.
 #[derive(Clone, Default)]
 pub struct Routes {
-    table: Vec<(String, RouteView)>,
+    table: Vec<Route>,
     fallback: Option<RouteView>,
+    layout: Option<Layout>,
+    loading: Loading,
 }
 
 impl std::fmt::Debug for Routes {
@@ -202,9 +225,10 @@ impl std::fmt::Debug for Routes {
         f.debug_struct("Routes")
             .field(
                 "patterns",
-                &self.table.iter().map(|(p, _)| p).collect::<Vec<_>>(),
+                &self.table.iter().map(|r| &r.pattern).collect::<Vec<_>>(),
             )
             .field("fallback", &self.fallback.is_some())
+            .field("layout", &self.layout.is_some())
             .finish()
     }
 }
@@ -223,7 +247,11 @@ impl Routes {
         pattern: impl Into<String>,
         view: impl Fn(State<Params>) -> Node + 'static,
     ) -> Self {
-        self.table.push((pattern.into(), Rc::new(view)));
+        self.table.push(Route {
+            pattern: pattern.into(),
+            view: Rc::new(view),
+            nested: None,
+        });
         self
     }
 
@@ -235,15 +263,175 @@ impl Routes {
         self
     }
 
+    /// Wraps every page of the table (the fallback included) in `layout`, given the page
+    /// as its `outlet`: Next's and Nuxt's layouts, SvelteKit's `+layout`, Vue Router's
+    /// nested `<router-view>`.
+    ///
+    /// With [`view`](Routes::view), the layout is built **once** and stays on screen while
+    /// the visitor goes from page to page: its states (an open menu, a search field, a
+    /// player) are kept, only the outlet changes.
+    ///
+    /// ```
+    /// use active::{html::*, Node, Routes};
+    ///
+    /// let routes = Routes::new()
+    ///     .layout(|outlet| div().class("shell").child(nav().text("Menu")).child(main().child(outlet)).into())
+    ///     .route("/", |_| h1().text("Home").into());
+    /// assert_eq!(
+    ///     routes.render("/").render(),
+    ///     r#"<div class="shell"><nav>Menu</nav><main><h1>Home</h1></main></div>"#
+    /// );
+    /// ```
+    #[must_use]
+    pub fn layout(mut self, layout: impl Fn(Node) -> Node + 'static) -> Self {
+        self.layout = Some(Rc::new(layout));
+        self
+    }
+
+    /// Hands every path under `prefix` (`"/settings"`, `"/users/:id"`) to another table,
+    /// whose patterns are relative to the prefix (`"/"`, `"/profile"`) and whose
+    /// [`layout`](Routes::layout) goes inside this table's. The parameters of the prefix
+    /// (`id`) are given to the nested pages too.
+    ///
+    /// With [`view`](Routes::view), the nested layout stays on screen while the visitor moves
+    /// between the nested pages, and is rebuilt only when they leave the prefix.
+    ///
+    /// ```
+    /// use active::{html::*, Node, Routes};
+    ///
+    /// let settings = Routes::new()
+    ///     .layout(|outlet| section().child(h2().text("Settings")).child(outlet).into())
+    ///     .route("/", |_| p().text("Overview").into())
+    ///     .route("/profile", |_| p().text("Profile").into());
+    /// let routes = Routes::new()
+    ///     .route("/", |_| h1().text("Home").into())
+    ///     .nest("/settings", settings);
+    /// assert_eq!(
+    ///     routes.render("/settings/profile").render(),
+    ///     "<section><h2>Settings</h2><!--[--><p>Profile</p><!--]--></section>"
+    /// );
+    /// assert!(routes.matches("/settings/profile"));
+    /// assert!(!routes.matches("/settings/nope"));
+    /// ```
+    #[must_use]
+    pub fn nest(mut self, prefix: &str, routes: Routes) -> Self {
+        let pattern = format!("{}/*{REST}", prefix.trim_end_matches('/'));
+        let nested = Rc::new(routes);
+        let inner = nested.clone();
+        let view: RouteView = Rc::new(move |params: State<Params>| {
+            view_of(inner.clone(), move || {
+                params.with(|p| {
+                    let rest = format!("/{}", p.get(REST).unwrap_or(""));
+                    let inherited = p.pairs.iter().filter(|(k, _)| k != REST).cloned().collect();
+                    (rest, inherited)
+                })
+            })
+        });
+        self.table.push(Route {
+            pattern,
+            view,
+            nested: Some(nested),
+        });
+        self
+    }
+
+    /// What [`route_with_data`](Routes::route_with_data) shows while a page's data loads
+    /// for the first time (a skeleton, a spinner). Nothing by default.
+    #[must_use]
+    pub fn loading(self, view: impl Fn() -> Node + 'static) -> Self {
+        *self.loading.borrow_mut() = Some(Rc::new(view));
+        self
+    }
+
+    /// Adds a route whose data is loaded before its page is shown: SvelteKit's `load`,
+    /// Remix's and Nuxt's loaders.
+    ///
+    /// `load` is called with the route's parameters and returns a future (an HTTP request, a
+    /// database query on the server); the page is built with a state holding its result once
+    /// it is there, and shows the [`loading`](Routes::loading) view until then. Going to
+    /// the same route with other parameters (`/posts/1` to `/posts/2`) loads again and
+    /// updates the state in place, keeping the page.
+    ///
+    /// The data is loaded with [`ssr::resource`](crate::ssr::resource) under the key
+    /// `"route:{pattern}"`: a page rendered by [`ssr::render`](crate::ssr::render) or
+    /// streamed by [`ssr::stream`](crate::ssr::stream) sends it along, and the browser
+    /// hydrates without loading it again.
+    ///
+    /// ```
+    /// use active::{html::*, Routes};
+    ///
+    /// async fn load_post(id: u32) -> String {
+    ///     format!("Post number {id}") // a database, an API…
+    /// }
+    ///
+    /// let routes = Routes::new()
+    ///     .loading(|| p().class("skeleton").into())
+    ///     .route_with_data(
+    ///         "/posts/:id",
+    ///         |params| load_post(params.parse("id").unwrap_or(0)),
+    ///         |post, _params| h1().text_dyn(move || post.get()).into(),
+    ///     );
+    /// assert!(routes.render("/posts/3").render().contains("<h1><!--#-->Post number 3</h1>"));
+    /// ```
+    #[must_use]
+    pub fn route_with_data<T, F>(
+        self,
+        pattern: impl Into<String>,
+        load: impl Fn(Params) -> F + 'static,
+        page: impl Fn(State<T>, State<Params>) -> Node + 'static,
+    ) -> Self
+    where
+        T: Data + Clone + PartialEq + 'static,
+        F: Future<Output = T> + 'static,
+    {
+        let pattern = pattern.into();
+        let key = format!("route:{pattern}");
+        let (load, page, loading) = (Rc::new(load), Rc::new(page), self.loading.clone());
+        self.route(pattern, move |params| {
+            let fallback = loading.borrow().as_ref().map_or(Node::Empty, |f| f());
+            let (load, page, key) = (load.clone(), page.clone(), key.clone());
+            crate::resource::suspense(fallback, move || {
+                let data = crate::ssr::resource(key, move || params.get(), move |p| load(p));
+                // Browser: the page is built once, when the first value arrives.
+                let loaded: Rc<dyn Fn() -> bool> = if cfg!(feature = "client") {
+                    let loaded = crate::reactive::memo(move || data.with(|d| d.is_some()));
+                    Rc::new(move || loaded.get())
+                } else {
+                    Rc::new(move || data.with(|d| d.is_some()))
+                };
+                fragment_dyn(move || {
+                    if !loaded() {
+                        return Vec::new();
+                    }
+                    untrack(|| {
+                        let Some(first) = data.get() else {
+                            return Vec::new();
+                        };
+                        let state = use_state(first);
+                        watch(
+                            move || data.get(),
+                            move |next, _| {
+                                if let Some(next) = next {
+                                    if state.is_alive() && state.with(|s| s != next) {
+                                        state.set(next.clone());
+                                    }
+                                }
+                            },
+                        );
+                        vec![page(state, params)]
+                    })
+                })
+            })
+        })
+    }
+
     /// The parameters of the first route matching `path` (the fallback's when none does), or
     /// `None` when nothing matches and there is no fallback.
     pub fn resolve(&self, path: &str) -> Option<Params> {
         self.table
             .iter()
             .enumerate()
-            .find_map(|(route, (pattern, _))| {
-                match_path(pattern, path).map(|p| Params { route, ..p })
-            })
+            .find_map(|(route, r)| match_path(&r.pattern, path).map(|p| Params { route, ..p }))
             .or_else(|| {
                 self.fallback.as_ref()?;
                 let mut params = match_path("/*path", path)?;
@@ -252,16 +440,26 @@ impl Routes {
             })
     }
 
-    /// Whether a route (not the fallback) matches `path`: answer 404 when it is `false`.
+    /// Whether a route (not a fallback) matches `path`, nested tables included: answer 404
+    /// when it is `false`.
     pub fn matches(&self, path: &str) -> bool {
-        self.resolve(path)
-            .is_some_and(|params| params.route < self.table.len())
+        let Some(params) = self.resolve(path) else {
+            return false;
+        };
+        match self.table.get(params.route) {
+            Some(Route {
+                nested: Some(nested),
+                ..
+            }) => nested.matches(&format!("/{}", params.get(REST).unwrap_or(""))),
+            Some(_) => true,
+            None => false,
+        }
     }
 
     fn page(&self, params: State<Params>) -> Node {
         let route = untrack(|| params.with(|p| p.route));
         match self.table.get(route) {
-            Some((_, view)) => view(params),
+            Some(r) => (r.view)(params),
             None if route == self.table.len() => self
                 .fallback
                 .as_ref()
@@ -270,30 +468,156 @@ impl Routes {
         }
     }
 
-    /// The page of `path`, built once (for a server, or a static site).
+    fn wrap(&self, outlet: Node) -> Node {
+        match &self.layout {
+            Some(layout) => layout(outlet),
+            None => outlet,
+        }
+    }
+
+    /// The page of `path`, built once (for a server, or a static site), in its layout.
     pub fn render(&self, path: &str) -> Node {
-        match self.resolve(path) {
+        let page = match self.resolve(path) {
             Some(params) => self.page(use_state(params)),
             None => Node::Empty,
+        };
+        self.wrap(page)
+    }
+
+    /// The page of `path` with what a server answers: the HTTP status (200, 404 when no
+    /// route matches, or what the page set with [`set_status`]) and the address given to
+    /// [`redirect`] while the page was built.
+    ///
+    /// ```
+    /// use active::{html::*, redirect, set_status, Routes};
+    ///
+    /// let signed_in = false;
+    /// let routes = Routes::new()
+    ///     .route("/", |_| h1().text("Home").into())
+    ///     .route("/account", move |_| {
+    ///         if !signed_in {
+    ///             redirect("/login");
+    ///         }
+    ///         h1().text("Account").into()
+    ///     })
+    ///     .route("/gone", |_| {
+    ///         set_status(410);
+    ///         p().text("This page was removed").into()
+    ///     })
+    ///     .fallback(|_| p().text("Not found").into());
+    ///
+    /// assert_eq!(routes.respond("/").status, 200);
+    /// let account = routes.respond("/account");
+    /// assert_eq!((account.status, account.location.as_deref()), (302, Some("/login")));
+    /// assert_eq!(routes.respond("/gone").status, 410);
+    /// assert_eq!(routes.respond("/nope").status, 404);
+    /// ```
+    pub fn respond(&self, path: &str) -> PageResponse {
+        let previous = RESPONSE.with(|r| r.replace(Some(ResponseMeta::default())));
+        let body = self.render(path);
+        let meta = RESPONSE.with(|r| r.replace(previous)).unwrap_or_default();
+        let status = match (meta.status, &meta.location) {
+            (Some(status), Some(_)) if (300..400).contains(&status) => status,
+            (_, Some(_)) => 302,
+            (Some(status), None) => status,
+            (None, None) if self.matches(path) => 200,
+            (None, None) => 404,
+        };
+        PageResponse {
+            status,
+            location: meta.location,
+            body,
         }
     }
 
     /// The page of a path that changes (`move || active::location().get()`): rebuilt when
-    /// another route matches, kept with its parameters updated while the same route does.
+    /// another route matches, kept with its parameters updated while the same route does,
+    /// inside a [`layout`](Routes::layout) built once.
     pub fn view(self, path: impl Fn() -> String + 'static) -> Node {
-        let routes = Rc::new(self);
-        let table = routes.clone();
-        switch(
-            move || {
-                table.resolve(&path()).unwrap_or(Params {
-                    route: NO_ROUTE,
-                    pairs: Vec::new(),
-                })
-            },
-            |params| params.route,
-            move |params| routes.page(params),
-        )
+        view_of(Rc::new(self), move || (path(), Vec::new()))
     }
+}
+
+/// [`Routes::view`], the parameters of an enclosing table added to each page's.
+fn view_of(
+    routes: Rc<Routes>,
+    path: impl Fn() -> (String, Vec<(String, String)>) + 'static,
+) -> Node {
+    let table = routes.clone();
+    let pages = switch(
+        move || {
+            let (path, inherited) = path();
+            let mut params = table.resolve(&path).unwrap_or(Params {
+                route: NO_ROUTE,
+                pairs: Vec::new(),
+            });
+            for (name, value) in inherited {
+                if params.get(&name).is_none() {
+                    params.pairs.push((name, value));
+                }
+            }
+            params
+        },
+        |params| params.route,
+        {
+            let routes = routes.clone();
+            move |params| routes.page(params)
+        },
+    );
+    routes.wrap(pages)
+}
+
+/// What [`Routes::respond`] gives a server: the status, the redirect and the page.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct PageResponse {
+    /// The HTTP status: 200, 404 when no route matches, 302 after [`redirect`] (or the
+    /// `3xx` given to [`set_status`]), or what the page set with [`set_status`].
+    pub status: u16,
+    /// The address given to [`redirect`]: send it as the `Location` header.
+    pub location: Option<String>,
+    /// The page (put it in a [`Document`](crate::Document)).
+    pub body: Node,
+}
+
+#[derive(Default)]
+struct ResponseMeta {
+    status: Option<u16>,
+    location: Option<String>,
+}
+
+thread_local! {
+    /// While [`Routes::respond`] builds a page.
+    static RESPONSE: RefCell<Option<ResponseMeta>> = const { RefCell::new(None) };
+}
+
+/// Sets the HTTP status of the page being built by [`Routes::respond`] (a 404 for a post
+/// that does not exist, a 410, a 503 during maintenance). Elsewhere, and in the browser, it
+/// does nothing.
+pub fn set_status(status: u16) {
+    RESPONSE.with(|r| {
+        if let Some(meta) = r.borrow_mut().as_mut() {
+            meta.status = Some(status);
+        }
+    });
+}
+
+/// Sends the visitor to `to` instead of the page being built (SvelteKit's `redirect`,
+/// Next's `redirect()`): on the server, [`Routes::respond`] answers with a 302 (or the
+/// `3xx` given to [`set_status`]) and `to` as the `Location`; in the browser, the router
+/// goes to `to`, replacing the history entry, right after the page is built.
+pub fn redirect(to: impl Into<String>) {
+    let to = to.into();
+    #[cfg(feature = "client")]
+    {
+        wasm_bindgen_futures::spawn_local(async move { crate::client::navigate_replace(&to) });
+    }
+    #[cfg(not(feature = "client"))]
+    RESPONSE.with(|r| {
+        if let Some(meta) = r.borrow_mut().as_mut() {
+            meta.location = Some(to);
+        }
+    });
 }
 
 /// What a guard registered with [`before_navigate`] decides about a navigation.
@@ -521,5 +845,102 @@ mod tests {
         assert_eq!(check_navigation("/loop"), None);
         owner.dispose();
         assert_eq!(check_navigation("/stay").as_deref(), Some("/stay"));
+    }
+
+    #[test]
+    fn layouts_stay_while_pages_change_and_nested_pages_inherit_parameters() {
+        let path = use_state("/users/7".to_string());
+        let layouts = Rc::new(Cell::new(0));
+        let built = layouts.clone();
+        let user = Routes::new()
+            .layout(|outlet| section().child(outlet).into())
+            .route("/", |params| {
+                p().text_dyn(move || {
+                    format!(
+                        "user {}",
+                        params.with(|p| p.get("id").unwrap_or("?").to_string())
+                    )
+                })
+                .into()
+            })
+            .route("/posts/:post", |params| {
+                let get = move |k: &str| params.with(|p| p.get(k).unwrap_or("?").to_string());
+                p().text_dyn(move || format!("{} of {}", get("post"), get("id")))
+                    .into()
+            });
+        let view = Routes::new()
+            .layout(move |outlet| {
+                built.set(built.get() + 1);
+                main().child(outlet).into()
+            })
+            .route("/", |_| h1().text("Home").into())
+            .nest("/users/:id", user)
+            .view(move || path.get());
+        assert_eq!(
+            view.render(),
+            "<main><!--[--><section><!--[--><p><!--#-->user 7</p><!--]--></section><!--]--></main>"
+        );
+        path.set("/users/7/posts/3".into());
+        assert!(view.render().contains("3 of 7"), "{}", view.render());
+        path.set("/".into());
+        assert!(view.render().contains("<h1>Home</h1>"));
+        assert_eq!(layouts.get(), 1, "the layout is built once");
+    }
+
+    #[test]
+    fn data_routes_load_before_showing_their_page() {
+        let routes = Routes::new()
+            .loading(|| p().text("Loading").into())
+            .route_with_data(
+                "/n/:n",
+                |params| {
+                    let n: u32 = params.parse("n").unwrap_or(0);
+                    async move { n * 2 }
+                },
+                |double, params| {
+                    p().text_dyn(move || {
+                        format!(
+                            "{} -> {}",
+                            params.with(|p| p.get("n").unwrap_or("").to_string()),
+                            double.get()
+                        )
+                    })
+                    .into()
+                },
+            )
+            .route_with_data(
+                "/never",
+                |_| std::future::pending::<u8>(),
+                |_, _| p().text("never").into(),
+            );
+        let html = routes.render("/n/4").render();
+        assert!(html.contains("4 -&gt; 8"), "{html}");
+        let html = routes.render("/never").render();
+        assert!(
+            html.contains("Loading") && !html.contains("never"),
+            "{html}"
+        );
+    }
+
+    #[test]
+    fn respond_sets_status_and_location() {
+        let routes = Routes::new()
+            .route("/old", |_| {
+                set_status(301);
+                redirect("/new");
+                Node::Empty
+            })
+            .route("/temp", |_| {
+                redirect("/elsewhere");
+                Node::Empty
+            });
+        let old = routes.respond("/old");
+        assert_eq!((old.status, old.location.as_deref()), (301, Some("/new")));
+        assert_eq!(routes.respond("/temp").status, 302);
+        assert_eq!(routes.respond("/x").status, 404);
+        // Outside `respond`: nothing recorded, nothing leaks into the next response.
+        set_status(500);
+        redirect("/y");
+        assert_eq!(routes.respond("/x").location, None);
     }
 }

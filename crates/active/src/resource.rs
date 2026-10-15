@@ -203,21 +203,16 @@ fn spawn<T: 'static>(task: Task<T>, done: Box<dyn FnOnce(T)>) {
     wasm_bindgen_futures::spawn_local(async move { done(task.await) });
 }
 
-/// Server: no event loop, the value stays loading.
-#[cfg(not(any(feature = "client", test)))]
-fn spawn<T: 'static>(task: Task<T>, done: Box<dyn FnOnce(T)>) {
-    drop((task, done));
-}
-
-/// Tests: kept until [`run_tasks`] polls them.
-#[cfg(all(test, not(feature = "client")))]
+/// Server: no event loop. While [`ssr::stream`](crate::ssr::stream) streams a page, the
+/// future is kept and polled by the stream; otherwise the value stays loading.
+#[cfg(not(feature = "client"))]
 fn spawn<T: 'static>(task: Task<T>, done: Box<dyn FnOnce(T)>) {
     let mut task = Some((task, done));
-    let poll: Box<dyn FnMut() -> bool> = Box::new(move || {
+    let job: crate::ssr::Job = Box::new(move |cx: &mut Context<'_>| {
         let Some((t, _)) = task.as_mut() else {
             return true;
         };
-        match t.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
+        match t.as_mut().poll(cx) {
             Poll::Ready(v) => {
                 let (_, done) = task.take().expect("polled once");
                 done(v);
@@ -226,12 +221,17 @@ fn spawn<T: 'static>(task: Task<T>, done: Box<dyn FnOnce(T)>) {
             Poll::Pending => false,
         }
     });
-    TASKS.with(|t| t.borrow_mut().push(poll));
+    if let Err(job) = crate::ssr::capture_task(job) {
+        #[cfg(test)]
+        TASKS.with(|t| t.borrow_mut().push(job));
+        #[cfg(not(test))]
+        drop(job);
+    }
 }
 
 #[cfg(all(test, not(feature = "client")))]
 thread_local! {
-    static TASKS: std::cell::RefCell<Vec<Box<dyn FnMut() -> bool>>> = const { std::cell::RefCell::new(Vec::new()) };
+    static TASKS: std::cell::RefCell<Vec<crate::ssr::Job>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
 /// Tests: polls the pending tasks once each, keeping those still pending.
@@ -239,8 +239,9 @@ thread_local! {
 pub(crate) fn run_tasks() {
     let tasks = TASKS.with(|t| std::mem::take(&mut *t.borrow_mut()));
     let mut left = Vec::new();
+    let mut cx = Context::from_waker(Waker::noop());
     for mut task in tasks {
-        if !task() {
+        if !task(&mut cx) {
             left.push(task);
         }
     }
@@ -277,11 +278,49 @@ pub fn suspense(fallback: impl Into<Node>, view: impl FnOnce() -> Node) -> Node 
     let fallback = fallback.into();
     fragment_dyn(move || {
         if pending.get() > 0 {
+            // Streaming on the server: the fallback is sent now, the content later.
+            #[cfg(not(feature = "client"))]
+            if let Some(id) = crate::ssr::defer(pending, &content) {
+                return vec![
+                    crate::view::el("active-suspense")
+                        .attr("data-suspense", id.to_string())
+                        .child(fallback.clone())
+                        .into(),
+                ];
+            }
             vec![fallback.clone()]
         } else {
             vec![content.clone()]
         }
     })
+}
+
+/// Test helpers shared with other modules.
+#[cfg(all(test, not(feature = "client")))]
+pub(crate) mod tests_support {
+    use super::*;
+    use std::cell::RefCell;
+
+    /// A future completed by hand.
+    #[derive(Clone, Default)]
+    pub(crate) struct Later<T>(Rc<RefCell<Option<T>>>);
+
+    impl<T> Later<T> {
+        pub(crate) fn resolve(&self, v: T) {
+            *self.0.borrow_mut() = Some(v);
+            run_tasks();
+        }
+    }
+
+    impl<T> Future for Later<T> {
+        type Output = T;
+        fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<T> {
+            match self.0.borrow_mut().take() {
+                Some(v) => Poll::Ready(v),
+                None => Poll::Pending,
+            }
+        }
+    }
 }
 
 #[cfg(all(test, not(feature = "client")))]
