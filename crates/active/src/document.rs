@@ -86,6 +86,22 @@ impl Document {
         self.head(crate::pwa::head_tags(href, manifest))
     }
 
+    /// Animates the changes of page with the browser's View Transitions API: full page loads
+    /// between pages of the site (CSS `@view-transition`), and client-side navigations (the browser's `active::set_view_transitions`, turned on by
+    /// this page). Give
+    /// an element the same `view-transition-name` on two pages (a product photo, a title)
+    /// and it morphs from one to the other. Browsers without the API, and visitors who ask
+    /// for reduced motion, get the usual instant change.
+    #[must_use]
+    pub fn view_transitions(self) -> Self {
+        self.head(
+            "<meta name=\"view-transition\" content=\"same-origin\">\
+             <style>@view-transition{navigation:auto}\
+             @media (prefers-reduced-motion:reduce){::view-transition-group(*),\
+             ::view-transition-old(*),::view-transition-new(*){animation:none!important}}</style>",
+        )
+    }
+
     /// Registers the service worker served at `url` (see
     /// [`ServiceWorker`](crate::pwa::ServiceWorker)) with a small inline script, once the
     /// page has loaded.

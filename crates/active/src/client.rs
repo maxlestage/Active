@@ -489,18 +489,16 @@ fn went_back_or_forward() {
             let id = new_entry_id();
             ENTRY.with(|e| e.set(id));
             let _ = history.replace_state_with_url(&JsValue::from_f64(id), "", Some(&next));
-            sync_router();
-            scroll_to_target(&next);
+            sync_router_then(move || scroll_to_target(&next));
         }
         Some(_) => {
             let id = id.unwrap_or_else(new_entry_id);
             ENTRY.with(|e| e.set(id));
-            sync_router();
             let saved = SCROLLS.with(|s| s.borrow().iter().find(|(i, _)| *i == id).map(|p| p.1));
-            match saved {
+            sync_router_then(move || match saved {
                 Some(y) => window().scroll_to_with_x_and_y(0.0, y),
                 None => scroll_to_target(&to),
-            }
+            });
         }
     }
 }
@@ -530,6 +528,74 @@ fn sync_router() {
     if search_state.with(|s| *s != search) {
         search_state.set(search);
     }
+}
+
+/// [`sync_router`], then `after` (the scroll): inside the browser's View Transition when
+/// they are on (see [`set_view_transitions`]), so that the old page fades into the new one.
+fn sync_router_then(after: impl FnOnce() + 'static) {
+    // Run once: by the transition, or right away if it cannot start.
+    let update = Rc::new(RefCell::new(Some(move || {
+        sync_router();
+        after();
+    })));
+    let run = {
+        let update = update.clone();
+        move || {
+            if let Some(f) = update.borrow_mut().take() {
+                f();
+            }
+        }
+    };
+    if view_transitions_on() {
+        let doc = document();
+        let start = js_sys::Reflect::get(&doc, &JsValue::from_str("startViewTransition"))
+            .ok()
+            .and_then(|f| f.dyn_into::<js_sys::Function>().ok());
+        if let Some(start) = start {
+            let run = run.clone();
+            let callback = Closure::once_into_js(run);
+            if start.call1(&doc, &callback).is_ok() {
+                return;
+            }
+        }
+    }
+    run();
+}
+
+thread_local! {
+    /// `None`: not decided yet (read from the page's `<meta name="view-transition">`).
+    static VIEW_TRANSITIONS: Cell<Option<bool>> = const { Cell::new(None) };
+}
+
+/// Animates client-side navigations with the browser's View Transitions API (Astro's
+/// `<ClientRouter />`, Next's `viewTransition`): the old page cross-fades into the new one,
+/// and elements given the same CSS `view-transition-name` on both pages morph from one to
+/// the other. Browsers without the API, and visitors who ask for reduced motion, get the
+/// usual instant change. Pages rendered with
+/// [`Document::view_transitions`](crate::Document::view_transitions) turn it on by
+/// themselves; call this in a client-side app (`mount`).
+pub fn set_view_transitions(on: bool) {
+    VIEW_TRANSITIONS.with(|v| v.set(Some(on)));
+}
+
+fn view_transitions_on() -> bool {
+    let on = VIEW_TRANSITIONS.with(|v| {
+        if let Some(on) = v.get() {
+            return on;
+        }
+        let on = document()
+            .query_selector("meta[name=\"view-transition\"]")
+            .ok()
+            .flatten()
+            .is_some();
+        v.set(Some(on));
+        on
+    });
+    on && !window()
+        .match_media("(prefers-reduced-motion: reduce)")
+        .ok()
+        .flatten()
+        .is_some_and(|m| m.matches())
 }
 
 /// Goes to `to` (`"/about"`, `"/search?q=rust"`, `"/docs#install"`) without reloading the
@@ -571,8 +637,7 @@ fn go(to: &str, replace: bool) {
             history.push_state_with_url(&state, "", Some(&to))
         };
     }
-    sync_router();
-    scroll_to_target(&to);
+    sync_router_then(move || scroll_to_target(&to));
 }
 
 /// The path and the query string (without `?`) of the browser's URL.

@@ -53,6 +53,30 @@ fn profile(id: State<u32>) -> Element {
 
 Dans le navigateur (fonctionnalité `client`), le future s'exécute sur la boucle d'événements du navigateur grâce à `wasm-bindgen-futures`. Le serveur n'a pas de boucle d'événements : le future y est interrogé **une fois**. Une valeur déjà disponible (un cache, `async { value }`, des données avec lesquelles la page est rendue) est rendue tout de suite ; une vraie requête reste en chargement, et le serveur rend l'état de chargement ou le repli de suspense. Le navigateur charge ensuite les données après l'hydratation.
 
+## Requêtes partagées : use_query et use_mutation
+
+Le meilleur de TanStack Query (React Query) et de SWR. `use_query(clé, fetch)` garde les données dans un cache partagé par clé : dix composants qui demandent `"users/7"` font une seule requête et affichent la même valeur. Les données déjà en cache s'affichent tout de suite et se rechargent en arrière-plan quand elles sont plus vieilles que leur durée de fraîcheur (`use_query_with(clé, QueryOptions::default().stale_time(..), fetch)` ; 0 par défaut : à chaque montage). `invalidate("users")` recharge chaque requête affichée dont la clé commence par `users`, `set_query_data` / `Query::set` font des mises à jour optimistes, et `use_mutation(envoi).invalidates(préfixe)` envoie un changement puis recharge ce qu'il touche. Dans un `suspense`, le repli s'affiche jusqu'aux premières données.
+
+```rust
+use active::prelude::*;
+
+fn user_card(id: u32) -> Node {
+    // Shared by every component asking for the same key: one request, one value.
+    let user = use_query(move || format!("users/{id}"), |key| async move { api::get(&key).await });
+    let rename = use_mutation(move |name: String| async move { api::rename(id, name).await })
+        .invalidates("users"); // reloads "users", "users/7"… once saved
+    div().child(p().text_dyn(move || match user.get() {
+        None => "Loading…".into(),
+        Some(Ok(u)) => u.name,
+        Some(Err(e)) => format!("Error: {e}"),
+    }))
+    .child(button().on_click(move |_| rename.mutate("Ada".into())).text("Rename"))
+    .into()
+}
+```
+
+Sur le serveur, chaque rendu a son propre cache : les données d'un visiteur n'atteignent jamais un autre ; `provide(QueryClient::new(), || page())` en partage un entre les composants d'une page. Écrivez les clés comme des chemins, pour qu'un préfixe désigne une famille.
+
 ## Garder les anciennes données pendant un rechargement
 
 Pendant un rechargement, la valeur précédente reste lisible : la page continue de l'afficher au lieu de revenir à « Chargement… ». Affichez un indicateur discret avec `loading()`, comme le fait `useTransition` de React :
