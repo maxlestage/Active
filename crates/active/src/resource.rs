@@ -11,7 +11,7 @@ use crate::context::{provide, use_context};
 use crate::reactive::{State, batch, on_cleanup, untrack, use_state, watch};
 use crate::view::{Node, fragment_dyn};
 
-type Task<T> = Pin<Box<dyn Future<Output = T>>>;
+pub(crate) type Task<T> = Pin<Box<dyn Future<Output = T>>>;
 
 /// Data loaded asynchronously by [`resource`]: `None` until the first value arrives, then the
 /// latest value. `Copy`, like a [`State`], so it can be moved into any closure.
@@ -78,10 +78,10 @@ impl<T: 'static> Resource<T> {
 
 /// The resources of a [`suspense`] that have not loaded their first value yet.
 #[derive(Clone, Copy)]
-struct Pending(State<usize>);
+pub(crate) struct Pending(State<usize>);
 
 impl Pending {
-    fn add(self, n: isize) {
+    pub(crate) fn add(self, n: isize) {
         if self.0.is_alive() {
             self.0
                 .update(|count| *count = count.saturating_add_signed(n));
@@ -199,14 +199,14 @@ where
 
 /// Browser: runs `task` on the event loop, then `done` with its output.
 #[cfg(feature = "client")]
-fn spawn<T: 'static>(task: Task<T>, done: Box<dyn FnOnce(T)>) {
+pub(crate) fn spawn<T: 'static>(task: Task<T>, done: Box<dyn FnOnce(T)>) {
     wasm_bindgen_futures::spawn_local(async move { done(task.await) });
 }
 
 /// Server: no event loop. While [`ssr::stream`](crate::ssr::stream) streams a page, the
 /// future is kept and polled by the stream; otherwise the value stays loading.
 #[cfg(not(feature = "client"))]
-fn spawn<T: 'static>(task: Task<T>, done: Box<dyn FnOnce(T)>) {
+pub(crate) fn spawn<T: 'static>(task: Task<T>, done: Box<dyn FnOnce(T)>) {
     let mut task = Some((task, done));
     let job: crate::ssr::Job = Box::new(move |cx: &mut Context<'_>| {
         let Some((t, _)) = task.as_mut() else {

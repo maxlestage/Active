@@ -53,6 +53,30 @@ fn profile(id: State<u32>) -> Element {
 
 In the browser (feature `client`), the future runs on the browser's event loop through `wasm-bindgen-futures`. On the server there is no event loop: the future is polled **once**. A value that is already there (a cache, `async { value }`, data the page was rendered with) is rendered at once; a real request stays loading, and the server renders the loading state or the suspense fallback. The browser then loads the data after hydration.
 
+## Shared queries: use_query and use_mutation
+
+The best of TanStack Query (React Query) and SWR. `use_query(key, fetch)` keeps the data in a cache shared by key: ten components asking for `"users/7"` make one request and show the same value. Data already in the cache shows at once and reloads in the background when it is older than its stale time (`use_query_with(key, QueryOptions::default().stale_time(..), fetch)`; 0 by default: on every mount). `invalidate("users")` reloads every shown query whose key starts with `users`, `set_query_data` / `Query::set` make optimistic updates, and `use_mutation(send).invalidates(prefix)` sends a change then reloads what it affects. Inside a `suspense`, the fallback shows until the first data arrives.
+
+```rust
+use active::prelude::*;
+
+fn user_card(id: u32) -> Node {
+    // Shared by every component asking for the same key: one request, one value.
+    let user = use_query(move || format!("users/{id}"), |key| async move { api::get(&key).await });
+    let rename = use_mutation(move |name: String| async move { api::rename(id, name).await })
+        .invalidates("users"); // reloads "users", "users/7"… once saved
+    div().child(p().text_dyn(move || match user.get() {
+        None => "Loading…".into(),
+        Some(Ok(u)) => u.name,
+        Some(Err(e)) => format!("Error: {e}"),
+    }))
+    .child(button().on_click(move |_| rename.mutate("Ada".into())).text("Rename"))
+    .into()
+}
+```
+
+On the server, each render has its own cache, so one visitor's data never reaches another; `provide(QueryClient::new(), || page())` shares one between a page's components. Write keys like paths, so that a prefix names a family.
+
 ## Keeping the old data during a reload
 
 While a reload runs, the previous value stays readable: the page keeps showing it instead of flashing back to "Loading…". Show a discreet indicator with `loading()`, as React's `useTransition` does:

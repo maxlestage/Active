@@ -77,6 +77,10 @@ let html = Document::new(response.body).render();
 
 Dans une page, `set_status(410)` fixe le code et `redirect("/login")` envoie le visiteur ailleurs. Dans le navigateur, `redirect` fait aller le routeur à cette adresse en remplaçant l'entrée d'historique ; `set_status` ne fait rien.
 
+## Changements de page animés : view transitions
+
+`Document::view_transitions()` anime les changements de page avec l'API View Transitions du navigateur : les navigations côté client et les chargements complets se fondent l'un dans l'autre, et un élément qui a le même `view-transition-name` CSS sur deux pages (une photo, un titre) se transforme de l'un à l'autre. Les navigateurs sans l'API, et les visiteurs qui demandent moins d'animations, ont le changement instantané habituel. Dans une application côté client, appelez `active::set_view_transitions(true)`.
+
 ## Préchargement
 
 `Document::prefetch(Prefetch::Hover)` charge les pages que le visiteur s'apprête à ouvrir avant le clic. La page reçoit des speculation rules (Chrome, Edge) et un petit script inline pour les autres navigateurs, qui ajoute une fois un `<link rel="prefetch">` par lien du même site :

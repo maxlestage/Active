@@ -3,6 +3,7 @@
 #![warn(missing_docs, rust_2018_idioms)]
 
 mod boundary;
+mod cache;
 mod context;
 mod data;
 pub mod debug;
@@ -28,6 +29,10 @@ mod client;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use boundary::{ErrorBoundary, error_boundary, report_error};
+pub use cache::{
+    Mutation, Query, QueryClient, QueryOptions, invalidate, set_query_data, use_mutation,
+    use_query, use_query_with,
+};
 pub use context::{expect_context, provide, use_context};
 pub use data::Data;
 pub use document::{Document, Prefetch};
@@ -51,7 +56,7 @@ pub use view::{
 #[cfg(feature = "client")]
 pub use client::{
     hydrate, location, mount, mount_to, navigate, navigate_replace, on_link_hover, query,
-    query_param, update_head,
+    query_param, set_view_transitions, update_head,
 };
 
 /// Everything a component file usually needs: `use active::prelude::*;`.
@@ -60,7 +65,7 @@ pub mod prelude {
     pub use crate::{
         Document, Element, Event, Node, Seo, State, effect, el, expect_context, fragment,
         fragment_dyn, indexed, island, keyed, match_path, memo, on_cleanup, provide, switch, text,
-        text_dyn, untrack, use_context, use_state, watch, watch_immediate,
+        text_dyn, untrack, use_context, use_mutation, use_query, use_state, watch, watch_immediate,
     };
     #[cfg(feature = "client")]
     pub use crate::{location, navigate, query_param};

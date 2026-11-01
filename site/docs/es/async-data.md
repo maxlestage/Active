@@ -53,6 +53,30 @@ fn profile(id: State<u32>) -> Element {
 
 En el navegador (feature `client`), el future se ejecuta en el bucle de eventos del navegador mediante `wasm-bindgen-futures`. El servidor no tiene bucle de eventos: allí el future se consulta **una vez**. Un valor que ya está disponible (una caché, `async { value }`, datos con los que se renderiza la página) se renderiza de inmediato; una petición real sigue cargando, y el servidor renderiza el estado de carga o el respaldo de suspense. Después el navegador carga los datos tras la hidratación.
 
+## Consultas compartidas: use_query y use_mutation
+
+Lo mejor de TanStack Query (React Query) y SWR. `use_query(clave, fetch)` guarda los datos en una caché compartida por clave: diez componentes que piden `"users/7"` hacen una sola petición y muestran el mismo valor. Los datos ya en caché se muestran al instante y se recargan en segundo plano cuando son más viejos que su tiempo de frescura (`use_query_with(clave, QueryOptions::default().stale_time(..), fetch)`; 0 por defecto: en cada montaje). `invalidate("users")` recarga cada consulta mostrada cuya clave empieza por `users`, `set_query_data` / `Query::set` hacen actualizaciones optimistas, y `use_mutation(envío).invalidates(prefijo)` envía un cambio y luego recarga lo que afecta. Dentro de un `suspense`, el fallback se muestra hasta los primeros datos.
+
+```rust
+use active::prelude::*;
+
+fn user_card(id: u32) -> Node {
+    // Shared by every component asking for the same key: one request, one value.
+    let user = use_query(move || format!("users/{id}"), |key| async move { api::get(&key).await });
+    let rename = use_mutation(move |name: String| async move { api::rename(id, name).await })
+        .invalidates("users"); // reloads "users", "users/7"… once saved
+    div().child(p().text_dyn(move || match user.get() {
+        None => "Loading…".into(),
+        Some(Ok(u)) => u.name,
+        Some(Err(e)) => format!("Error: {e}"),
+    }))
+    .child(button().on_click(move |_| rename.mutate("Ada".into())).text("Rename"))
+    .into()
+}
+```
+
+En el servidor, cada renderizado tiene su propia caché: los datos de un visitante nunca llegan a otro; `provide(QueryClient::new(), || page())` comparte una entre los componentes de una página. Escriba las claves como rutas, para que un prefijo nombre una familia.
+
 ## Conservar los datos anteriores durante una recarga
 
 Durante una recarga, el valor anterior sigue siendo legible: la página lo sigue mostrando en lugar de volver a «Cargando…». Muestra un indicador discreto con `loading()`, como hace `useTransition` de React:
