@@ -436,6 +436,7 @@ pub fn document(ctx: &Ctx<'_>, kind: &str, content: Node) -> String {
         Document::new(body)
             .lang(route.lang.code())
             .seo(site)
+            .view_transitions()
             .stylesheet(assets.url("/static/app.css"))
             .head(format!(
                 concat!(

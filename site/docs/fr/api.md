@@ -23,9 +23,9 @@ Le crate utilise l'édition 2024 et nécessite Rust 1.85 ou plus récent. Il ne 
 | `active::html` | une fonction par balise HTML et SVG |
 | `active::forms` | [`Form`](#form), [`Field`](#field), [`Rule`](#rule) et les règles : formulaires validés |
 | `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) et [`register_script`](#register-script) et [`version`](#version) : sites installables et hors ligne |
-| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state`, `watch`, `watch_immediate`, `provide`, `use_context`, `expect_context`, `match_path` ; avec `client`, aussi `location`, `navigate` et `query_param` |
+| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state`, `watch`, `watch_immediate`, `provide`, `use_context`, `expect_context`, `match_path`, `use_query`, `use_mutation` ; avec `client`, aussi `location`, `navigate` et `query_param` |
 
-Absents du prélude : `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `Watcher`, `Params`, `Routes`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`, et les éléments ajoutés d'après les points forts des autres frameworks : `batch`, `resource`, `Resource`, `suspense`, `error_boundary`, `ErrorBoundary`, `report_error`, `portal`, `island_with`, `Hydrate`, `before_navigate`, `Navigation`, `navigate_replace` et le module `forms`. Utilisez-les sous la forme `active::hydrate`, etc.
+Absents du prélude : `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `Watcher`, `Params`, `Routes`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`, et les éléments ajoutés d'après les points forts des autres frameworks : `batch`, `resource`, `Resource`, `suspense`, `error_boundary`, `ErrorBoundary`, `report_error`, `portal`, `island_with`, `Hydrate`, `before_navigate`, `Navigation`, `navigate_replace`, `use_query_with`, `Query`, `QueryOptions`, `QueryClient`, `Mutation`, `invalidate`, `set_query_data`, `set_view_transitions` et le module `forms`. Utilisez-les sous la forme `active::hydrate`, etc.
 
 ## Vues
 
@@ -288,7 +288,7 @@ Charge `fetch(source())` et recharge quand `source` change ; un résultat plus a
 pub fn suspense(fallback: impl Into<Node>, view: impl FnOnce() -> Node) -> Node
 ```
 
-Construit `view` une fois et affiche `fallback` à sa place tant qu'une ressource créée à l'intérieur n'a pas chargé sa première valeur. Les rechargements suivants gardent la vue.
+Construit `view` une fois et affiche `fallback` à sa place tant qu'une ressource ou une requête créée à l'intérieur n'a pas chargé sa première valeur. Les rechargements suivants gardent la vue.
 
 ### error_boundary, ErrorBoundary et report_error
 
@@ -302,6 +302,42 @@ impl<T: Into<Node>, E: Display> From<Result<T, E>> for Node
 ```
 
 Affiche `fallback` au lieu de `view` dès qu'une erreur est signalée à l'intérieur : un `Err` converti en `Node`, `report_error` pendant la construction (renvoie `false` et journalise s'il n'y a pas de boundary), ou `ErrorBoundary::report` plus tard. `ErrorBoundary` a `report(error)`, `errors() -> Vec<String>`, `has_errors() -> bool` et `reset()` (oublie les erreurs et reconstruit la vue) ; la vue l'obtient avec `use_context::<ErrorBoundary>()`.
+
+### use_query, use_mutation et le cache de requêtes
+
+```rust
+pub fn use_query<T: 'static, F: Future<Output = T> + 'static>(key: impl Fn() -> String + 'static, fetch: impl Fn(String) -> F + 'static) -> Query<T>
+pub fn use_query_with<T, F>(key: impl Fn() -> String + 'static, options: QueryOptions, fetch: impl Fn(String) -> F + 'static) -> Query<T>
+pub fn use_mutation<I: 'static, O: 'static, F: Future<Output = O> + 'static>(send: impl Fn(I) -> F + 'static) -> Mutation<I, O>
+pub fn invalidate(prefix: &str)
+pub fn set_query_data<T: 'static>(key: &str, value: T)
+
+pub struct Query<T> { /* … */ }       // Copy
+pub struct Mutation<I, O> { /* … */ } // Copy
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct QueryOptions { pub stale_time: Duration }
+#[derive(Clone, Default)]
+pub struct QueryClient { /* … */ }
+```
+
+Un cache de requêtes partagé par clé (TanStack Query, SWR) : tous les composants qui demandent la même clé partagent une requête et une valeur. Les données du cache s'affichent tout de suite et se rechargent en arrière-plan quand elles sont plus vieilles que `stale_time` (0 par défaut : chaque fois qu'un composant commence à les afficher). `key` peut lire des états : la requête suit la nouvelle clé. `invalidate` recharge les requêtes affichées dont la clé commence par `prefix` (`""` : toutes) ; `set_query_data` remplace les données tout de suite (mise à jour optimiste). Le navigateur a un cache par page ; sur le serveur, chaque rendu a le sien, et `provide(QueryClient::new(), || page())` en partage un entre les composants d'une page.
+
+| Méthode | Description |
+| --- | --- |
+| `Query::get(self) -> Option<T>` (`T: Clone`) | Les données, `None` avant le premier chargement ; abonne. |
+| `Query::with<R>(self, f: impl FnOnce(Option<&T>) -> R) -> R` | Les lit par référence. |
+| `Query::loading(self) -> bool` | Pas encore de données et une requête en cours. |
+| `Query::fetching(self) -> bool` | Une requête en cours, la première ou un rechargement en arrière-plan. |
+| `Query::refetch(self)` | Recharge maintenant. |
+| `Query::set(self, value: T)` | Remplace les données pour tous les composants qui les affichent (mise à jour optimiste). |
+| `Query::key(self) -> String` | La clé actuelle. |
+| `Mutation::mutate(self, input: I)` | Envoie la modification. |
+| `Mutation::invalidates(self, prefix: impl Into<String>) -> Self` | Recharge les requêtes qui commencent par `prefix` une fois la modification faite ; peut s'enchaîner. |
+| `Mutation::pending(self) -> bool` | La modification est en cours d'envoi. |
+| `Mutation::result(self) -> Option<O>` (`O: Clone`) | Le résultat de la dernière modification. |
+| `QueryOptions::stale_time(self, time: Duration) -> Self` | Combien de temps les données chargées restent fraîches (`Duration::MAX` : jusqu'à invalidation). |
+| `QueryClient::new()`, `invalidate`, `set_query_data`, `get_query_data`, `clear_unused` | Le cache lui-même : les mêmes opérations sur un cache, la lecture sans abonnement, l'oubli des requêtes qu'aucun composant n'affiche. |
 
 ## Formulaires
 
@@ -434,6 +470,7 @@ Une page HTML complète. Implémente `Clone` et `Default`. Les méthodes du buil
 | `pub fn client(self, js: impl Into<Str>, wasm: impl Into<Str>) -> Self` | Précharge et démarre le bundle `wasm-bindgen --target web --no-typescript`. |
 | `pub fn manifest(self, href: &str, manifest: &pwa::Manifest) -> Self` | `<link rel="manifest">` vers `href`, `theme-color`, le titre de l'écran d'accueil et l'icône Apple (la plus grande icône PNG de type `any`). |
 | `pub fn service_worker(self, url: &str) -> Self` | Un script en ligne qui enregistre le service worker servi sur `url` une fois la page chargée. |
+| `pub fn view_transitions(self) -> Self` | Changements de page animés par l'API View Transitions du navigateur (chargements complets et navigations côté client) ; ignoré sans support du navigateur ou avec `prefers-reduced-motion`. Voir [Routage](../routing/#changements-de-page-animes-view-transitions). |
 | `pub fn viewport(self, content: impl Into<Str>) -> Self` | `content` de `<meta name="viewport">` (par défaut `width=device-width, initial-scale=1`). |
 | `pub fn html_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribut sur `<html>`. |
 | `pub fn body_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribut sur `<body>`. |
@@ -711,8 +748,10 @@ pub fn redirect(to: impl Into<String>)
 impl Document {
     pub fn prefetch(self, when: Prefetch) -> Self       // Prefetch::{Hover, Press, Visible}
     pub fn prerender(self, when: Prefetch) -> Self
+    pub fn view_transitions(self) -> Self
 }
 pub fn on_link_hover(f: impl Fn(&str) + 'static)       // feature `client`
+pub fn set_view_transitions(on: bool)                 // feature `client`
 
 // Lists and elements — see animations
 pub fn transition_group(name: &'static str, list: Node) -> Node

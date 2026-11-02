@@ -289,7 +289,7 @@ static EN: Dict = Dict {
             },
             Item {
                 title: "Components & state",
-                text: "Views, components, use_state, effects, events, forms and async data.",
+                text: "Views, components, use_state, effects, events, forms, async data and shared queries.",
             },
             Item {
                 title: "SEO",
@@ -297,7 +297,7 @@ static EN: Dict = Dict {
             },
             Item {
                 title: "WebAssembly & apps",
-                text: "Hydrate islands, build client-side apps with routing, keep the bundle small.",
+                text: "Hydrate islands, build client-side apps with routing, animate page changes, keep the bundle small.",
             },
             Item {
                 title: "Servers & static sites",
@@ -503,7 +503,7 @@ static FR: Dict = Dict {
             },
             Item {
                 title: "Composants et état",
-                text: "Vues, composants, use_state, effets, événements, formulaires et données asynchrones.",
+                text: "Vues, composants, use_state, effets, événements, formulaires, données asynchrones et requêtes partagées.",
             },
             Item {
                 title: "SEO",
@@ -511,7 +511,7 @@ static FR: Dict = Dict {
             },
             Item {
                 title: "WebAssembly et apps",
-                text: "Hydrater des îlots, faire des applications côté client avec routage, garder le bundle léger.",
+                text: "Hydrater des îlots, faire des applications côté client avec routage, animer les changements de page, garder le bundle léger.",
             },
             Item {
                 title: "Serveurs et sites statiques",
@@ -717,7 +717,7 @@ static ES: Dict = Dict {
             },
             Item {
                 title: "Componentes y estado",
-                text: "Vistas, componentes, use_state, efectos, eventos, formularios y datos asíncronos.",
+                text: "Vistas, componentes, use_state, efectos, eventos, formularios, datos asíncronos y consultas compartidas.",
             },
             Item {
                 title: "SEO",
@@ -725,7 +725,7 @@ static ES: Dict = Dict {
             },
             Item {
                 title: "WebAssembly y apps",
-                text: "Hidratar islas, crear aplicaciones del lado del cliente con enrutamiento y mantener el bundle ligero.",
+                text: "Hidratar islas, crear aplicaciones del lado del cliente con enrutamiento, animar los cambios de página y mantener el bundle ligero.",
             },
             Item {
                 title: "Servidores y sitios estáticos",

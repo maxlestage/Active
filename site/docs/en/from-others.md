@@ -1,6 +1,6 @@
 ---
 title: Coming from other frameworks
-description: What React, Svelte, Solid, Angular, Qwik, Astro, Next.js and Nuxt features are called in active, from Suspense and error boundaries to transitions, form validation and island hydration.
+description: What React, Svelte, Solid, Angular, Qwik, Astro, Next.js, Nuxt, TanStack Query and SWR features are called in active, from Suspense, error boundaries and query caching to transitions, view transitions, form validation and island hydration.
 ---
 
 `active` borrows the ideas that work best in each front-end framework and gives them one consistent Rust API. If you come from Vue, read [Coming from Vue](../from-vue/) first; this page maps the other frameworks.
@@ -15,6 +15,8 @@ description: What React, Svelte, Solid, Angular, Qwik, Astro, Next.js and Nuxt f
 | `useContext`, `<Provider>` | `use_context::<T>()`, `provide(value, \|\| view)` |
 | `<Suspense fallback>` | `suspense(fallback, \|\| view)` with [resources](../async-data/) |
 | `useTransition` (keep the old UI while loading) | `Resource::loading()`: the previous value stays shown during a reload |
+| TanStack Query's `useQuery`, SWR's `useSWR` | `use_query(key, fetch)`: one request and one value per key, reloaded in the background ([shared queries](../async-data/#shared-queries-use-query-and-use-mutation)) |
+| `useMutation` and `invalidateQueries` | `use_mutation(send).invalidates(prefix)`, `invalidate(prefix)`; optimistic updates with `set_query_data` / `Query::set` |
 | error boundaries | `error_boundary(view, fallback)`; components return `Result` |
 | `createPortal` | `portal("body", view)` |
 | automatic batching | `batch(\|\| …)` |
@@ -82,6 +84,7 @@ Both send HTML first and as little JavaScript as possible. `active` does the sam
 | `client:visible` | `island_with(…, Hydrate::Visible)` |
 | `client:media="(max-width: 50em)"` | `island_with(…, Hydrate::Media("(max-width: 50em)".into()))` |
 | Qwik's resumability (code loaded on interaction) | `island_with(…, Hydrate::Interaction)` |
+| `<ClientRouter />` (view transitions) | `Document::view_transitions()` ([routing](../routing/#animated-page-changes-view-transitions)) |
 | content collections | Markdown read and rendered by the server ([Vitesse](../vitesse/)) |
 
 See [Islands](../islands/) for the details.
@@ -97,6 +100,7 @@ See [Islands](../islands/) for the details.
 | middleware, `definePageMeta({ middleware })` | `before_navigate(guard)` in the browser, your server's middleware on the server |
 | scroll restoration | built in: the back button brings the scroll position back |
 | `getServerSideProps`, `useFetch` | the server loads the data and renders the page; `resource` in the browser |
+| view transitions (`viewTransition`) | `Document::view_transitions()`, or `active::set_view_transitions(true)` in a client-side app |
 | static export | [static sites](../static-site/) |
 
 ## Lit and Web Components
