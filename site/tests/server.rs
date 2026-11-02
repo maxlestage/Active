@@ -127,6 +127,8 @@ async fn every_page_ends_with_the_signature_footer() {
     // The author is named in the metadata too.
     let html = text(get("/en/", &[]).await).await;
     assert!(html.contains(r#"<meta name="author" content="Maxime Nathan Lestage"/>"#));
+    // Page changes are animated (View Transitions API).
+    assert!(html.contains(r#"<meta name="view-transition" content="same-origin">"#));
     assert!(html.contains(r#""author":{"@type":"Person","name":"Maxime Nathan Lestage""#));
     // The license is served by the site, identical to the repository's.
     let response = get("/static/LICENSE.txt", &[]).await;

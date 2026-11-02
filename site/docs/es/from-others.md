@@ -1,6 +1,6 @@
 ---
 title: Si vienes de otros frameworks
-description: Cómo se llaman en active las funciones de React, Svelte, Solid, Angular, Qwik, Astro, Next.js y Nuxt, de Suspense y las error boundaries a las transiciones, la validación de formularios y la hidratación de islas.
+description: Cómo se llaman en active las funciones de React, Svelte, Solid, Angular, Qwik, Astro, Next.js, Nuxt, TanStack Query y SWR, de Suspense, las error boundaries y la caché de consultas a las transiciones, las view transitions, la validación de formularios y la hidratación de islas.
 ---
 
 `active` toma las ideas que mejor funcionan en cada framework front-end y les da una API de Rust coherente. Si vienes de Vue, lee primero [Si vienes de Vue](../from-vue/); esta página hace la correspondencia con los demás frameworks.
@@ -15,6 +15,8 @@ description: Cómo se llaman en active las funciones de React, Svelte, Solid, An
 | `useContext`, `<Provider>` | `use_context::<T>()`, `provide(value, \|\| view)` |
 | `<Suspense fallback>` | `suspense(fallback, \|\| view)` con [recursos](../async-data/) |
 | `useTransition` (mantener la interfaz anterior mientras carga) | `Resource::loading()`: el valor anterior sigue visible durante una recarga |
+| `useQuery` de TanStack Query, `useSWR` de SWR | `use_query(key, fetch)`: una petición y un valor por clave, recargado en segundo plano ([consultas compartidas](../async-data/#consultas-compartidas-use-query-y-use-mutation)) |
+| `useMutation` e `invalidateQueries` | `use_mutation(send).invalidates(prefix)`, `invalidate(prefix)`; actualizaciones optimistas con `set_query_data` / `Query::set` |
 | error boundaries | `error_boundary(view, fallback)`; los componentes devuelven `Result` |
 | `createPortal` | `portal("body", view)` |
 | batching automático | `batch(\|\| …)` |
@@ -82,6 +84,7 @@ Los dos envían primero HTML y el mínimo JavaScript posible. `active` hace lo m
 | `client:visible` | `island_with(…, Hydrate::Visible)` |
 | `client:media="(max-width: 50em)"` | `island_with(…, Hydrate::Media("(max-width: 50em)".into()))` |
 | la resumabilidad de Qwik (código cargado al interactuar) | `island_with(…, Hydrate::Interaction)` |
+| `<ClientRouter />` (view transitions) | `Document::view_transitions()` ([enrutamiento](../routing/#cambios-de-pagina-animados-view-transitions)) |
 | content collections | Markdown leído y renderizado por el servidor ([Vitesse](../vitesse/)) |
 
 Ver [Islas](../islands/) para los detalles.
@@ -97,6 +100,7 @@ Ver [Islas](../islands/) para los detalles.
 | middleware, `definePageMeta({ middleware })` | `before_navigate(guard)` en el navegador, el middleware de tu servidor en el servidor |
 | restauración del desplazamiento | incluida: el botón atrás recupera la posición de desplazamiento |
 | `getServerSideProps`, `useFetch` | el servidor carga los datos y renderiza la página; `resource` en el navegador |
+| view transitions (`viewTransition`) | `Document::view_transitions()`, o `active::set_view_transitions(true)` en una aplicación del lado del cliente |
 | exportación estática | [sitios estáticos](../static-site/) |
 
 ## Lit y los Web Components

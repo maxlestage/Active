@@ -23,9 +23,9 @@ The crate uses the 2024 edition and needs Rust 1.85 or newer. It contains no `un
 | `active::html` | one function per HTML and SVG tag |
 | `active::forms` | [`Form`](#form), [`Field`](#field), [`Rule`](#rule) and the rules: validated forms |
 | `active::pwa` | [`Manifest`](#manifest), [`ServiceWorker`](#serviceworker), [`Icon`](#icon) and [`register_script`](#register-script) and [`version`](#version): installable, offline sites |
-| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state`, `watch`, `watch_immediate`, `provide`, `use_context`, `expect_context`, `match_path`; with `client`, also `location`, `navigate` and `query_param` |
+| `active::prelude` | `html::*`, `Document`, `Element`, `Event`, `Node`, `Seo`, `State`, `effect`, `el`, `fragment`, `fragment_dyn`, `indexed`, `island`, `keyed`, `memo`, `on_cleanup`, `switch`, `text`, `text_dyn`, `untrack`, `use_state`, `watch`, `watch_immediate`, `provide`, `use_context`, `expect_context`, `match_path`, `use_query`, `use_mutation`; with `client`, also `location`, `navigate` and `query_param` |
 
-Not in the prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `Watcher`, `Params`, `Routes`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`, and the items added for other frameworks' strengths: `batch`, `resource`, `Resource`, `suspense`, `error_boundary`, `ErrorBoundary`, `report_error`, `portal`, `island_with`, `Hydrate`, `before_navigate`, `Navigation`, `navigate_replace` and the `forms` module. Use them as `active::hydrate`, etc.
+Not in the prelude: `Str`, `IslandFn`, `Dom`, `Scope`, `scope`, `Watcher`, `Params`, `Routes`, `hydrate`, `mount`, `mount_to`, `query`, `update_head`, and the items added for other frameworks' strengths: `batch`, `resource`, `Resource`, `suspense`, `error_boundary`, `ErrorBoundary`, `report_error`, `portal`, `island_with`, `Hydrate`, `before_navigate`, `Navigation`, `navigate_replace`, `use_query_with`, `Query`, `QueryOptions`, `QueryClient`, `Mutation`, `invalidate`, `set_query_data`, `set_view_transitions` and the `forms` module. Use them as `active::hydrate`, etc.
 
 ## Views
 
@@ -288,7 +288,7 @@ Loads `fetch(source())` and loads again when `source` changes; a result older th
 pub fn suspense(fallback: impl Into<Node>, view: impl FnOnce() -> Node) -> Node
 ```
 
-Builds `view` once and shows `fallback` in its place while a resource created inside has not loaded its first value. Later reloads keep the view.
+Builds `view` once and shows `fallback` in its place while a resource or a query created inside has not loaded its first value. Later reloads keep the view.
 
 ### error_boundary, ErrorBoundary and report_error
 
@@ -302,6 +302,42 @@ impl<T: Into<Node>, E: Display> From<Result<T, E>> for Node
 ```
 
 Shows `fallback` instead of `view` once an error is reported inside: an `Err` converted into a `Node`, `report_error` while building (returns `false` and logs when there is no boundary), or `ErrorBoundary::report` later. `ErrorBoundary` has `report(error)`, `errors() -> Vec<String>`, `has_errors() -> bool` and `reset()` (forgets the errors and builds the view again); the view gets it with `use_context::<ErrorBoundary>()`.
+
+### use_query, use_mutation and the query cache
+
+```rust
+pub fn use_query<T: 'static, F: Future<Output = T> + 'static>(key: impl Fn() -> String + 'static, fetch: impl Fn(String) -> F + 'static) -> Query<T>
+pub fn use_query_with<T, F>(key: impl Fn() -> String + 'static, options: QueryOptions, fetch: impl Fn(String) -> F + 'static) -> Query<T>
+pub fn use_mutation<I: 'static, O: 'static, F: Future<Output = O> + 'static>(send: impl Fn(I) -> F + 'static) -> Mutation<I, O>
+pub fn invalidate(prefix: &str)
+pub fn set_query_data<T: 'static>(key: &str, value: T)
+
+pub struct Query<T> { /* … */ }       // Copy
+pub struct Mutation<I, O> { /* … */ } // Copy
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct QueryOptions { pub stale_time: Duration }
+#[derive(Clone, Default)]
+pub struct QueryClient { /* … */ }
+```
+
+A query cache shared by key (TanStack Query, SWR): every component asking for the same key shares one request and one value. Data in the cache shows at once and reloads in the background when older than `stale_time` (0 by default: each time a component starts showing it). `key` may read states: the query follows the new key. `invalidate` reloads the shown queries whose key starts with `prefix` (`""`: all); `set_query_data` replaces data right away (optimistic update). The browser has one cache per page; on the server each render has its own, and `provide(QueryClient::new(), || page())` shares one between a page's components.
+
+| Method | Description |
+| --- | --- |
+| `Query::get(self) -> Option<T>` (`T: Clone`) | The data, `None` before it first loaded; subscribes. |
+| `Query::with<R>(self, f: impl FnOnce(Option<&T>) -> R) -> R` | Reads it through a reference. |
+| `Query::loading(self) -> bool` | No data yet and a request is running. |
+| `Query::fetching(self) -> bool` | A request is running, the first one or a background reload. |
+| `Query::refetch(self)` | Reloads now. |
+| `Query::set(self, value: T)` | Replaces the data for every component that shows it (optimistic update). |
+| `Query::key(self) -> String` | The current key. |
+| `Mutation::mutate(self, input: I)` | Sends the change. |
+| `Mutation::invalidates(self, prefix: impl Into<String>) -> Self` | Reloads the queries starting with `prefix` once the change is done; can be chained. |
+| `Mutation::pending(self) -> bool` | The change is being sent. |
+| `Mutation::result(self) -> Option<O>` (`O: Clone`) | The output of the last change. |
+| `QueryOptions::stale_time(self, time: Duration) -> Self` | How long loaded data stays fresh (`Duration::MAX`: until invalidated). |
+| `QueryClient::new()`, `invalidate`, `set_query_data`, `get_query_data`, `clear_unused` | The cache itself: the same operations on one cache, reading without subscribing, forgetting the queries no component shows. |
 
 ## Forms
 
@@ -434,6 +470,7 @@ A complete HTML page. Implements `Clone` and `Default`. Builder methods take `se
 | `pub fn client(self, js: impl Into<Str>, wasm: impl Into<Str>) -> Self` | Preloads and starts the `wasm-bindgen --target web --no-typescript` bundle. |
 | `pub fn manifest(self, href: &str, manifest: &pwa::Manifest) -> Self` | `<link rel="manifest">` to `href`, `theme-color`, the home screen title and the Apple touch icon (the largest PNG icon of purpose `any`). |
 | `pub fn service_worker(self, url: &str) -> Self` | An inline script that registers the service worker served at `url` once the page has loaded. |
+| `pub fn view_transitions(self) -> Self` | Page changes animated by the browser's View Transitions API (full page loads and client-side navigations); ignored without browser support or with `prefers-reduced-motion`. See [Routing](../routing/#animated-page-changes-view-transitions). |
 | `pub fn viewport(self, content: impl Into<Str>) -> Self` | `content` of `<meta name="viewport">` (default `width=device-width, initial-scale=1`). |
 | `pub fn html_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribute on `<html>`. |
 | `pub fn body_attr(self, name: impl Into<Str>, value: impl Into<Str>) -> Self` | Attribute on `<body>`. |
@@ -711,8 +748,10 @@ pub fn redirect(to: impl Into<String>)
 impl Document {
     pub fn prefetch(self, when: Prefetch) -> Self       // Prefetch::{Hover, Press, Visible}
     pub fn prerender(self, when: Prefetch) -> Self
+    pub fn view_transitions(self) -> Self
 }
 pub fn on_link_hover(f: impl Fn(&str) + 'static)       // feature `client`
+pub fn set_view_transitions(on: bool)                 // feature `client`
 
 // Lists and elements — see animations
 pub fn transition_group(name: &'static str, list: Node) -> Node
