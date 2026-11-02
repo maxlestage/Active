@@ -2884,9 +2884,17 @@ dialog.search::backdrop {
     padding: 36px 0;
   }
 
+  /* The whole command, on two lines if needed, instead of a line cut on both sides. */
   .install {
     width: 100%;
-    justify-content: center;
+    justify-content: flex-start;
+    align-items: flex-start;
+    padding: 14px 18px;
+    border-radius: 18px;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .footer-bottom {
