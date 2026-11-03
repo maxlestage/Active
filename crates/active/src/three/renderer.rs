@@ -836,7 +836,7 @@ type Listener = Closure<dyn FnMut(web_sys::Event)>;
 
 /// Event listeners on an element, removed when dropped.
 pub(crate) struct Listeners {
-    element: web_sys::Element,
+    target: web_sys::EventTarget,
     closures: Vec<(&'static str, Listener)>,
 }
 
@@ -844,7 +844,7 @@ impl Drop for Listeners {
     fn drop(&mut self) {
         for (name, closure) in &self.closures {
             let _ = self
-                .element
+                .target
                 .remove_event_listener_with_callback(name, closure.as_ref().unchecked_ref());
         }
     }
@@ -883,10 +883,7 @@ impl Listeners {
             let _ = html.style().set_property("touch-action", "none");
         }
         let pointers = Rc::new(RefCell::new(Pointers::default()));
-        let mut listeners = Listeners {
-            element: element.clone(),
-            closures: Vec::new(),
-        };
+        let mut listeners = Listeners::new(element);
         let height = {
             let element = element.clone();
             move || element.client_height() as f32
@@ -975,21 +972,33 @@ impl Listeners {
         listeners
     }
 
-    fn on(&mut self, name: &'static str, f: impl FnMut(web_sys::Event) + 'static) {
+    /// Listeners on an element, the window or the document.
+    pub(crate) fn new(target: &web_sys::EventTarget) -> Listeners {
+        Listeners {
+            target: target.clone(),
+            closures: Vec::new(),
+        }
+    }
+
+    pub(crate) fn on(&mut self, name: &'static str, f: impl FnMut(web_sys::Event) + 'static) {
         let closure = Closure::<dyn FnMut(web_sys::Event)>::new(f);
         let _ = self
-            .element
+            .target
             .add_event_listener_with_callback(name, closure.as_ref().unchecked_ref());
         self.closures.push((name, closure));
     }
 
     /// For events whose default action is cancelled (the wheel scrolls the page otherwise).
-    fn on_not_passive(&mut self, name: &'static str, f: impl FnMut(web_sys::Event) + 'static) {
+    pub(crate) fn on_not_passive(
+        &mut self,
+        name: &'static str,
+        f: impl FnMut(web_sys::Event) + 'static,
+    ) {
         let closure = Closure::<dyn FnMut(web_sys::Event)>::new(f);
         let options = web_sys::AddEventListenerOptions::new();
         options.set_passive(false);
         let _ = self
-            .element
+            .target
             .add_event_listener_with_callback_and_add_event_listener_options(
                 name,
                 closure.as_ref().unchecked_ref(),

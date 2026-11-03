@@ -44,6 +44,9 @@ pub struct Vector3 {
 /// Bevy's name for [`Vector3`].
 pub type Vec3 = Vector3;
 
+/// Bevy's name for [`Vector2`].
+pub type Vec2 = Vector2;
+
 impl Vector3 {
     /// `(0, 0, 0)`.
     pub const ZERO: Vector3 = Vector3::new(0.0, 0.0, 0.0);
@@ -161,6 +164,33 @@ impl Vector3 {
     /// The components as an array.
     pub fn to_array(self) -> [f32; 3] {
         [self.x, self.y, self.z]
+    }
+}
+
+impl Add for Vector2 {
+    type Output = Vector2;
+    fn add(self, o: Vector2) -> Vector2 {
+        Vector2::new(self.x + o.x, self.y + o.y)
+    }
+}
+
+impl Sub for Vector2 {
+    type Output = Vector2;
+    fn sub(self, o: Vector2) -> Vector2 {
+        Vector2::new(self.x - o.x, self.y - o.y)
+    }
+}
+
+impl Mul<f32> for Vector2 {
+    type Output = Vector2;
+    fn mul(self, s: f32) -> Vector2 {
+        Vector2::new(self.x * s, self.y * s)
+    }
+}
+
+impl AddAssign for Vector2 {
+    fn add_assign(&mut self, o: Vector2) {
+        *self = *self + o;
     }
 }
 

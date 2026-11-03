@@ -8,6 +8,7 @@ mod context;
 mod data;
 pub mod debug;
 mod document;
+pub mod ecs;
 mod escape;
 mod event;
 pub mod forms;
