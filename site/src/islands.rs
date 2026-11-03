@@ -11,8 +11,9 @@ fn lang(props: &str) -> Lang {
 }
 
 /// Every island, registered under the name used by [`island`].
-pub const ISLANDS: [(&str, active::IslandFn); 4] = [
+pub const ISLANDS: [(&str, active::IslandFn); 5] = [
     ("dust", dust),
+    ("scene", scene),
     ("tabs", tabs),
     ("playground", playground),
     ("search", search),
@@ -52,6 +53,44 @@ pub fn dust(props: &str) -> Node {
             })
             .text(" fps"),
     ])
+}
+
+/// The 3D demo: a Bevy-style app (`active::ecs`) drawing in a canvas. The server renders
+/// the canvas and its caption; the browser starts the app, stopped when the island goes.
+pub fn scene(props: &str) -> Node {
+    let l = labels(lang(props));
+    let shapes = use_state(0usize);
+    fragment([
+        canvas()
+            .class("scene3d")
+            .attr("role", "img")
+            .attr("aria-label", l.scene)
+            .use_action(move |canvas| play(canvas, shapes)),
+        p().class("scene-hud")
+            .child(span().class("tag").text("active::ecs → WebGL 2"))
+            .text(" ")
+            .text(l.scene_hint)
+            .text(" · ")
+            .text_dyn(move || match shapes.get() {
+                0 => "—".into(),
+                n => n.to_string(),
+            })
+            .text(" ")
+            .text(l.shapes),
+    ])
+}
+
+/// Starts the demo in the browser, and gives what stops it.
+#[cfg(target_arch = "wasm32")]
+fn play(canvas: &active::Dom, shapes: State<usize>) -> impl FnOnce() + use<> {
+    let running = crate::client::scene::start(canvas, shapes);
+    move || drop(running)
+}
+
+/// Nothing to start on the server.
+#[cfg(not(target_arch = "wasm32"))]
+fn play(_canvas: &active::Dom, _shapes: State<usize>) -> impl FnOnce() + use<> {
+    || {}
 }
 
 /// Highlighted code of the home page tabs. The server renders it; in the browser the

@@ -2,6 +2,7 @@
 
 pub mod dust;
 pub mod motion;
+pub mod scene;
 pub mod search;
 
 use std::cell::RefCell;

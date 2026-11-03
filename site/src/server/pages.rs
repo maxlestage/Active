@@ -702,10 +702,20 @@ fn home(ctx: &Ctx<'_>) -> Node {
             ))
             .into(),
         section()
+            .id("three")
+            .class("section three")
+            .child(section_head(
+                "04 — 3D".into(),
+                h.three_title,
+                Some(h.three_text),
+            ))
+            .child(island("scene", lang.code(), crate::islands::scene))
+            .into(),
+        section()
             .id("benchmarks")
             .class("section bench")
             .child(section_head(
-                format!("04 — {}", d.nav.benchmarks),
+                format!("05 — {}", d.nav.benchmarks),
                 h.bench_title,
                 Some(h.bench_text),
             ))
@@ -726,7 +736,7 @@ fn home(ctx: &Ctx<'_>) -> Node {
             .into(),
         section()
             .class("section steps")
-            .child(section_head("05 — Start".into(), h.steps_title, None))
+            .child(section_head("06 — Start".into(), h.steps_title, None))
             .child(
                 ol().children(
                     h.steps

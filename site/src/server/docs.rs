@@ -32,6 +32,7 @@ pub const CATEGORIES: [&[&str]; 7] = [
     &[
         "islands",
         "client-app",
+        "3d",
         "routing",
         "client-build",
         "performance",

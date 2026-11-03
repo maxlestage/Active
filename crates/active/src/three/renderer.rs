@@ -756,6 +756,12 @@ fn delete(gl: &Gl, g: GpuGeometry) {
     }
 }
 
+/// The page's `window.devicePixelRatio` (1 when unknown): pass it to
+/// [`WebGLRenderer::set_pixel_ratio`] for sharp images on high-density screens.
+pub fn device_pixel_ratio() -> f64 {
+    web_sys::window().map_or(1.0, |w| w.device_pixel_ratio())
+}
+
 // ----- The animation loop ---------------------------------------------------------------
 
 struct LoopState {
