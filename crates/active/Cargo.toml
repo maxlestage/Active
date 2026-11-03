@@ -25,6 +25,7 @@ wasm-bindgen = { version = "0.2.100", optional = true }
 wasm-bindgen-futures = { version = "0.4.50", optional = true }
 js-sys = { version = "0.3.77", optional = true }
 web-sys = { version = "0.3.77", optional = true, features = [
+  "AddEventListenerOptions",
   "CharacterData",
   "Comment",
   "CssStyleDeclaration",
@@ -38,6 +39,7 @@ web-sys = { version = "0.3.77", optional = true, features = [
   "FocusOptions",
   "History",
   "HtmlAnchorElement",
+  "HtmlCanvasElement",
   "HtmlCollection",
   "HtmlElement",
   "HtmlHeadElement",
@@ -52,10 +54,18 @@ web-sys = { version = "0.3.77", optional = true, features = [
   "MouseEvent",
   "Node",
   "NodeList",
+  "PointerEvent",
   "Storage",
   "StorageEvent",
   "Text",
   "UrlSearchParams",
+  "WebGl2RenderingContext",
+  "WebGlBuffer",
+  "WebGlProgram",
+  "WebGlShader",
+  "WebGlUniformLocation",
+  "WebGlVertexArrayObject",
+  "WheelEvent",
   "Window",
 ] }
 
