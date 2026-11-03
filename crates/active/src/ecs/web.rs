@@ -140,6 +140,7 @@ impl App {
 }
 
 /// `App::run` in a page: the canvas of `Window::canvas`, or a new one filling the page.
+#[cfg(target_arch = "wasm32")]
 pub(crate) fn run_in_page(app: App) -> Result<(), String> {
     let document = web_sys::window()
         .and_then(|w| w.document())
@@ -212,45 +213,67 @@ fn input_listeners(canvas: &web_sys::HtmlElement, app: Rc<RefCell<App>>) -> List
     let blur = send.clone();
     listeners.on("blur", move |_| blur(&|p| p.blurred = true));
 
-    let (down, el) = (send.clone(), canvas.clone());
+    let last = Rc::new(Cell::new(None::<Vec2>));
+    let (down, el, pressed_at) = (send.clone(), canvas.clone(), last.clone());
     listeners.on("pointerdown", move |e| {
         let Some(e) = e.dyn_ref::<web_sys::PointerEvent>() else {
             return;
         };
-        let _ = el.focus();
+        // The keyboard comes with the click, without scrolling the page to the canvas.
+        let options = web_sys::FocusOptions::new();
+        options.set_prevent_scroll(true);
+        let _ = el.focus_with_options(&options);
         let _ = el.set_pointer_capture(e.pointer_id());
-        let button = MouseButton::from_dom(e.button());
-        down(&|p| p.buttons.push((button, true)));
+        let (button, at) = (MouseButton::from_dom(e.button()), position(&el, e));
+        pressed_at.set(Some(at));
+        // A finger has no position before it touches: give it with the press.
+        down(&|p| {
+            p.cursor = Some(Some(at));
+            p.buttons.push((button, true));
+        });
     });
     for name in ["pointerup", "pointercancel"] {
-        let up = send.clone();
+        let (up, el) = (send.clone(), canvas.clone());
         listeners.on(name, move |e| {
             let Some(e) = e.dyn_ref::<web_sys::PointerEvent>() else {
                 return;
             };
-            let button = MouseButton::from_dom(e.button());
-            up(&|p| p.buttons.push((button, false)));
+            let (button, at) = (MouseButton::from_dom(e.button()), position(&el, e));
+            up(&|p| {
+                p.cursor = Some(Some(at));
+                p.buttons.push((button, false));
+            });
         });
     }
-    let (moved, el) = (send.clone(), canvas.clone());
+    // The motion from one position to the next: `movementX` is 0 for fingers in some
+    // browsers.
+    let (moved, el, previous) = (send.clone(), canvas.clone(), last.clone());
     listeners.on("pointermove", move |e| {
         let Some(e) = e.dyn_ref::<web_sys::PointerEvent>() else {
             return;
         };
-        let rect = el.get_bounding_client_rect();
-        let at = Vec2::new(
-            (f64::from(e.client_x()) - rect.left()) as f32,
-            (f64::from(e.client_y()) - rect.top()) as f32,
-        );
-        let delta = Vec2::new(e.movement_x() as f32, e.movement_y() as f32);
+        let at = position(&el, e);
+        let delta = match previous.replace(Some(at)) {
+            Some(before) => at - before,
+            None => Vec2::new(e.movement_x() as f32, e.movement_y() as f32),
+        };
         moved(&|p| {
             p.cursor = Some(Some(at));
             p.motion.x += delta.x;
             p.motion.y += delta.y;
         });
     });
-    let left = send.clone();
-    listeners.on("pointerleave", move |_| left(&|p| p.cursor = Some(None)));
+    let (left, forget) = (send.clone(), last.clone());
+    listeners.on("pointerleave", move |e| {
+        // The next motion starts where the pointer comes back.
+        forget.set(None);
+        // A finger leaves when it lifts, in the frame of its tap: keep where it was.
+        if e.dyn_ref::<web_sys::PointerEvent>()
+            .is_some_and(|e| e.pointer_type() == "mouse")
+        {
+            left(&|p| p.cursor = Some(None));
+        }
+    });
     let (wheel, el) = (send, canvas.clone());
     listeners.on_not_passive("wheel", move |e| {
         let Some(e) = e.dyn_ref::<web_sys::WheelEvent>() else {
@@ -284,4 +307,13 @@ fn input_listeners(canvas: &web_sys::HtmlElement, app: Rc<RefCell<App>>) -> List
     });
     listeners.on("contextmenu", |e| e.prevent_default());
     listeners
+}
+
+/// Where the pointer is on the element, in CSS pixels from its top left corner.
+fn position(element: &web_sys::HtmlElement, e: &web_sys::PointerEvent) -> Vec2 {
+    let rect = element.get_bounding_client_rect();
+    Vec2::new(
+        (f64::from(e.client_x()) - rect.left()) as f32,
+        (f64::from(e.client_y()) - rect.top()) as f32,
+    )
 }

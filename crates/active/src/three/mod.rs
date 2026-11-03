@@ -51,4 +51,4 @@ pub use scene::{
 };
 
 #[cfg(feature = "client")]
-pub use renderer::{AnimationLoop, WebGLRenderer, animation_loop};
+pub use renderer::{AnimationLoop, WebGLRenderer, animation_loop, device_pixel_ratio};

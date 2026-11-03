@@ -1127,11 +1127,34 @@ pub struct Camera {
     pub order: isize,
     /// What it draws behind the scene.
     pub clear_color: ClearColorConfig,
-    computed: ComputedCamera,
+    /// What the camera computed from the window (its projection and viewport).
+    pub computed: ComputedCameraValues,
 }
 
+impl Default for ComputedCameraValues {
+    fn default() -> ComputedCameraValues {
+        ComputedCameraValues {
+            projection: Mat4::IDENTITY,
+            viewport: Vec2::new(1.0, 1.0),
+        }
+    }
+}
+
+impl ComputedCameraValues {
+    /// The projection matrix.
+    pub fn projection(&self) -> Mat4 {
+        self.projection
+    }
+
+    /// The size of the viewport, in CSS pixels.
+    pub fn viewport_size(&self) -> Vec2 {
+        self.viewport
+    }
+}
+
+/// The projection and viewport size a camera last computed (in `PostUpdate`).
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct ComputedCamera {
+pub struct ComputedCameraValues {
     projection: Mat4,
     viewport: Vec2,
 }
@@ -1142,7 +1165,7 @@ impl Default for Camera {
             is_active: true,
             order: 0,
             clear_color: ClearColorConfig::Default,
-            computed: ComputedCamera {
+            computed: ComputedCameraValues {
                 projection: Mat4::IDENTITY,
                 viewport: Vec2::new(1.0, 1.0),
             },
@@ -1461,7 +1484,7 @@ fn update_cameras(
         .map(|w| w.size())
         .unwrap_or(Vec2::new(1280.0, 720.0));
     for (mut camera, projection) in &mut cameras {
-        let computed = ComputedCamera {
+        let computed = ComputedCameraValues {
             projection: projection.matrix(size),
             viewport: size,
         };

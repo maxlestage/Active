@@ -21,6 +21,10 @@ pub struct Labels {
     pub search: &'static str,
     pub search_hint: &'static str,
     pub no_results: &'static str,
+    /// The 3D demo: what the canvas shows, how to use it, what the counter counts.
+    pub scene: &'static str,
+    pub scene_hint: &'static str,
+    pub shapes: &'static str,
 }
 
 pub fn labels(lang: Lang) -> &'static Labels {
@@ -49,6 +53,9 @@ static EN: Labels = Labels {
     search: "Search the docs",
     search_hint: "Type to search…",
     no_results: "No results",
+    scene: "A 3D scene: shapes turning on a disc under two lights",
+    scene_hint: "click the disc to drop a shape, drag to turn",
+    shapes: "shapes",
 };
 
 static FR: Labels = Labels {
@@ -69,6 +76,9 @@ static FR: Labels = Labels {
     search: "Rechercher dans la doc",
     search_hint: "Tapez pour chercher…",
     no_results: "Aucun résultat",
+    scene: "Une scène 3D : des formes qui tournent sur un disque, sous deux lumières",
+    scene_hint: "cliquez sur le disque pour lâcher une forme, glissez pour tourner",
+    shapes: "formes",
 };
 
 static ES: Labels = Labels {
@@ -89,6 +99,9 @@ static ES: Labels = Labels {
     search: "Buscar en la documentación",
     search_hint: "Escribe para buscar…",
     no_results: "Sin resultados",
+    scene: "Una escena 3D: formas que giran sobre un disco bajo dos luces",
+    scene_hint: "haz clic en el disco para soltar una forma, arrastra para girar",
+    shapes: "formas",
 };
 
 /// `value` with `decimals` digits, without float formatting machinery (keeps the

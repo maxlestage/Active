@@ -71,6 +71,8 @@ pub struct Home {
     pub tabs: [&'static str; 4],
     pub play_title: &'static str,
     pub play_text: &'static str,
+    pub three_title: &'static str,
+    pub three_text: &'static str,
     pub play: Play,
     pub bench_title: &'static str,
     pub bench_text: &'static str,
@@ -235,6 +237,8 @@ static EN: Dict = Dict {
         tabs: ["Component", "SEO", "Island", "Server"],
         play_title: "Try it: *Rust writes your head.*",
         play_text: "The same active::Seo rendered this preview on the server; every keystroke now runs it again in your browser, compiled to WebAssembly.",
+        three_title: "3D in the page: *Three.js and Bevy, in Rust.*",
+        three_text: "active::three draws scenes with WebGL 2 the way Three.js does; active::ecs writes games the way Bevy does. This one is a Bevy app: entities, systems, a fixed step for the bounces.",
         play: Play {
             title: "Title",
             description: "Description",
@@ -449,6 +453,8 @@ static FR: Dict = Dict {
         tabs: ["Composant", "SEO", "Îlot", "Serveur"],
         play_title: "Essayez : *Rust écrit votre head.*",
         play_text: "Le même active::Seo a rendu cet aperçu sur le serveur ; chaque frappe le relance maintenant dans votre navigateur, compilé en WebAssembly.",
+        three_title: "De la 3D dans la page : *Three.js et Bevy, en Rust.*",
+        three_text: "active::three dessine des scènes avec WebGL 2 comme Three.js ; active::ecs écrit des jeux comme Bevy. Celui-ci est une app Bevy : des entités, des systèmes, un pas fixe pour les rebonds.",
         play: Play {
             title: "Titre",
             description: "Description",
@@ -663,6 +669,8 @@ static ES: Dict = Dict {
         tabs: ["Componente", "SEO", "Isla", "Servidor"],
         play_title: "Pruébalo: *Rust escribe tu head.*",
         play_text: "El mismo active::Seo renderizó esta vista previa en el servidor; cada tecla lo vuelve a ejecutar ahora en tu navegador, compilado a WebAssembly.",
+        three_title: "3D en la página: *Three.js y Bevy, en Rust.*",
+        three_text: "active::three dibuja escenas con WebGL 2 como Three.js; active::ecs escribe juegos como Bevy. Este es una app de Bevy: entidades, sistemas, un paso fijo para los rebotes.",
         play: Play {
             title: "Título",
             description: "Descripción",

@@ -76,11 +76,11 @@ pub use message::{
 };
 pub use pbr::{
     AlphaMode, AmbientLight, Assets, Camera, Camera3d, Circle, ClearColor, ClearColorConfig, Color,
-    Cone, Cuboid, Cylinder, DirectionalLight, Exposure, Face, GlobalAmbientLight, Handle,
-    InfinitePlane3d, LinearRgba, Mesh, Mesh3d, MeshMaterial3d, OrthographicProjection, PbrPlugin,
-    PerspectiveProjection, Plane3d, PlaneMeshBuilder, PointLight, Projection, Ray3d, Rectangle,
-    RenderFrame, ScalingMode, Sphere, SphereMeshBuilder, StandardMaterial, Tonemapping, Torus,
-    ViewportConversionError, light_consts, palettes,
+    ComputedCameraValues, Cone, Cuboid, Cylinder, DirectionalLight, Exposure, Face,
+    GlobalAmbientLight, Handle, InfinitePlane3d, LinearRgba, Mesh, Mesh3d, MeshMaterial3d,
+    OrthographicProjection, PbrPlugin, PerspectiveProjection, Plane3d, PlaneMeshBuilder,
+    PointLight, Projection, Ray3d, Rectangle, RenderFrame, ScalingMode, Sphere, SphereMeshBuilder,
+    StandardMaterial, Tonemapping, Torus, ViewportConversionError, light_consts, palettes,
 };
 pub use query::{
     Added, Changed, Has, Mut, Or, Query, QueryData, QueryEntityError, QueryFilter, QueryIter,
