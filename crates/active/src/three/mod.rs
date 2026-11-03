@@ -31,7 +31,7 @@ pub mod math;
 mod scene;
 
 #[cfg(feature = "client")]
-mod renderer;
+pub(crate) mod renderer;
 
 pub use camera::{Camera, OrthographicCamera, PerspectiveCamera};
 pub use controls::{OrbitCamera, OrbitControls};
