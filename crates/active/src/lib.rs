@@ -20,6 +20,7 @@ mod router;
 mod seo;
 pub mod ssr;
 mod store;
+pub mod three;
 mod view;
 
 #[cfg(feature = "client")]
