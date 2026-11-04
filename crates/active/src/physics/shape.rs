@@ -29,6 +29,16 @@ pub enum Shape {
         /// Half its height.
         half_height: f32,
     },
+    /// A cone cut flat along `y` (a bucket, a lampshade): discs of two radii at
+    /// `±half_height`. A radius of 0 makes a cone, pointing up or down.
+    Frustum {
+        /// The radius at `+half_height`.
+        radius_top: f32,
+        /// The radius at `-half_height`.
+        radius_bottom: f32,
+        /// Half its height.
+        half_height: f32,
+    },
     /// A capsule along `y`: a cylinder with half balls at its ends.
     Capsule {
         /// Its radius.
@@ -61,6 +71,11 @@ impl Shape {
                 radius,
                 half_height,
             } => PI * radius * radius * 2.0 * half_height / 3.0,
+            Shape::Frustum {
+                radius_top,
+                radius_bottom,
+                half_height,
+            } => PI * frustum(radius_top, radius_bottom, half_height).squares,
             Shape::Capsule {
                 radius,
                 half_height,
@@ -76,6 +91,15 @@ impl Shape {
     pub fn center_of_mass(&self) -> Vec3 {
         match *self {
             Shape::Cone { half_height, .. } => Vec3::new(0.0, -half_height / 2.0, 0.0),
+            Shape::Frustum {
+                radius_top,
+                radius_bottom,
+                half_height,
+            } => Vec3::new(
+                0.0,
+                frustum(radius_top, radius_bottom, half_height).center,
+                0.0,
+            ),
             _ => Vec3::ZERO,
         }
     }
@@ -112,6 +136,18 @@ impl Shape {
                 let h = 2.0 * half_height;
                 let side = mass * (3.0 / 20.0 * radius * radius + 3.0 / 80.0 * h * h);
                 Vec3::new(side, 0.3 * mass * radius * radius, side)
+            }
+            Shape::Frustum {
+                radius_top,
+                radius_bottom,
+                half_height,
+            } => {
+                let f = frustum(radius_top, radius_bottom, half_height);
+                if f.squares <= 0.0 {
+                    return Vec3::ZERO;
+                }
+                let side = mass * f.side / f.squares;
+                Vec3::new(side, mass * f.axis / f.squares, side)
             }
             Shape::Capsule {
                 radius,
@@ -168,6 +204,19 @@ impl Shape {
                     rim
                 }
             }
+            Shape::Frustum {
+                radius_top,
+                radius_bottom,
+                half_height,
+            } => {
+                let top = flat(dir) * radius_top + Vec3::new(0.0, half_height, 0.0);
+                let bottom = flat(dir) * radius_bottom - Vec3::new(0.0, half_height, 0.0);
+                if top.dot(dir) >= bottom.dot(dir) {
+                    top
+                } else {
+                    bottom
+                }
+            }
             Shape::Capsule {
                 radius,
                 half_height,
@@ -192,6 +241,11 @@ impl Shape {
                 radius,
                 half_height,
             } => (radius * radius + half_height * half_height).sqrt(),
+            Shape::Frustum {
+                radius_top,
+                radius_bottom,
+                half_height,
+            } => (radius_top.max(radius_bottom).powi(2) + half_height * half_height).sqrt(),
             Shape::Capsule {
                 radius,
                 half_height,
@@ -229,6 +283,15 @@ impl Shape {
                 radius: radius * across,
                 half_height: half_height * s.y,
             },
+            Shape::Frustum {
+                radius_top,
+                radius_bottom,
+                half_height,
+            } => Shape::Frustum {
+                radius_top: radius_top * across,
+                radius_bottom: radius_bottom * across,
+                half_height: half_height * s.y,
+            },
             Shape::Capsule {
                 radius,
                 half_height,
@@ -244,6 +307,51 @@ impl Shape {
                 minor_radius: minor_radius * across.min(s.y),
             },
         }
+    }
+}
+
+/// The integrals of a frustum's slices along its axis, divided by π: of r² (its volume),
+/// and, about its center of mass, of r⁴/2 (its inertia around the axis) and of r⁴/4 + r²
+/// (y - c)² (around a side axis); and where that center is.
+struct FrustumIntegrals {
+    squares: f32,
+    center: f32,
+    axis: f32,
+    side: f32,
+}
+
+fn frustum(top: f32, bottom: f32, half_height: f32) -> FrustumIntegrals {
+    // Polynomials of degree 4 along the axis: three Gauss–Legendre points are exact.
+    let radius = |y: f32| bottom + (top - bottom) * (y + half_height) / (2.0 * half_height);
+    let nodes = [
+        (-(0.6f32.sqrt()), 5.0 / 9.0),
+        (0.0, 8.0 / 9.0),
+        (0.6f32.sqrt(), 5.0 / 9.0),
+    ];
+    let integrate = |f: &dyn Fn(f32, f32) -> f32| {
+        nodes
+            .iter()
+            .map(|&(x, w)| {
+                let y = x * half_height;
+                w * half_height * f(y, radius(y))
+            })
+            .sum::<f32>()
+    };
+    let squares = integrate(&|_, r| r * r);
+    if squares <= 0.0 || half_height <= 0.0 {
+        return FrustumIntegrals {
+            squares: 0.0,
+            center: 0.0,
+            axis: 0.0,
+            side: 0.0,
+        };
+    }
+    let center = integrate(&|y, r| r * r * y) / squares;
+    FrustumIntegrals {
+        squares,
+        center,
+        axis: integrate(&|_, r| 0.5 * r.powi(4)),
+        side: integrate(&|y, r| 0.25 * r.powi(4) + r * r * (y - center).powi(2)),
     }
 }
 
@@ -293,6 +401,15 @@ impl Collider {
     pub fn cone(radius: f32, height: f32) -> Collider {
         Collider::new(Shape::Cone {
             radius,
+            half_height: height / 2.0,
+        })
+    }
+
+    /// A cone cut flat along `y`, of these radii at its top and bottom.
+    pub fn frustum(radius_top: f32, radius_bottom: f32, height: f32) -> Collider {
+        Collider::new(Shape::Frustum {
+            radius_top,
+            radius_bottom,
             half_height: height / 2.0,
         })
     }
@@ -415,6 +532,51 @@ mod tests {
         };
         assert_eq!(cone.center_of_mass(), Vec3::new(0.0, -0.5, 0.0));
         assert!((cone.volume() - 2.0943951).abs() < 1e-5);
+    }
+
+    #[test]
+    fn a_frustum_is_a_cylinder_or_a_cone_at_the_limits() {
+        let close = |a: Vec3, b: Vec3| (a - b).length() <= 1e-4 * a.length().max(1.0);
+        let cylinder = Shape::Cylinder {
+            radius: 0.6,
+            half_height: 0.8,
+        };
+        let same = Shape::Frustum {
+            radius_top: 0.6,
+            radius_bottom: 0.6,
+            half_height: 0.8,
+        };
+        assert!((same.volume() - cylinder.volume()).abs() < 1e-5);
+        assert!(close(same.inertia(3.0), cylinder.inertia(3.0)));
+        assert!(close(same.center_of_mass(), Vec3::ZERO));
+        let cone = Shape::Cone {
+            radius: 0.5,
+            half_height: 0.7,
+        };
+        let pointed = Shape::Frustum {
+            radius_top: 0.0,
+            radius_bottom: 0.5,
+            half_height: 0.7,
+        };
+        assert!((pointed.volume() - cone.volume()).abs() < 1e-5);
+        assert!(close(pointed.center_of_mass(), cone.center_of_mass()));
+        assert!(
+            close(pointed.inertia(2.0), cone.inertia(2.0)),
+            "{:?} {:?}",
+            pointed.inertia(2.0),
+            cone.inertia(2.0)
+        );
+        // Upside down, its mass is near the top.
+        let bucket = Shape::Frustum {
+            radius_top: 0.5,
+            radius_bottom: 0.3,
+            half_height: 0.4,
+        };
+        assert!(bucket.center_of_mass().y > 0.0);
+        assert_eq!(
+            bucket.support(Vec3::new(1.0, 0.1, 0.0)),
+            Vec3::new(0.5, 0.4, 0.0)
+        );
     }
 
     #[test]

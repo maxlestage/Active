@@ -566,3 +566,57 @@ fn a_ring_has_a_hole() {
     let h = world.body(hung).unwrap().position;
     assert!((h.y - 2.3).abs() < 0.01, "it hangs on the peg: {h:?}");
 }
+
+#[test]
+fn a_bucket_stands_on_either_end() {
+    // A frustum on its wide base, and upside down on its narrow top: both stand, at half
+    // its height, without tipping.
+    for upside_down in [false, true] {
+        let mut world = PhysicsWorld::new();
+        floor(&mut world);
+        let turn = if upside_down {
+            Quat::from_rotation_x(PI)
+        } else {
+            Quat::IDENTITY
+        };
+        let id = world.add(
+            Body::dynamic(Collider::frustum(0.3, 0.5, 0.8))
+                .at(Vec3::new(0.0, 0.45, 0.0))
+                .turned(turn),
+        );
+        run(&mut world, 3.0);
+        let b = world.body(id).unwrap();
+        assert!(
+            (b.position.y - 0.4).abs() < 0.01,
+            "{upside_down}: {:?}",
+            b.position
+        );
+        assert!(
+            (b.rotation * Vec3::Y).dot(turn * Vec3::Y) > 0.9999,
+            "{upside_down}: tipped"
+        );
+        assert!(b.is_sleeping());
+    }
+}
+
+#[test]
+fn a_small_box_falls_through_a_ring_and_a_large_one_rests_on_it() {
+    let ring = Collider::new(Shape::Torus {
+        major_radius: 1.0,
+        minor_radius: 0.2,
+    });
+    for (size, through) in [(0.6f32, true), (3.0, false)] {
+        let mut world = PhysicsWorld::new();
+        world.add(Body::fixed(ring).at(Vec3::new(0.0, 2.0, 0.0)));
+        let id = world
+            .add(Body::dynamic(Collider::cuboid(size, size, size)).at(Vec3::new(0.0, 4.0, 0.0)));
+        run(&mut world, 1.5);
+        let y = world.body(id).unwrap().position.y;
+        if through {
+            assert!(y < 0.0, "the box of {size} m stayed at {y}");
+        } else {
+            let expected = 2.0 + 0.2 + size / 2.0;
+            assert!((y - expected).abs() < 0.01, "{y} instead of {expected}");
+        }
+    }
+}
