@@ -163,7 +163,7 @@ static EN: Dict = Dict {
     home: Home {
         title: "Active — a simple, fast front-end library for Rust",
         description: "Active is a simple, fast front-end library for Rust: components, state, routing and complete SEO tags, rendered on the server and run in the browser as WebAssembly. No JavaScript to write.",
-        eyebrow: "Rust · Front-end · SEO · WebAssembly",
+        eyebrow: "Rust · Front-end · SEO · WebAssembly · 3D",
         hero: ["Front end.", "Real SEO.", "*All Rust.*"],
         lead: "Active is a simple Rust library to build front ends: components and state, routing, complete SEO tags. Render on the server, wake up islands or run a whole app in the browser, as WebAssembly. No JavaScript to write.",
         cta: "Get started",
@@ -349,7 +349,7 @@ static EN: Dict = Dict {
         ecosystem_text: "Five Rust projects by one author, made to work together: from the front end to the database.",
         here: "You are here",
         projects: [
-            "Front-end: components, SSR, WebAssembly islands",
+            "Front-end: components, SSR, WebAssembly islands, 3D",
             "Express-style web server, HTTP/3",
             "Security middlewares for Vitesse & tower",
             "Async, type-safe ORM, SQL & NoSQL",
@@ -379,7 +379,7 @@ static FR: Dict = Dict {
     home: Home {
         title: "Active — une bibliothèque front-end simple et rapide pour Rust",
         description: "Active est une bibliothèque front-end simple et rapide pour Rust : composants, état, routage et balises SEO complètes, rendus sur le serveur et exécutés dans le navigateur en WebAssembly. Aucun JavaScript à écrire.",
-        eyebrow: "Rust · Front-end · SEO · WebAssembly",
+        eyebrow: "Rust · Front-end · SEO · WebAssembly · 3D",
         hero: ["Front-end.", "Vrai SEO.", "*Tout en Rust.*"],
         lead: "Active est une bibliothèque Rust simple pour faire du front-end : composants et état, routage, balises SEO complètes. Rendu sur le serveur, îlots ou application complète dans le navigateur, en WebAssembly. Aucun JavaScript à écrire.",
         cta: "Commencer",
@@ -565,7 +565,7 @@ static FR: Dict = Dict {
         ecosystem_text: "Cinq projets Rust d'un même auteur, faits pour travailler ensemble : du front-end à la base de données.",
         here: "Vous êtes ici",
         projects: [
-            "Front-end : composants, SSR, îlots WebAssembly",
+            "Front-end : composants, SSR, îlots WebAssembly, 3D",
             "Serveur web façon Express, HTTP/3",
             "Middlewares de sécurité pour Vitesse et tower",
             "ORM asynchrone typé, SQL et NoSQL",
@@ -595,7 +595,7 @@ static ES: Dict = Dict {
     home: Home {
         title: "Active — una biblioteca front-end simple y rápida para Rust",
         description: "Active es una biblioteca front-end simple y rápida para Rust: componentes, estado, enrutamiento y etiquetas SEO completas, renderizados en el servidor y ejecutados en el navegador como WebAssembly. Sin escribir JavaScript.",
-        eyebrow: "Rust · Front-end · SEO · WebAssembly",
+        eyebrow: "Rust · Front-end · SEO · WebAssembly · 3D",
         hero: ["Front-end.", "SEO real.", "*Todo en Rust.*"],
         lead: "Active es una biblioteca de Rust simple para hacer front-end: componentes y estado, enrutamiento, etiquetas SEO completas. Renderizado en el servidor, islas o una aplicación completa en el navegador, como WebAssembly. Sin escribir JavaScript.",
         cta: "Empezar",
@@ -781,7 +781,7 @@ static ES: Dict = Dict {
         ecosystem_text: "Cinco proyectos Rust de un mismo autor, hechos para trabajar juntos: del front-end a la base de datos.",
         here: "Estás aquí",
         projects: [
-            "Front-end: componentes, SSR, islas WebAssembly",
+            "Front-end: componentes, SSR, islas WebAssembly, 3D",
             "Servidor web estilo Express, HTTP/3",
             "Middlewares de seguridad para Vitesse y tower",
             "ORM asíncrono tipado, SQL y NoSQL",
