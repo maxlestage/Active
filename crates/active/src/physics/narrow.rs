@@ -61,6 +61,57 @@ pub(crate) fn collide(a: &Placed, b: &Placed, margin: f32) -> Contacts {
             }
         }
         (
+            Shape::Capsule {
+                radius: ra,
+                half_height: ha,
+            },
+            Shape::Capsule {
+                radius: rb,
+                half_height: hb,
+            },
+        ) => {
+            let (a0, a1) = segment(a, ha);
+            let (b0, b1) = segment(b, hb);
+            let (pa, pb) = closest_on_segments(a0, a1, b0, b1);
+            round_contact(a, b, pa, ra, pb, rb, margin)
+        }
+        (
+            Shape::Capsule {
+                radius: ra,
+                half_height: ha,
+            },
+            Shape::Sphere { radius: rb },
+        ) => {
+            let (a0, a1) = segment(a, ha);
+            round_contact(
+                a,
+                b,
+                closest_on_segment(a0, a1, b.center),
+                ra,
+                b.center,
+                rb,
+                margin,
+            )
+        }
+        (
+            Shape::Sphere { radius: ra },
+            Shape::Capsule {
+                radius: rb,
+                half_height: hb,
+            },
+        ) => {
+            let (b0, b1) = segment(b, hb);
+            round_contact(
+                a,
+                b,
+                a.center,
+                ra,
+                closest_on_segment(b0, b1, a.center),
+                rb,
+                margin,
+            )
+        }
+        (
             Shape::Torus {
                 major_radius,
                 minor_radius,
@@ -74,14 +125,20 @@ pub(crate) fn collide(a: &Placed, b: &Placed, margin: f32) -> Contacts {
                 minor_radius,
             },
         ) => ring(b, major_radius, minor_radius, a, margin, false),
-        _ => match closest(a, b, margin) {
-            Gap::Apart => Contacts::None,
-            Gap::Near(c) => faces(a, b, c, margin),
-            Gap::Overlap(touching) => match gjk(a, b).and_then(|s| epa(a, b, s)).or(touching) {
-                Some(c) => faces(a, b, c, margin),
-                None => Contacts::None,
-            },
+        _ => match convex(a, b, margin) {
+            Some(c) => faces(a, b, c, margin),
+            None => Contacts::None,
         },
+    }
+}
+
+/// The nearest points of two convex shapes less than `margin` apart (GJK), or how they
+/// overlap (EPA).
+fn convex(a: &Placed, b: &Placed, margin: f32) -> Option<ContactPoint> {
+    match closest(a, b, margin) {
+        Gap::Apart => None,
+        Gap::Near(c) => Some(c),
+        Gap::Overlap(touching) => gjk(a, b).and_then(|s| epa(a, b, s)).or(touching),
     }
 }
 
@@ -99,6 +156,39 @@ fn ring(
     margin: f32,
     ring_first: bool,
 ) -> Contacts {
+    // Its convex hull first (a coin with rounded edges): apart, or touching with the
+    // outside of its tube, or lying flat on a face, the ring touches as its hull does,
+    // and one test is enough.
+    let hull = if ring_first {
+        convex(ring, other, margin)
+    } else {
+        convex(other, ring, margin).map(flip)
+    };
+    let Some(c) = hull else {
+        return Contacts::None;
+    };
+    // `c` from the ring towards `other`.
+    let axis = ring.rotation * Vec3::Y;
+    let local = c.point_a - ring.center;
+    let radial = (local - axis * local.dot(axis)).length();
+    // (Shallow only: deep in the hull, something may be in the hole.)
+    let shallow = c.depth <= 0.5 * minor;
+    let outside = radial >= major * 0.999;
+    // Lying flat on a face that covers its whole rim: the hole is closed by that face.
+    let flat = c.normal.dot(axis).abs() > 0.95 && {
+        let face = support_face(other, -c.normal);
+        plane(&face, -c.normal).is_some()
+            && support_face(ring, c.normal)
+                .iter()
+                .all(|&p| over(&face, c.normal, p))
+    };
+    if shallow && (outside || flat) {
+        return if ring_first {
+            faces(ring, other, c, margin)
+        } else {
+            faces(other, ring, flip(c), margin)
+        };
+    }
     let half = std::f32::consts::PI / RING_PIECES as f32;
     // Each piece's axis is a chord: at this radius, its middle is as far inside the
     // tube's center line as its ends are outside.
@@ -108,15 +198,22 @@ fn ring(
         radius: minor,
         half_height: half_length,
     };
-    let reach = other.shape.bounding_radius() + half_length + minor + margin;
+    let piece_reach = half_length + minor;
     let mut points = Vec::new();
     for k in 0..RING_PIECES {
         let angle = (2 * k + 1) as f32 * half;
         let (sin, cos) = angle.sin_cos();
         let middle = Vec3::new(cos, 0.0, sin) * (radius * half.cos());
         let center = ring.center + ring.rotation * middle;
-        if (center - other.center).length() > reach {
-            continue;
+        // Beyond the plane that bounds `other` on its side, farther than it can reach:
+        // apart.
+        let toward = center - other.center;
+        let length = toward.length();
+        if length > 1e-9 {
+            let d = toward / length;
+            if (center - other.support(d)).dot(d) > piece_reach + margin {
+                continue;
+            }
         }
         let tangent = Vec3::new(-sin, 0.0, cos);
         let placed = Placed {
@@ -223,6 +320,26 @@ fn support_face(shape: &Placed, dir: Vec3) -> Vec<Vec3> {
                 }
             }
         }
+        Shape::Frustum {
+            radius_top,
+            radius_bottom,
+            half_height,
+        } => {
+            if d.y > FLAT && radius_top > 0.0 {
+                rim(radius_top, half_height)
+            } else if d.y < -FLAT && radius_bottom > 0.0 {
+                rim(radius_bottom, -half_height)
+            } else {
+                // Along its side: the top and bottom points of the slant line.
+                let top = flat(d) * radius_top + Vec3::new(0.0, half_height, 0.0);
+                let bottom = flat(d) * radius_bottom - Vec3::new(0.0, half_height, 0.0);
+                if (bottom - top).normalize().dot(d).abs() < 1.0 - FLAT {
+                    vec![world(top), world(bottom)]
+                } else {
+                    vec![world(shape.shape.support(d))]
+                }
+            }
+        }
         Shape::Capsule {
             radius,
             half_height,
@@ -266,16 +383,27 @@ fn faces(a: &Placed, b: &Placed, c: ContactPoint, margin: f32) -> Contacts {
         f.iter().map(|p| (*p - center).length()).fold(0.0, f32::max)
     };
     let (ea, eb) = (extent(&face_a), extent(&face_b));
-    // The smaller face touches the larger one: its points, kept where they are over it.
+    // The smaller face touches the larger one: its points, kept where they are over it,
+    // measured from the plane of the larger one. When that one is flat, its own normal is
+    // taken: over a face, the contact normal is the face's, which GJK only approaches
+    // (and approaches badly next to a large body, in single precision).
     let mut points: Vec<ContactPoint> = if eb <= ea {
-        if face_b.len() < 2 {
-            return Contacts::Single(c);
-        }
-        face_b
+        let (n, origin) = match plane(&face_a, n) {
+            Some(normal) => (normal, face_a[0]),
+            None => (n, c.point_a),
+        };
+        // A single point: the one GJK found (a support point along a flat side would be
+        // any of it).
+        let incident = if face_b.len() < 2 {
+            vec![c.point_b]
+        } else {
+            face_b
+        };
+        incident
             .iter()
             .filter(|&&p| over(&face_a, n, p))
             .filter_map(|&p| {
-                let s = (p - c.point_a).dot(n);
+                let s = (p - origin).dot(n);
                 (s <= margin).then(|| ContactPoint {
                     point_a: p - n * s,
                     point_b: p,
@@ -285,14 +413,20 @@ fn faces(a: &Placed, b: &Placed, c: ContactPoint, margin: f32) -> Contacts {
             })
             .collect()
     } else {
-        if face_a.len() < 2 {
-            return Contacts::Single(c);
-        }
-        face_a
+        let (n, origin) = match plane(&face_b, -n) {
+            Some(normal) => (-normal, face_b[0]),
+            None => (n, c.point_b),
+        };
+        let incident = if face_a.len() < 2 {
+            vec![c.point_a]
+        } else {
+            face_a
+        };
+        incident
             .iter()
             .filter(|&&p| over(&face_b, n, p))
             .filter_map(|&p| {
-                let s = (c.point_b - p).dot(n);
+                let s = (origin - p).dot(n);
                 (s <= margin).then(|| ContactPoint {
                     point_a: p,
                     point_b: p + n * s,
@@ -302,11 +436,48 @@ fn faces(a: &Placed, b: &Placed, c: ContactPoint, margin: f32) -> Contacts {
             })
             .collect()
     };
+    if points.len() == 1 {
+        return Contacts::Single(points[0]);
+    }
     if points.len() < 2 {
         return Contacts::Single(c);
     }
-    reduce(&mut points);
+    // A rim's eight points are all kept: they are fixed on the body, so they are the same
+    // from one substep to the next, and so are their impulses; four of them would change
+    // with each little rock, and the body would never settle.
+    if points.len() > 8 {
+        reduce(&mut points);
+    }
     Contacts::Full(points)
+}
+
+/// The outward normal of a flat face (three points or more), if it is turned towards
+/// `toward`.
+fn plane(face: &[Vec3], toward: Vec3) -> Option<Vec3> {
+    if face.len() < 3 {
+        return None;
+    }
+    // Newell's method: robust for any polygon.
+    let mut normal = Vec3::ZERO;
+    for (i, p) in face.iter().enumerate() {
+        let q = face[(i + 1) % face.len()];
+        normal += Vec3::new(
+            (p.y - q.y) * (p.z + q.z),
+            (p.z - q.z) * (p.x + q.x),
+            (p.x - q.x) * (p.y + q.y),
+        );
+    }
+    let length = normal.length();
+    if length < 1e-12 {
+        return None;
+    }
+    let mut normal = normal / length;
+    if normal.dot(toward) < 0.0 {
+        normal = -normal;
+    }
+    // A face is taken when within 18° (as `support_face` finds faces): over it, the
+    // contact normal is the face's.
+    (normal.dot(toward) > 0.95).then_some(normal)
 }
 
 fn flip(c: ContactPoint) -> ContactPoint {
@@ -608,6 +779,63 @@ pub(crate) fn reduce(points: &mut Vec<ContactPoint>) {
     keep.dedup();
     let kept = keep.into_iter().map(|i| points[i]).collect();
     *points = kept;
+}
+
+/// The axis of a capsule, in the world.
+fn segment(capsule: &Placed, half_height: f32) -> (Vec3, Vec3) {
+    let axis = capsule.rotation * Vec3::new(0.0, half_height, 0.0);
+    (capsule.center - axis, capsule.center + axis)
+}
+
+/// The point of the segment `[p, q]` nearest to `x`.
+fn closest_on_segment(p: Vec3, q: Vec3, x: Vec3) -> Vec3 {
+    let d = q - p;
+    let len2 = d.length_squared();
+    if len2 < 1e-14 {
+        return p;
+    }
+    p + d * ((x - p).dot(d) / len2).clamp(0.0, 1.0)
+}
+
+/// Two rounded shapes (capsules, balls) whose cores' nearest points are `pa` and `pb`:
+/// their contact, the whole line where two capsules lie side by side.
+fn round_contact(
+    a: &Placed,
+    b: &Placed,
+    pa: Vec3,
+    ra: f32,
+    pb: Vec3,
+    rb: f32,
+    margin: f32,
+) -> Contacts {
+    let gap = pb - pa;
+    let dist = gap.length();
+    let depth = ra + rb - dist;
+    if depth < -margin {
+        return Contacts::None;
+    }
+    let normal = if dist > 1e-6 {
+        gap / dist
+    } else {
+        // Cores crossing: out along the line between the centers, or up.
+        let d = b.center - a.center;
+        if d.length_squared() > 1e-12 {
+            d.normalize()
+        } else {
+            Vec3::Y
+        }
+    };
+    faces(
+        a,
+        b,
+        ContactPoint {
+            point_a: pa + normal * ra,
+            point_b: pb - normal * rb,
+            normal,
+            depth,
+        },
+        margin,
+    )
 }
 
 /// The closest points of two segments `[p1, q1]` and `[p2, q2]`.

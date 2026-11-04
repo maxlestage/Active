@@ -366,11 +366,13 @@ impl CylinderGeometry {
         }
         with_collider(
             b.build(),
-            if radius_top <= 0.0 {
+            if radius_top == radius_bottom {
+                Collider::cylinder(radius_top, height)
+            } else if radius_top <= 0.0 {
                 Collider::cone(radius_bottom, height)
             } else {
-                // A frustum collides as the cylinder around it.
-                Collider::cylinder(radius_top.max(radius_bottom), height)
+                // Its own shape: a cone cut flat, either way up.
+                Collider::frustum(radius_top, radius_bottom.max(0.0), height)
             },
             false,
         )
