@@ -255,6 +255,15 @@ impl Scene {
         self.objects.iter().filter(|o| o.is_some()).count()
     }
 
+    /// The ids of every object, in the order they were added.
+    pub fn object_ids(&self) -> impl Iterator<Item = ObjectId> + '_ {
+        self.objects
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.is_some())
+            .map(|(i, _)| ObjectId(i))
+    }
+
     /// No object.
     pub fn is_empty(&self) -> bool {
         self.len() == 0

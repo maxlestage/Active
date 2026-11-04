@@ -1,6 +1,7 @@
 //! The 3D demo of the home page, written like a Bevy game with `active::ecs`: shapes turn
-//! on a disc under two lights; clicking the disc drops a new one, which bounces (in
-//! `FixedUpdate`); dragging turns the camera.
+//! on a disc under two lights; clicking the disc drops a new one, which falls, bounces,
+//! rolls and piles up with the others (the physics of `DefaultPlugins`: every mesh has a
+//! mass); the turning shapes push them aside; dragging turns the camera.
 
 use std::f32::consts::{PI, TAU};
 
@@ -15,12 +16,9 @@ struct Spinning {
 }
 
 /// A dropped shape.
-struct Falling {
-    velocity: Vec3,
-    radius: f32,
-}
+struct Dropped;
 
-active::component!(Spinning, Falling);
+active::component!(Spinning, Dropped);
 
 /// The meshes and materials to drop, and a generator of numbers.
 struct Palette {
@@ -57,7 +55,7 @@ struct Counter(active::State<usize>);
 active::resource!(Palette, Orbit, Counter);
 
 const RADIUS: f32 = 10.5;
-const MAX_FALLING: usize = 40;
+const MAX_DROPPED: usize = 40;
 
 fn setup(
     mut commands: Commands,
@@ -169,7 +167,7 @@ fn setup(
 fn spin(
     time: Res<Time>,
     orbit: Res<Orbit>,
-    mut query: Query<(&mut Transform, &Spinning), Without<Falling>>,
+    mut query: Query<(&mut Transform, &Spinning), Without<Dropped>>,
 ) {
     if orbit.still {
         return;
@@ -195,7 +193,7 @@ fn pointer(
     camera: Single<(&Camera, &GlobalTransform, &mut Transform)>,
     mut orbit: ResMut<Orbit>,
     mut palette: ResMut<Palette>,
-    falling: Query<Entity, With<Falling>>,
+    dropped: Query<Entity, With<Dropped>>,
 ) {
     let (camera, at, mut transform) = camera.into_inner();
     if buttons.just_pressed(MouseButton::Left) {
@@ -217,23 +215,24 @@ fn pointer(
             .filter(|p| p.length() < 5.0);
         if let Some(point) = target {
             // Too many: the oldest goes.
-            let full = falling.count() >= MAX_FALLING;
-            if let Some(oldest) = falling.iter().next().filter(|_| full) {
+            let full = dropped.count() >= MAX_DROPPED;
+            if let Some(oldest) = dropped.iter().next().filter(|_| full) {
                 commands.entity(oldest).despawn();
             }
             let (meshes, materials) = (palette.meshes.clone(), palette.materials.clone());
-            let (mesh, radius) = palette.pick(&meshes);
+            let (mesh, _) = palette.pick(&meshes);
             let material = palette.pick(&materials);
-            let spin = (palette.next() % 628) as f32 / 100.0;
+            let turn = (palette.next() % 628) as f32 / 100.0;
+            let tilt = (palette.next() % 100) as f32 / 100.0 - 0.5;
+            // A body like any mesh: its mass, gravity, collisions. A little spin, and bouncy.
             commands.spawn((
                 Mesh3d(mesh),
                 MeshMaterial3d(material),
                 Transform::from_xyz(point.x, 5.0, point.z)
-                    .with_rotation(Quat::from_rotation_y(spin)),
-                Falling {
-                    velocity: Vec3::ZERO,
-                    radius,
-                },
+                    .with_rotation(Quat::from_rotation_y(turn) * Quat::from_rotation_x(tilt)),
+                AngularVelocity(Vec3::new(tilt * 4.0, 0.0, -tilt * 3.0)),
+                Restitution(0.35),
+                Dropped,
             ));
         }
     }
@@ -241,22 +240,11 @@ fn pointer(
     *transform = Transform::from_translation(eye).looking_at(Vec3::new(0.0, 0.8, 0.0), Vec3::Y);
 }
 
-/// Gravity and bounces, at a fixed rate.
-fn fall(time: Res<Time>, mut query: Query<(&mut Transform, &mut Falling)>) {
-    let dt = time.delta_secs();
-    for (mut transform, mut falling) in &mut query {
-        falling.velocity.y -= 9.81 * dt;
-        let step = falling.velocity * dt;
-        transform.translation += step;
-        let floor = falling.radius;
-        if transform.translation.y < floor {
-            transform.translation.y = floor;
-            // Bounces lose energy; small ones stop.
-            falling.velocity.y = if falling.velocity.y.abs() > 0.8 {
-                -falling.velocity.y * 0.55
-            } else {
-                0.0
-            };
+/// Shapes that fell off the disc go.
+fn fallen(mut commands: Commands, dropped: Query<(Entity, &Transform), With<Dropped>>) {
+    for (entity, transform) in &dropped {
+        if transform.translation.y < -10.0 {
+            commands.entity(entity).despawn();
         }
     }
 }
@@ -279,8 +267,7 @@ pub fn start(canvas: &web_sys::Element, shapes: active::State<usize>) -> Option<
         })
         .insert_resource(Counter(shapes))
         .add_systems(Startup, setup)
-        .add_systems(Update, (spin, pointer, count))
-        .add_systems(FixedUpdate, fall);
+        .add_systems(Update, (spin, pointer, fallen, count));
     match app.run_in(canvas) {
         Ok(running) => Some(running),
         Err(error) => {

@@ -13,6 +13,7 @@ use super::query::{Query, With};
 use super::transform::{GlobalTransform, InheritedVisibility, Transform, Visibility};
 use super::window::{PrimaryWindow, Window};
 use super::world::{Component, Entity, Resource, World, require};
+use crate::physics::{Collider, Shape};
 use crate::three::math::{Color as Linear, Mat4, Quat, Vec2, Vec3, linear_to_srgb, srgb_to_linear};
 use crate::three::{self, BufferGeometry, Geometry, Lights, PointLightData, ToneMapping};
 
@@ -442,6 +443,18 @@ impl Mesh {
         &self.geometry
     }
 
+    /// How it collides: the exact shape for the primitives, `None` for others (they
+    /// collide as their bounding box).
+    pub fn collider(&self) -> Option<&crate::physics::Collider> {
+        self.geometry.collider()
+    }
+
+    /// Whether it is a surface without volume (a plane, a disc, a rectangle): physics
+    /// keeps it in place, as ground.
+    pub fn is_flat(&self) -> bool {
+        self.geometry.is_flat()
+    }
+
     /// How many vertices it has.
     pub fn count_vertices(&self) -> usize {
         self.geometry.positions.len() / 3
@@ -635,8 +648,19 @@ impl PlaneMeshBuilder {
         // and it faces the normal.
         let flat = three::PlaneGeometry::new(size.x * 2.0, size.y * 2.0);
         let up = Quat::from_rotation_x(-PI / 2.0);
-        let turn = Quat::from_unit_vectors(Vec3::Y, self.plane.normal) * up;
-        Mesh::from(rotated(&flat, turn))
+        let facing = Quat::from_unit_vectors(Vec3::Y, self.plane.normal);
+        let turn = facing * up;
+        let t = three::geometry::slab(size.x.max(size.y) * 2.0);
+        let collider = Collider::new(Shape::Cuboid {
+            half_extents: Vec3::new(size.x, t, size.y),
+        })
+        .with_rotation(facing)
+        .with_offset(facing * Vec3::new(0.0, -t, 0.0));
+        Mesh::from(three::geometry::with_collider(
+            rotated(&flat, turn),
+            collider,
+            true,
+        ))
     }
 }
 
@@ -705,7 +729,16 @@ impl From<Circle> for Mesh {
         let indices = (0..SEGMENTS)
             .flat_map(|i| [0, 1 + i, 1 + (i + 1) % SEGMENTS])
             .collect();
-        Mesh::from(BufferGeometry::new(positions, normals, uvs, indices))
+        // A slab under the disc, along its axis (z), so that it can be a floor.
+        let t = three::geometry::slab(c.radius * 2.0);
+        let collider = Collider::new(Shape::Cylinder {
+            radius: c.radius,
+            half_height: t,
+        })
+        .with_rotation(Quat::from_rotation_x(PI / 2.0))
+        .with_offset(Vec3::new(0.0, 0.0, -t));
+        let disc = BufferGeometry::new(positions, normals, uvs, indices);
+        Mesh::from(three::geometry::with_collider(disc, collider, true))
     }
 }
 
@@ -784,7 +817,15 @@ impl From<Torus> for Mesh {
     fn from(t: Torus) -> Mesh {
         // Three.js's torus lies around z: turned to lie around y, like Bevy's.
         let ring = three::TorusGeometry::new(t.major_radius, t.minor_radius, 24, 48);
-        Mesh::from(rotated(&ring, Quat::from_rotation_x(PI / 2.0)))
+        let collider = Collider::new(Shape::Torus {
+            major_radius: t.major_radius,
+            minor_radius: t.minor_radius,
+        });
+        Mesh::from(three::geometry::with_collider(
+            rotated(&ring, Quat::from_rotation_x(PI / 2.0)),
+            collider,
+            false,
+        ))
     }
 }
 

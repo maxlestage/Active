@@ -24,10 +24,11 @@
 
 mod camera;
 mod controls;
-mod geometry;
+pub(crate) mod geometry;
 mod light;
 mod material;
 pub mod math;
+pub(crate) mod physics;
 mod scene;
 
 #[cfg(feature = "client")]
@@ -45,6 +46,7 @@ pub use material::{
     Side, Surface,
 };
 pub use math::{Color, Euler, EulerOrder, Matrix4, Quaternion, Vector2, Vector3};
+pub use physics::Physics;
 pub use scene::{
     Draw, Frame, Group, Lights, Mesh, Object3D, ObjectId, ObjectKind, PointLightData, Scene,
     ToneMapping,

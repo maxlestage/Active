@@ -14,6 +14,7 @@ mod event;
 pub mod forms;
 pub mod i18n;
 mod island;
+pub mod physics;
 pub mod pwa;
 mod reactive;
 mod resource;
