@@ -602,7 +602,7 @@ impl PluginGroup for PluginGroupBuilder {
 }
 
 /// Everything a 3D app in a page needs: time, input, transforms, the window, assets,
-/// meshes, materials, lights and cameras.
+/// meshes, materials, lights, cameras and physics.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct DefaultPlugins;
 
@@ -614,6 +614,7 @@ impl PluginGroup for DefaultPlugins {
             .add(TransformPlugin)
             .add(super::window::WindowPlugin::default())
             .add(super::pbr::PbrPlugin)
+            .add(super::physics::PhysicsPlugin)
     }
 }
 

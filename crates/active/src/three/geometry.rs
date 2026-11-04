@@ -5,7 +5,8 @@ use std::f32::consts::{PI, TAU};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::math::Vector3;
+use super::math::{Quaternion, Vector3};
+use crate::physics::{Collider, Shape};
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -22,6 +23,10 @@ pub struct BufferGeometry {
     pub uvs: Vec<f32>,
     /// Three vertex indices per triangle, counter-clockwise when seen from the front.
     pub indices: Vec<u32>,
+    /// How it collides (`None`: as its bounding box).
+    collider: Option<Collider>,
+    /// A surface without volume (a plane): a floor, which stays where it is.
+    flat: bool,
 }
 
 /// A shared geometry.
@@ -41,6 +46,8 @@ impl BufferGeometry {
             normals,
             uvs,
             indices,
+            collider: None,
+            flat: false,
         };
         if g.normals.len() != g.positions.len() {
             g.compute_vertex_normals();
@@ -49,6 +56,22 @@ impl BufferGeometry {
             g.uvs = vec![0.0; g.vertex_count() * 2];
         }
         Rc::new(g)
+    }
+
+    /// How it collides with other bodies ([`crate::physics`]): the exact shape for the
+    /// ready-made geometries, `None` for others (they collide as their bounding box).
+    pub fn collider(&self) -> Option<&Collider> {
+        self.collider.as_ref()
+    }
+
+    /// Whether it is a surface without volume (a plane, a disc): physics keeps it in place.
+    pub fn is_flat(&self) -> bool {
+        self.flat
+    }
+
+    /// The same geometry, colliding as `collider` (copied if it is shared).
+    pub fn with_collider(geometry: Geometry, collider: Collider) -> Geometry {
+        with_collider(geometry, collider, false)
     }
 
     /// A number unique to this geometry (the key of its GPU buffers).
@@ -104,6 +127,30 @@ impl BufferGeometry {
         }
         (min, max)
     }
+}
+
+/// Sets the collider of a geometry that was just made (or of a copy, if shared).
+pub(crate) fn with_collider(mut geometry: Geometry, collider: Collider, flat: bool) -> Geometry {
+    if Rc::get_mut(&mut geometry).is_none() {
+        let g = &*geometry;
+        geometry = BufferGeometry::new(
+            g.positions.clone(),
+            g.normals.clone(),
+            g.uvs.clone(),
+            g.indices.clone(),
+        );
+    }
+    if let Some(g) = Rc::get_mut(&mut geometry) {
+        g.collider = Some(collider);
+        g.flat = flat;
+    }
+    geometry
+}
+
+/// Half the thickness of the slab under a flat surface: thick enough that fast objects
+/// do not go through it in one step.
+pub(crate) fn slab(size: f32) -> f32 {
+    (size * 0.05).clamp(0.02, 0.5)
 }
 
 /// Builds the vertices of a geometry, then makes it.
@@ -209,7 +256,7 @@ impl BoxGeometry {
                 )
             });
         }
-        b.build()
+        with_collider(b.build(), Collider::cuboid(width, height, depth), false)
     }
 }
 
@@ -228,7 +275,17 @@ impl PlaneGeometry {
                 Vector3::Z,
             )
         });
-        b.build()
+        with_collider(
+            b.build(),
+            {
+                let t = slab(width.max(height));
+                Collider::new(Shape::Cuboid {
+                    half_extents: Vector3::new(width / 2.0, height / 2.0, t),
+                })
+                .with_offset(Vector3::new(0.0, 0.0, -t))
+            },
+            true,
+        )
     }
 }
 
@@ -253,7 +310,7 @@ impl SphereGeometry {
             let n = Vector3::new(-phi.cos() * sin, cos, phi.sin() * sin);
             (n * radius, n)
         });
-        b.build()
+        with_collider(b.build(), Collider::sphere(radius), false)
     }
 }
 
@@ -307,7 +364,16 @@ impl CylinderGeometry {
                 }
             }
         }
-        b.build()
+        with_collider(
+            b.build(),
+            if radius_top <= 0.0 {
+                Collider::cone(radius_bottom, height)
+            } else {
+                // A frustum collides as the cylinder around it.
+                Collider::cylinder(radius_top.max(radius_bottom), height)
+            },
+            false,
+        )
     }
 }
 
@@ -343,7 +409,15 @@ impl TorusGeometry {
             );
             (p, (p - center).normalize())
         });
-        b.build()
+        with_collider(
+            b.build(), // Three.js's ring lies around z.
+            Collider::new(Shape::Torus {
+                major_radius: radius,
+                minor_radius: tube,
+            })
+            .with_rotation(Quaternion::from_rotation_x(std::f32::consts::FRAC_PI_2)),
+            false,
+        )
     }
 }
 

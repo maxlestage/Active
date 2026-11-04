@@ -50,6 +50,7 @@ mod app;
 mod input;
 mod message;
 mod pbr;
+mod physics;
 mod query;
 mod system;
 mod time;
@@ -59,6 +60,7 @@ mod web;
 mod window;
 mod world;
 
+pub use crate::physics::{Attraction, Collider, Shape};
 pub use app::{
     App, AppExit, DefaultPlugins, First, FixedFirst, FixedLast, FixedPostUpdate, FixedPreUpdate,
     FixedUpdate, InputPlugin, Label, Last, MinimalPlugins, NextState, OnEnter, OnExit, Plugin,
@@ -81,6 +83,12 @@ pub use pbr::{
     OrthographicProjection, PbrPlugin, PerspectiveProjection, Plane3d, PlaneMeshBuilder,
     PointLight, Projection, Ray3d, Rectangle, RenderFrame, ScalingMode, Sphere, SphereMeshBuilder,
     StandardMaterial, Tonemapping, Torus, ViewportConversionError, light_consts, palettes,
+};
+pub use physics::{
+    AngularDamping, AngularVelocity, ColliderDensity, CollisionEnded, CollisionStarted,
+    ExternalForce, ExternalImpulse, ExternalTorque, Friction, Gravity, GravityScale, LinearDamping,
+    LinearVelocity, Mass, PhysicsPlugin, PhysicsSettings, PhysicsState, Restitution, RigidBody,
+    Sleeping, step_physics,
 };
 pub use query::{
     Added, Changed, Has, Mut, Or, Query, QueryData, QueryEntityError, QueryFilter, QueryIter,
