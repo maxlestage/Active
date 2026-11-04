@@ -101,8 +101,9 @@ macro_rules! vector_component {
 }
 
 scalar_component!(
-    /// Its mass, in kg: computed from its volume (density 1) when the body is made; set
-    /// it to change it.
+    /// Its mass, in kg: computed from its volume and density (1 kg/m³ by default), and
+    /// kept up to date when its scale or density changes; set it, or insert it, to choose
+    /// a mass of your own, which then stays.
     Mass
 );
 scalar_component!(
@@ -118,15 +119,21 @@ scalar_component!(
     Friction
 );
 scalar_component!(
+    /// How much it resists rolling and spinning on what it touches: the rolling
+    /// resistance coefficient (0.01 by default, a rubber ball on concrete; 0 rolls forever).
+    RollingFriction
+);
+scalar_component!(
     /// How much gravity pulls it (1 by default; 0: it floats).
     GravityScale
 );
 scalar_component!(
-    /// How fast it slows down by itself, per second (0.05 by default).
+    /// How fast it slows down by itself, per second, as in thick air or water (0 by
+    /// default, as in a vacuum).
     LinearDamping
 );
 scalar_component!(
-    /// How fast its rotation slows down by itself, per second (0.1 by default).
+    /// How fast its rotation slows down by itself, per second (0 by default).
     AngularDamping
 );
 vector_component!(
@@ -257,6 +264,9 @@ struct Tracked {
     pose: (Vec3, Quat),
     velocity: (Vec3, Vec3),
     mass: f32,
+    /// Whether its mass was chosen by the code (a `Mass` inserted or changed): it then
+    /// stays when the scale or the density changes.
+    chosen_mass: bool,
     scale: Vec3,
     collider: Collider,
 }
@@ -449,6 +459,7 @@ pub fn step_physics(world: &mut World) {
                         pose: f.pose,
                         velocity,
                         mass,
+                        chosen_mass: world.has::<Mass>(e),
                         scale: f.scale,
                         collider: f.collider,
                     },
@@ -460,29 +471,41 @@ pub fn step_physics(world: &mut World) {
             continue;
         };
         body.kind = kind;
-        if tracked.collider != f.collider || tracked.scale != f.scale {
+        // A `Mass` that differs from the last one written: the code chose it.
+        let chosen = component::<Mass>(world, e)
+            .map(|m| m.0)
+            .filter(|&m| m != tracked.mass);
+        if chosen.is_some() {
+            tracked.chosen_mass = true;
+        }
+        if tracked.collider != f.collider
+            || !crate::three::physics::same_scale(tracked.scale, f.scale)
+        {
+            // Same density, new volume: the mass follows.
             body.set_collider(f.collider.scaled(f.scale));
             tracked.collider = f.collider;
             tracked.scale = f.scale;
-            tracked.mass = body.mass();
         }
         if let Some(d) = component::<ColliderDensity>(world, e) {
             if (body.density() - d.0).abs() > 1e-6 * d.0.abs().max(1.0) {
                 body.set_density(d.0);
-                tracked.mass = body.mass();
             }
         }
-        if let Some(m) = component::<Mass>(world, e) {
-            if m.0 != tracked.mass {
-                body.set_mass(m.0);
-                tracked.mass = m.0;
+        if tracked.chosen_mass {
+            let m = chosen.unwrap_or(tracked.mass);
+            if body.mass() != m {
+                body.set_mass(m);
             }
         }
+        tracked.mass = body.mass();
         if let Some(r) = component::<Restitution>(world, e) {
             body.restitution = r.0;
         }
         if let Some(r) = component::<Friction>(world, e) {
             body.friction = r.0;
+        }
+        if let Some(r) = component::<RollingFriction>(world, e) {
+            body.rolling_friction = r.0;
         }
         if let Some(r) = component::<GravityScale>(world, e) {
             body.gravity_scale = r.0;
@@ -577,6 +600,12 @@ pub fn step_physics(world: &mut World) {
             continue;
         }
         sleeping.push((e, body.is_sleeping()));
+        // The mass it has now (its scale or density may have changed it).
+        if component::<Mass>(world, e).is_some_and(|m| m.0 != t.mass) {
+            if let Some(mut m) = world.get_mut::<Mass>(e) {
+                m.0 = t.mass;
+            }
+        }
         let velocity = (body.linear_velocity, body.angular_velocity);
         t.velocity = velocity;
         if component::<LinearVelocity>(world, e).is_some_and(|v| v.0 != velocity.0) {

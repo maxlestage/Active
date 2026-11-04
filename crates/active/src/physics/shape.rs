@@ -36,8 +36,8 @@ pub enum Shape {
         /// Half the height of its straight part.
         half_height: f32,
     },
-    /// A ring lying around `y`. It collides as its convex hull (a coin with rounded
-    /// edges): nothing goes through the hole.
+    /// A ring lying around `y`. Its hole is open: it collides as 16 short capsules along
+    /// its tube.
     Torus {
         /// From the center to the middle of the tube.
         major_radius: f32,

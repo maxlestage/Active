@@ -10,8 +10,12 @@ use crate::physics::{Body, BodyId, BodyKind, Collider, PhysicsWorld, Shape};
 
 struct Tracked {
     body: BodyId,
-    /// The pose written to the object last time (in the world).
+    /// The object's pose in the world as the scene gives it back after the last step:
+    /// another one means the code moved it. (Read back, not as written: the scene keeps
+    /// Euler angles, and the round trip changes the last digits.)
     pose: (Vector3, Quaternion),
+    /// The body's pose written to the object last time.
+    written: (Vector3, Quaternion),
     scale: Vector3,
     collider: Collider,
 }
@@ -136,6 +140,7 @@ impl Physics {
                         Tracked {
                             body,
                             pose: (position, rotation),
+                            written: (position, rotation),
                             scale,
                             collider,
                         },
@@ -145,7 +150,7 @@ impl Physics {
                     let Some(body) = self.world.body_mut(t.body) else {
                         continue;
                     };
-                    if t.collider != collider || t.scale != scale {
+                    if t.collider != collider || !same_scale(t.scale, scale) {
                         body.set_collider(collider.scaled(scale));
                         t.collider = collider;
                         t.scale = scale;
@@ -199,10 +204,10 @@ impl Physics {
                 );
                 continue;
             }
-            if body.kind != BodyKind::Dynamic || pose == t.pose {
+            if body.kind != BodyKind::Dynamic || pose == t.written {
                 continue;
             }
-            t.pose = pose;
+            t.written = pose;
             // Back into the parent's space, if any.
             let world = Matrix4::compose(pose.0, pose.1, t.scale);
             let local = match scene[id].parent() {
@@ -214,8 +219,16 @@ impl Physics {
             object.position = position;
             object.rotation =
                 euler_from_matrix(&Matrix4::compose(Vector3::ZERO, rotation, Vector3::ONE));
+            let (position, rotation, _) = scene.world_matrix(id).decompose();
+            t.pose = (position, rotation);
         }
     }
+}
+
+/// Whether two scales are the same but for rounding: a scale read back from a world matrix
+/// changes in its last digits as the object turns.
+pub(crate) fn same_scale(a: Vector3, b: Vector3) -> bool {
+    (a - b).length() <= 1e-5 * a.length().max(b.length())
 }
 
 /// How fast to turn from `from` to `to` in `dt` seconds.
@@ -300,5 +313,41 @@ mod tests {
         physics.step(&mut scene, 1.0 / 60.0);
         assert!(physics.body(cube).is_none());
         assert_eq!(physics.world().len(), 3);
+    }
+
+    #[test]
+    fn a_tumbling_box_lands_and_sleeps_and_the_scene_does_not_disturb_it() {
+        // The scene keeps rotations as Euler angles: reading them back must not count as
+        // a move by the code, which would wake the body and nudge it every frame.
+        let mut scene = Scene::new();
+        let floor = scene.add(Mesh::new(
+            PlaneGeometry::new(20.0, 20.0),
+            MeshStandardMaterial::new(),
+        ));
+        scene[floor].rotation.x = -std::f32::consts::FRAC_PI_2;
+        let cube = scene.add(Mesh::new(
+            BoxGeometry::new(1.0, 0.6, 0.8),
+            MeshStandardMaterial::new(),
+        ));
+        scene[cube].position.set(0.0, 3.0, 0.0);
+        scene[cube].rotation.set(0.7, 0.3, 1.1);
+        let mut physics = Physics::new();
+        for _ in 0..300 {
+            physics.step(&mut scene, 1.0 / 60.0);
+        }
+        assert!(physics.body(cube).unwrap().is_sleeping());
+        let rest = scene[cube].position;
+        for _ in 0..60 {
+            physics.step(&mut scene, 1.0 / 60.0);
+        }
+        assert!(
+            physics.body(cube).unwrap().is_sleeping(),
+            "woken by the scene"
+        );
+        assert_eq!(scene[cube].position, rest);
+        // Moved by the code: it falls again.
+        scene[cube].position.y += 2.0;
+        physics.step(&mut scene, 1.0 / 60.0);
+        assert!(!physics.body(cube).unwrap().is_sleeping());
     }
 }
