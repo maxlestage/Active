@@ -742,6 +742,41 @@ fn every_mesh_has_a_mass_falls_and_lands() {
 }
 
 #[test]
+fn the_mass_follows_the_volume_until_the_code_chooses_one() {
+    let mut app = physics_app();
+    app.insert_resource(Gravity(Vec3::ZERO));
+    let cube = spawn_shape(&mut app, Cuboid::new(1.0, 1.0, 1.0), Vec3::ZERO);
+    frames(&mut app, 1);
+    let mass = |app: &App| {
+        let body = app
+            .world()
+            .resource::<PhysicsState>()
+            .body(cube)
+            .unwrap()
+            .mass();
+        let component = app.world().get::<Mass>(cube).unwrap().0;
+        assert_eq!(body, component, "the component says the mass of the body");
+        body
+    };
+    assert!((mass(&app) - 1.0).abs() < 1e-5);
+    // Twice as big on each side: eight times the volume, eight times the mass.
+    app.world_mut().get_mut::<Transform>(cube).unwrap().scale = Vec3::splat(2.0);
+    frames(&mut app, 1);
+    assert!((mass(&app) - 8.0).abs() < 1e-4, "{}", mass(&app));
+    // Steel.
+    app.world_mut().insert(cube, ColliderDensity(7800.0));
+    frames(&mut app, 1);
+    assert!((mass(&app) - 8.0 * 7800.0).abs() < 1.0, "{}", mass(&app));
+    // A mass chosen by the code stays, whatever the size.
+    app.world_mut().get_mut::<Mass>(cube).unwrap().0 = 5.0;
+    frames(&mut app, 1);
+    assert_eq!(mass(&app), 5.0);
+    app.world_mut().get_mut::<Transform>(cube).unwrap().scale = Vec3::splat(3.0);
+    frames(&mut app, 1);
+    assert_eq!(mass(&app), 5.0);
+}
+
+#[test]
 fn forces_impulses_and_velocities_move_bodies() {
     let mut app = physics_app();
     app.insert_resource(Gravity(Vec3::ZERO));
@@ -872,7 +907,13 @@ fn collisions_arrive_as_messages_and_bodies_can_attract() {
         },
     );
     frames(&mut app, 60);
-    assert_eq!(log(&app), [format!("{ground} {ball}")]);
+    // It lands, bounces a little (restitution 0.2: 2 cm), and lands again.
+    let landings = log(&app);
+    assert!(!landings.is_empty());
+    assert!(
+        landings.iter().all(|l| *l == format!("{ground} {ball}")),
+        "{landings:?}"
+    );
     assert_eq!(
         app.world().resource::<PhysicsState>().touching(ball),
         [ground]

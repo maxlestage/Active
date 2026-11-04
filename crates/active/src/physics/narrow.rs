@@ -8,7 +8,9 @@ use super::shape::{Placed, Shape};
 use crate::three::math::{Quat, Vec3};
 
 /// Contacts are kept until the shapes are this far apart (meters): a body resting on
-/// another keeps its contact instead of losing and finding it again each step.
+/// another keeps its contact instead of losing and finding it again each step. Moving
+/// bodies get a wider margin, as far as they can go in a substep, so that the solver
+/// stops them at the surface instead of letting them through (speculative contacts).
 pub(crate) const MARGIN: f32 = 0.02;
 
 /// A point where two shapes touch.
@@ -35,33 +37,111 @@ pub(crate) enum Contacts {
     Single(ContactPoint),
 }
 
-/// The contacts of `a` and `b`.
-pub(crate) fn collide(a: &Placed, b: &Placed) -> Contacts {
+/// The contacts of `a` and `b`, if they overlap or are less than `margin` apart.
+pub(crate) fn collide(a: &Placed, b: &Placed, margin: f32) -> Contacts {
     match (a.shape, b.shape) {
         (Shape::Sphere { radius: ra }, Shape::Sphere { radius: rb }) => {
-            sphere_sphere(a.center, ra, b.center, rb)
+            sphere_sphere(a.center, ra, b.center, rb, margin)
                 .map_or(Contacts::None, |c| Contacts::Full(vec![c]))
         }
         (Shape::Sphere { radius }, Shape::Cuboid { half_extents }) => {
-            sphere_box(a.center, radius, b, half_extents)
+            sphere_box(a.center, radius, b, half_extents, margin)
                 .map_or(Contacts::None, |c| Contacts::Full(vec![c]))
         }
         (Shape::Cuboid { half_extents }, Shape::Sphere { radius }) => {
-            sphere_box(b.center, radius, a, half_extents)
+            sphere_box(b.center, radius, a, half_extents, margin)
                 .map_or(Contacts::None, |c| Contacts::Full(vec![flip(c)]))
         }
         (Shape::Cuboid { half_extents: ha }, Shape::Cuboid { half_extents: hb }) => {
-            let points = box_box(a, ha, b, hb);
+            let points = box_box(a, ha, b, hb, margin);
             if points.is_empty() {
                 Contacts::None
             } else {
                 Contacts::Full(points)
             }
         }
-        _ => match gjk_epa(a, b) {
-            Some(c) => faces(a, b, c),
-            None => Contacts::None,
+        (
+            Shape::Torus {
+                major_radius,
+                minor_radius,
+            },
+            _,
+        ) => ring(a, major_radius, minor_radius, b, margin, true),
+        (
+            _,
+            Shape::Torus {
+                major_radius,
+                minor_radius,
+            },
+        ) => ring(b, major_radius, minor_radius, a, margin, false),
+        _ => match closest(a, b, margin) {
+            Gap::Apart => Contacts::None,
+            Gap::Near(c) => faces(a, b, c, margin),
+            Gap::Overlap(touching) => match gjk(a, b).and_then(|s| epa(a, b, s)).or(touching) {
+                Some(c) => faces(a, b, c, margin),
+                None => Contacts::None,
+            },
         },
+    }
+}
+
+/// How many pieces a ring collides as.
+const RING_PIECES: usize = 16;
+
+/// A ring is not convex: it collides as short capsules along its tube, so that its hole
+/// is open (a ball goes through it, it hangs on a peg, it lies flat on its tube). The
+/// contacts of the pieces near `other` make one contact area.
+fn ring(
+    ring: &Placed,
+    major: f32,
+    minor: f32,
+    other: &Placed,
+    margin: f32,
+    ring_first: bool,
+) -> Contacts {
+    let half = std::f32::consts::PI / RING_PIECES as f32;
+    // Each piece's axis is a chord: at this radius, its middle is as far inside the
+    // tube's center line as its ends are outside.
+    let radius = 2.0 * major / (1.0 + half.cos());
+    let half_length = radius * half.sin();
+    let piece = Shape::Capsule {
+        radius: minor,
+        half_height: half_length,
+    };
+    let reach = other.shape.bounding_radius() + half_length + minor + margin;
+    let mut points = Vec::new();
+    for k in 0..RING_PIECES {
+        let angle = (2 * k + 1) as f32 * half;
+        let (sin, cos) = angle.sin_cos();
+        let middle = Vec3::new(cos, 0.0, sin) * (radius * half.cos());
+        let center = ring.center + ring.rotation * middle;
+        if (center - other.center).length() > reach {
+            continue;
+        }
+        let tangent = Vec3::new(-sin, 0.0, cos);
+        let placed = Placed {
+            shape: piece,
+            center,
+            rotation: (ring.rotation * Quat::from_unit_vectors(Vec3::Y, tangent)).normalize(),
+        };
+        let found = if ring_first {
+            collide(&placed, other, margin)
+        } else {
+            collide(other, &placed, margin)
+        };
+        match found {
+            Contacts::None => {}
+            Contacts::Single(p) => points.push(p),
+            Contacts::Full(ps) => points.extend(ps),
+        }
+    }
+    match points.len() {
+        0 => Contacts::None,
+        1 => Contacts::Single(points[0]),
+        _ => {
+            reduce(&mut points);
+            Contacts::Full(points)
+        }
     }
 }
 
@@ -177,7 +257,7 @@ fn over(face: &[Vec3], n: Vec3, p: Vec3) -> bool {
 
 /// The contact area of two shapes that overlap along `c.normal`: the points of the smaller
 /// face that reach the plane of the other one. A single point otherwise.
-fn faces(a: &Placed, b: &Placed, c: ContactPoint) -> Contacts {
+fn faces(a: &Placed, b: &Placed, c: ContactPoint, margin: f32) -> Contacts {
     let n = c.normal;
     let face_a = support_face(a, n);
     let face_b = support_face(b, -n);
@@ -196,7 +276,7 @@ fn faces(a: &Placed, b: &Placed, c: ContactPoint) -> Contacts {
             .filter(|&&p| over(&face_a, n, p))
             .filter_map(|&p| {
                 let s = (p - c.point_a).dot(n);
-                (s <= MARGIN).then(|| ContactPoint {
+                (s <= margin).then(|| ContactPoint {
                     point_a: p - n * s,
                     point_b: p,
                     normal: n,
@@ -213,7 +293,7 @@ fn faces(a: &Placed, b: &Placed, c: ContactPoint) -> Contacts {
             .filter(|&&p| over(&face_b, n, p))
             .filter_map(|&p| {
                 let s = (c.point_b - p).dot(n);
-                (s <= MARGIN).then(|| ContactPoint {
+                (s <= margin).then(|| ContactPoint {
                     point_a: p,
                     point_b: p + n * s,
                     normal: n,
@@ -238,11 +318,11 @@ fn flip(c: ContactPoint) -> ContactPoint {
     }
 }
 
-fn sphere_sphere(ca: Vec3, ra: f32, cb: Vec3, rb: f32) -> Option<ContactPoint> {
+fn sphere_sphere(ca: Vec3, ra: f32, cb: Vec3, rb: f32, margin: f32) -> Option<ContactPoint> {
     let d = cb - ca;
     let dist = d.length();
     let depth = ra + rb - dist;
-    if depth < -MARGIN {
+    if depth < -margin {
         return None;
     }
     let normal = if dist > 1e-6 { d / dist } else { Vec3::Y };
@@ -255,7 +335,13 @@ fn sphere_sphere(ca: Vec3, ra: f32, cb: Vec3, rb: f32) -> Option<ContactPoint> {
 }
 
 /// A ball against a box; the normal goes from the ball to the box.
-fn sphere_box(center: Vec3, radius: f32, b: &Placed, half: Vec3) -> Option<ContactPoint> {
+fn sphere_box(
+    center: Vec3,
+    radius: f32,
+    b: &Placed,
+    half: Vec3,
+    margin: f32,
+) -> Option<ContactPoint> {
     let local = b.rotation.inverse() * (center - b.center);
     let clamped = Vec3::new(
         local.x.clamp(-half.x, half.x),
@@ -295,7 +381,7 @@ fn sphere_box(center: Vec3, radius: f32, b: &Placed, half: Vec3) -> Option<Conta
         let dist = d.length();
         (clamped, d / dist, radius - dist)
     };
-    if depth < -MARGIN {
+    if depth < -margin {
         return None;
     }
     let normal = b.rotation * normal_from_box;
@@ -330,7 +416,7 @@ enum Axis {
 /// Two boxes, by the separating axis theorem: the axis along which they overlap least
 /// gives the normal; a face against a face gives up to four points (the incident face
 /// clipped by the reference face), an edge against an edge one point.
-fn box_box(a: &Placed, ha: Vec3, b: &Placed, hb: Vec3) -> Vec<ContactPoint> {
+fn box_box(a: &Placed, ha: Vec3, b: &Placed, hb: Vec3, margin: f32) -> Vec<ContactPoint> {
     let (ua, ub) = (axes(a.rotation), axes(b.rotation));
     let t = b.center - a.center;
     let overlap = |l: Vec3| {
@@ -342,7 +428,7 @@ fn box_box(a: &Placed, ha: Vec3, b: &Placed, hb: Vec3) -> Vec<ContactPoint> {
     for i in 0..3 {
         for (axis, kind) in [(ua[i], Axis::FaceA(i)), (ub[i], Axis::FaceB(i))] {
             let o = overlap(axis);
-            if o < -MARGIN {
+            if o < -margin {
                 return Vec::new();
             }
             if o < best_face.0 {
@@ -360,7 +446,7 @@ fn box_box(a: &Placed, ha: Vec3, b: &Placed, hb: Vec3) -> Vec<ContactPoint> {
             }
             let l = l / len;
             let o = overlap(l);
-            if o < -MARGIN {
+            if o < -margin {
                 return Vec::new();
             }
             if o < best_edge.0 {
@@ -442,7 +528,7 @@ fn box_box(a: &Placed, ha: Vec3, b: &Placed, hb: Vec3) -> Vec<ContactPoint> {
         .into_iter()
         .filter_map(|p| {
             let s = (p - reference_face).dot(n);
-            (s <= MARGIN).then(|| {
+            (s <= margin).then(|| {
                 let on_reference = p - n * s;
                 if flipped {
                     ContactPoint {
@@ -771,14 +857,249 @@ fn barycentric(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> (f32, f32, f32) {
     (1.0 - v - w, v, w)
 }
 
-fn gjk_epa(a: &Placed, b: &Placed) -> Option<ContactPoint> {
-    epa(a, b, gjk(a, b)?)
+/// How far apart two convex shapes are.
+enum Gap {
+    /// More than the margin.
+    Apart,
+    /// Apart, but within the margin: their closest points.
+    Near(ContactPoint),
+    /// Overlapping, or touching (then their touching points, if known).
+    Overlap(Option<ContactPoint>),
+}
+
+/// GJK as a distance algorithm: the point of the Minkowski difference `A - B` nearest to
+/// the origin, found on simplices of its support points; the origin inside means the
+/// shapes overlap.
+fn closest(a: &Placed, b: &Placed, margin: f32) -> Gap {
+    let mut dir = a.center - b.center;
+    if dir.length_squared() < 1e-12 {
+        dir = Vec3::X;
+    }
+    let mut simplex = Simplex::new(support(a, b, -dir));
+    let mut v = simplex.point();
+    let mut touching = None;
+    for _ in 0..64 {
+        let vv = v.length_squared();
+        if vv < 1e-14 {
+            return Gap::Overlap(touching);
+        }
+        let w = support(a, b, -v);
+        let vw = v.dot(w.p);
+        // v·w / |v| is a lower bound of the distance: farther than the margin, done.
+        if vw > 0.0 && vw * vw > margin * margin * vv {
+            return Gap::Apart;
+        }
+        // No nearer point to be found: v is the nearest (to a micrometer, at contact
+        // distances).
+        if vv - vw <= 1e-4 * vv || simplex.has(w.p) {
+            let dist = vv.sqrt();
+            if dist > margin {
+                return Gap::Apart;
+            }
+            let (point_a, point_b) = simplex.points();
+            return Gap::Near(ContactPoint {
+                point_a,
+                point_b,
+                normal: -v / dist,
+                depth: -dist,
+            });
+        }
+        if !simplex.add(w) {
+            return Gap::Overlap(touching);
+        }
+        let next = simplex.point();
+        if next.length_squared() < vv {
+            v = next;
+        }
+        let dist = v.length();
+        if dist > 1e-9 {
+            let (point_a, point_b) = simplex.points();
+            touching = Some(ContactPoint {
+                point_a,
+                point_b,
+                normal: -v / dist,
+                depth: -dist,
+            });
+        }
+    }
+    let dist = v.length();
+    match touching {
+        Some(c) if dist <= margin => Gap::Near(c),
+        _ => Gap::Apart,
+    }
+}
+
+/// Up to four support points and their weights: the nearest point is their weighted sum.
+#[derive(Clone, Copy)]
+struct Simplex {
+    points: [Support; 4],
+    weights: [f32; 4],
+    len: usize,
+}
+
+impl Simplex {
+    fn new(first: Support) -> Simplex {
+        Simplex {
+            points: [first; 4],
+            weights: [1.0, 0.0, 0.0, 0.0],
+            len: 1,
+        }
+    }
+
+    fn has(&self, p: Vec3) -> bool {
+        self.points[..self.len]
+            .iter()
+            .any(|q| (q.p - p).length_squared() < 1e-14)
+    }
+
+    fn point(&self) -> Vec3 {
+        (0..self.len).fold(Vec3::ZERO, |sum, k| {
+            sum + self.points[k].p * self.weights[k]
+        })
+    }
+
+    /// The points of A and B whose difference is the nearest point.
+    fn points(&self) -> (Vec3, Vec3) {
+        (0..self.len).fold((Vec3::ZERO, Vec3::ZERO), |(pa, pb), k| {
+            let (p, l) = (self.points[k], self.weights[k]);
+            (pa + p.a * l, pb + p.b * l)
+        })
+    }
+
+    fn set(&mut self, kept: &[(Support, f32)]) {
+        for (k, &(p, l)) in kept.iter().enumerate() {
+            self.points[k] = p;
+            self.weights[k] = l;
+        }
+        self.len = kept.len();
+    }
+
+    /// Adds a point and keeps the smallest part of the simplex holding the nearest point
+    /// to the origin; false when the origin is inside (a tetrahedron).
+    fn add(&mut self, w: Support) -> bool {
+        let p = &self.points;
+        match self.len {
+            1 => self.set(&nearest_on_segment(p[0], w)),
+            2 => self.set(&nearest_on_triangle(p[0], p[1], w)),
+            _ => match nearest_on_tetrahedron(p[0], p[1], p[2], w) {
+                Some(near) => self.set(&near),
+                None => return false,
+            },
+        }
+        true
+    }
+}
+
+/// A short list of weighted support points, without allocating.
+struct Near {
+    items: [(Support, f32); 3],
+    len: usize,
+}
+
+impl std::ops::Deref for Near {
+    type Target = [(Support, f32)];
+    fn deref(&self) -> &[(Support, f32)] {
+        &self.items[..self.len]
+    }
+}
+
+fn near(items: &[(Support, f32)]) -> Near {
+    let mut out = Near {
+        items: [items[0]; 3],
+        len: items.len(),
+    };
+    out.items[..items.len()].copy_from_slice(items);
+    out
+}
+
+fn nearest_on_tetrahedron(a: Support, b: Support, c: Support, d: Support) -> Option<Near> {
+    // The faces whose plane has the origin on the other side from the fourth point.
+    let outside = |p: Vec3, q: Vec3, r: Vec3, other: Vec3| {
+        let n = (q - p).cross(r - p);
+        n.dot(-p) * n.dot(other - p) < 0.0
+    };
+    let mut best: Option<(f32, Near)> = None;
+    for (p, q, r, o) in [(a, b, c, d), (a, c, d, b), (a, d, b, c), (b, d, c, a)] {
+        if outside(p.p, q.p, r.p, o.p) {
+            let candidate = nearest_on_triangle(p, q, r);
+            let point = candidate
+                .iter()
+                .fold(Vec3::ZERO, |sum, (x, l)| sum + x.p * *l);
+            let d2 = point.length_squared();
+            if best.as_ref().is_none_or(|(b, _)| d2 < *b) {
+                best = Some((d2, candidate));
+            }
+        }
+    }
+    best.map(|(_, n)| n)
+}
+
+fn nearest_on_segment(a: Support, b: Support) -> Near {
+    let ab = b.p - a.p;
+    let len2 = ab.length_squared();
+    let t = if len2 > 1e-14 {
+        (-a.p.dot(ab) / len2).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    if t <= 0.0 {
+        near(&[(a, 1.0)])
+    } else if t >= 1.0 {
+        near(&[(b, 1.0)])
+    } else {
+        near(&[(a, 1.0 - t), (b, t)])
+    }
+}
+
+/// The nearest point of a triangle to the origin, by its Voronoi regions (Ericson,
+/// "Real-Time Collision Detection", 5.1.5).
+fn nearest_on_triangle(a: Support, b: Support, c: Support) -> Near {
+    let (ab, ac, ap) = (b.p - a.p, c.p - a.p, -a.p);
+    let (d1, d2) = (ab.dot(ap), ac.dot(ap));
+    if d1 <= 0.0 && d2 <= 0.0 {
+        return near(&[(a, 1.0)]);
+    }
+    let bp = -b.p;
+    let (d3, d4) = (ab.dot(bp), ac.dot(bp));
+    if d3 >= 0.0 && d4 <= d3 {
+        return near(&[(b, 1.0)]);
+    }
+    let vc = d1 * d4 - d3 * d2;
+    if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 {
+        let v = d1 / (d1 - d3);
+        return near(&[(a, 1.0 - v), (b, v)]);
+    }
+    let cp = -c.p;
+    let (d5, d6) = (ab.dot(cp), ac.dot(cp));
+    if d6 >= 0.0 && d5 <= d6 {
+        return near(&[(c, 1.0)]);
+    }
+    let vb = d5 * d2 - d1 * d6;
+    if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 {
+        let w = d2 / (d2 - d6);
+        return near(&[(a, 1.0 - w), (c, w)]);
+    }
+    let va = d3 * d6 - d5 * d4;
+    if va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0 {
+        let w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+        return near(&[(b, 1.0 - w), (c, w)]);
+    }
+    let total = va + vb + vc;
+    if total.abs() < 1e-20 {
+        return nearest_on_segment(a, b);
+    }
+    let (v, w) = (vb / total, vc / total);
+    near(&[(a, 1.0 - v - w), (b, v), (c, w)])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::physics::shape::Collider;
+
+    fn gjk_epa(a: &Placed, b: &Placed) -> Option<ContactPoint> {
+        epa(a, b, gjk(a, b)?)
+    }
 
     fn placed(c: Collider, at: Vec3) -> Placed {
         Placed::new(&c, at, Quat::IDENTITY)
@@ -808,7 +1129,7 @@ mod tests {
     fn a_box_on_a_box_touches_by_four_corners() {
         let floor = placed(Collider::cuboid(10.0, 1.0, 10.0), Vec3::new(0.0, -0.5, 0.0));
         let cube = placed(Collider::cuboid(1.0, 1.0, 1.0), Vec3::new(0.0, 0.49, 0.0));
-        let Contacts::Full(points) = collide(&floor, &cube) else {
+        let Contacts::Full(points) = collide(&floor, &cube, MARGIN) else {
             panic!()
         };
         assert_eq!(points.len(), 4);
@@ -819,7 +1140,7 @@ mod tests {
             );
         }
         // The other way round, the normal turns over.
-        let Contacts::Full(points) = collide(&cube, &floor) else {
+        let Contacts::Full(points) = collide(&cube, &floor, MARGIN) else {
             panic!()
         };
         assert!(points.iter().all(|p| (p.normal + Vec3::Y).length() < 1e-5));
@@ -829,7 +1150,7 @@ mod tests {
             Vec3::new(0.0, 0.49, 0.0),
             Quat::from_rotation_y(0.785),
         );
-        let Contacts::Full(points) = collide(&floor, &turned) else {
+        let Contacts::Full(points) = collide(&floor, &turned, MARGIN) else {
             panic!()
         };
         assert_eq!(points.len(), 4);
@@ -839,7 +1160,7 @@ mod tests {
     fn a_ball_against_a_box() {
         let cube = placed(Collider::cuboid(2.0, 2.0, 2.0), Vec3::ZERO);
         let ball = placed(Collider::sphere(0.5), Vec3::new(0.0, 1.4, 0.0));
-        let Contacts::Full(points) = collide(&ball, &cube) else {
+        let Contacts::Full(points) = collide(&ball, &cube, MARGIN) else {
             panic!()
         };
         assert!((points[0].depth - 0.1).abs() < 1e-5);

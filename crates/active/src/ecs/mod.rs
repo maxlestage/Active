@@ -88,7 +88,7 @@ pub use physics::{
     AngularDamping, AngularVelocity, ColliderDensity, CollisionEnded, CollisionStarted,
     ExternalForce, ExternalImpulse, ExternalTorque, Friction, Gravity, GravityScale, LinearDamping,
     LinearVelocity, Mass, PhysicsPlugin, PhysicsSettings, PhysicsState, Restitution, RigidBody,
-    Sleeping, step_physics,
+    RollingFriction, Sleeping, step_physics,
 };
 pub use query::{
     Added, Changed, Has, Mut, Or, Query, QueryData, QueryEntityError, QueryFilter, QueryIter,
