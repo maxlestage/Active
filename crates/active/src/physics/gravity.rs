@@ -13,8 +13,9 @@ pub struct Attraction {
     /// How coarse the far field may be: 0 sums every pair exactly, 0.5 is accurate,
     /// larger is faster.
     pub theta: f32,
-    /// A distance added to every separation, so that close bodies do not get huge
-    /// accelerations.
+    /// How much close pulls are softened, so that close bodies do not get huge
+    /// accelerations: a separation `d` counts as `sqrt(d² + softening²)` (Plummer's
+    /// softening).
     pub softening: f32,
 }
 
@@ -146,9 +147,18 @@ impl Octree {
             let com = n.weighted / n.mass;
             let d = com - p;
             let dist2 = d.length_squared() + soft;
-            let far = (2.0 * n.half) * (2.0 * n.half) < cfg.theta * cfg.theta * dist2;
+            // A node holding p is always opened, and the others are judged by their true
+            // distance: softening weakens a pull, it does not move its source away.
+            let holds = (p.x - n.center.x).abs() <= n.half
+                && (p.y - n.center.y).abs() <= n.half
+                && (p.z - n.center.z).abs() <= n.half;
+            let far = !holds
+                && (2.0 * n.half) * (2.0 * n.half) < cfg.theta * cfg.theta * d.length_squared();
             if n.children == 0 || far {
-                a += d * (cfg.constant * n.mass / (dist2 * dist2.sqrt()));
+                // (Two bodies at the same point, with no softening: no pull, not NaN.)
+                if dist2 > 0.0 {
+                    a += d * (cfg.constant * n.mass / (dist2 * dist2.sqrt()));
+                }
             } else {
                 stack.extend((0..8).map(|o| n.children as usize + o));
             }
@@ -168,7 +178,9 @@ pub(crate) fn accelerations(positions: &[Vec3], masses: &[f32], cfg: &Attraction
                     if j != i && masses[j] > 0.0 {
                         let d = positions[j] - positions[i];
                         let dist2 = d.length_squared() + soft;
-                        a += d * (cfg.constant * masses[j] / (dist2 * dist2.sqrt()));
+                        if dist2 > 0.0 {
+                            a += d * (cfg.constant * masses[j] / (dist2 * dist2.sqrt()));
+                        }
                     }
                 }
                 a
@@ -226,5 +238,21 @@ mod tests {
         let mean = errors.iter().sum::<f32>() / errors.len() as f32;
         let worst = errors.iter().copied().fold(0.0, f32::max);
         assert!(mean < 0.01 && worst < 0.08, "mean {mean}, worst {worst}");
+    }
+
+    #[test]
+    fn bodies_at_the_same_point_do_not_pull_with_no_softening() {
+        let cfg = Attraction {
+            constant: 1.0,
+            theta: 0.5,
+            softening: 0.0,
+        };
+        let positions = vec![Vec3::ZERO; 40];
+        let masses = vec![1.0; 40];
+        for a in accelerations(&positions, &masses, &cfg) {
+            assert_eq!(a, Vec3::ZERO);
+        }
+        let pair = accelerations(&[Vec3::ZERO, Vec3::ZERO], &[1.0, 1.0], &cfg);
+        assert!(pair.iter().all(|a| *a == Vec3::ZERO), "{pair:?}");
     }
 }
