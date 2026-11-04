@@ -31,9 +31,10 @@
 //!    stretched by how far each body can go in the substep.
 //! 3. The narrow phase finds their contact points, also when they are still apart but
 //!    may meet during the substep (speculative contacts: nothing goes through a thin
-//!    wall): exact formulas for balls and boxes, GJK for the distance between the other
-//!    shapes and EPA for their overlap, and the touching face of the smaller shape, so
-//!    that bodies rest flat.
+//!    wall): exact formulas for balls, boxes and capsules, and for the other shapes GJK and
+//!    EPA on the shapes rounded by that margin (the normal is then well defined even where
+//!    they barely touch); then the touching face of one shape clipped by the flat face of
+//!    the other, along its exact normal, so that bodies rest flat.
 //! 4. The solver applies impulses at the contacts (sequential impulses, starting from
 //!    the previous ones): friction in a true Coulomb cone, rolling resistance, and
 //!    contacts that are stiff, heavily damped springs (the soft step of Box2D v3), so

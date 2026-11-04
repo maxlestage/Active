@@ -41,8 +41,11 @@ pub(crate) fn overlapping_pairs(boxes: &[Aabb]) -> Vec<(usize, usize)> {
     let mut oversize = Vec::new();
     for (index, b) in boxes.iter().enumerate() {
         let (lo, hi) = (cell_of(b.min, inv), cell_of(b.max, inv));
-        let count =
-            i64::from(hi.0 - lo.0 + 1) * i64::from(hi.1 - lo.1 + 1) * i64::from(hi.2 - lo.2 + 1);
+        // In i64 and saturating: a box can span more than 2^32 cells on an axis.
+        let span = |lo: i32, hi: i32| i64::from(hi) - i64::from(lo) + 1;
+        let count = span(lo.0, hi.0)
+            .saturating_mul(span(lo.1, hi.1))
+            .saturating_mul(span(lo.2, hi.2));
         if count > MAX_CELLS {
             oversize.push(index);
             continue;
@@ -125,5 +128,18 @@ mod tests {
             }
         }
         assert_eq!(found, expected);
+    }
+
+    #[test]
+    fn a_huge_box_does_not_overflow() {
+        let boxes = [
+            aabb(0.0, 0.0, 0.0, 0.5),
+            aabb(0.0, 2.5, 0.0, 0.5),
+            Aabb {
+                min: Vec3::new(-3e9, -1.0, -3e9),
+                max: Vec3::new(3e9, 0.0, 3e9),
+            },
+        ];
+        assert_eq!(overlapping_pairs(&boxes), [(0, 2)]);
     }
 }

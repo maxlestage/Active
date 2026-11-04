@@ -46,8 +46,8 @@ pub enum Shape {
         /// Half the height of its straight part.
         half_height: f32,
     },
-    /// A ring lying around `y`. Its hole is open: it collides as 16 short capsules along
-    /// its tube.
+    /// A ring lying around `y`, its tube thinner than the ring is wide (`minor_radius <=
+    /// major_radius`). Its hole is open: it collides as 24 short capsules along its tube.
     Torus {
         /// From the center to the middle of the tube.
         major_radius: f32,
@@ -179,6 +179,13 @@ impl Shape {
 
     /// The point of the shape farthest along `dir` (which need not be a unit vector).
     pub fn support(&self, dir: Vec3) -> Vec3 {
+        // Scaled to a largest component of 1: a tiny or a huge direction is as good as any.
+        let m = dir.x.abs().max(dir.y.abs()).max(dir.z.abs());
+        let dir = if m > 0.0 && m.is_finite() {
+            dir / m
+        } else {
+            Vec3::Y
+        };
         let flat = |d: Vec3| {
             let len = (d.x * d.x + d.z * d.z).sqrt();
             if len > 1e-9 {
