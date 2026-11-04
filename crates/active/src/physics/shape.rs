@@ -150,13 +150,22 @@ impl Shape {
                 Vec3::new(side, mass * f.axis / f.squares, side)
             }
             Shape::Capsule {
-                radius,
+                radius: r,
                 half_height,
             } => {
-                // A cylinder of the whole height: close enough for how it moves.
-                let h = 2.0 * (half_height + radius);
-                let side = mass * (3.0 * radius * radius + h * h) / 12.0;
-                Vec3::new(side, 0.5 * mass * radius * radius, side)
+                // A cylinder and two half balls, each with its share of the mass; a half
+                // ball's center of mass is 3r/8 from its flat side (parallel axes).
+                let h = 2.0 * half_height;
+                let pi = std::f32::consts::PI;
+                let (cylinder, ball) = (pi * r * r * h, 4.0 / 3.0 * pi * r.powi(3));
+                let total = cylinder + ball;
+                if total <= 0.0 {
+                    return Vec3::ZERO;
+                }
+                let (mc, mb) = (mass * cylinder / total, mass * ball / total);
+                let side = mc * (r * r / 4.0 + h * h / 12.0)
+                    + mb * (0.4 * r * r + h * h / 4.0 + 3.0 * h * r / 8.0);
+                Vec3::new(side, mc * r * r / 2.0 + mb * 0.4 * r * r, side)
             }
             Shape::Torus {
                 major_radius: big,
@@ -532,6 +541,54 @@ mod tests {
         };
         assert_eq!(cone.center_of_mass(), Vec3::new(0.0, -0.5, 0.0));
         assert!((cone.volume() - 2.0943951).abs() < 1e-5);
+    }
+
+    #[test]
+    fn a_capsule_turns_like_a_cylinder_and_two_half_balls() {
+        // With no straight part, a ball.
+        let ball = Shape::Capsule {
+            radius: 0.5,
+            half_height: 0.0,
+        };
+        let i = ball.inertia(2.0);
+        assert!((i.x - 0.4 * 2.0 * 0.25).abs() < 1e-6 && (i.y - i.x).abs() < 1e-6);
+        // Against a sum over a fine grid of its volume.
+        let (r, hh) = (0.3f32, 0.5f32);
+        let capsule = Shape::Capsule {
+            radius: r,
+            half_height: hh,
+        };
+        let (mut count, mut ix, mut iy) = (0.0f64, 0.0f64, 0.0f64);
+        let n = 60;
+        for a in 0..n {
+            for b in 0..n * 3 {
+                for c in 0..n {
+                    let x = (a as f32 + 0.5) / n as f32 * 2.0 * r - r;
+                    let y = (b as f32 + 0.5) / (n * 3) as f32 * 2.0 * (hh + r) - (hh + r);
+                    let z = (c as f32 + 0.5) / n as f32 * 2.0 * r - r;
+                    let core = y.clamp(-hh, hh);
+                    let inside = x * x + (y - core).powi(2) + z * z <= r * r;
+                    if inside {
+                        count += 1.0;
+                        ix += f64::from(y * y + z * z);
+                        iy += f64::from(x * x + z * z);
+                    }
+                }
+            }
+        }
+        let i = capsule.inertia(1.0);
+        assert!(
+            ((ix / count) as f32 - i.x).abs() < 0.002 * i.x,
+            "{} {}",
+            ix / count,
+            i.x
+        );
+        assert!(
+            ((iy / count) as f32 - i.y).abs() < 0.002 * i.y,
+            "{} {}",
+            iy / count,
+            i.y
+        );
     }
 
     #[test]
