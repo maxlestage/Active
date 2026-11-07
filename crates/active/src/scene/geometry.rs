@@ -1,5 +1,5 @@
 //! Geometries: vertices (positions, normals, texture coordinates) and the triangles
-//! that join them, like Three.js's `BufferGeometry` and its ready-made shapes.
+//! that join them (`BufferGeometry`), and ready-made shapes.
 
 use std::f32::consts::{PI, TAU};
 use std::rc::Rc;
@@ -90,7 +90,7 @@ impl BufferGeometry {
     }
 
     /// Smooth normals: the average of the faces around each vertex
-    /// (Three.js's `computeVertexNormals`).
+    ///.
     pub fn compute_vertex_normals(&mut self) {
         let mut normals = vec![0.0f32; self.positions.len()];
         let p = |i: usize| {
@@ -197,7 +197,7 @@ impl Builder {
     }
 }
 
-/// A box centered on the origin (Three.js's `BoxGeometry`).
+/// A box centered on the origin.
 pub struct BoxGeometry;
 
 // `new` gives the shared geometry, like `new THREE.BoxGeometry(...)`, not a `BoxGeometry`.
@@ -260,7 +260,7 @@ impl BoxGeometry {
     }
 }
 
-/// A flat rectangle in the `xy` plane, facing `+z` (Three.js's `PlaneGeometry`).
+/// A flat rectangle in the `xy` plane, facing `+z`.
 pub struct PlaneGeometry;
 
 // `new` gives the shared geometry, like `new THREE.PlaneGeometry(...)`, not a `PlaneGeometry`.
@@ -289,7 +289,7 @@ impl PlaneGeometry {
     }
 }
 
-/// A sphere (Three.js's `SphereGeometry`).
+/// A sphere.
 pub struct SphereGeometry;
 
 // `new` gives the shared geometry, like `new THREE.SphereGeometry(...)`, not a `SphereGeometry`.
@@ -314,7 +314,7 @@ impl SphereGeometry {
     }
 }
 
-/// A cylinder along `y`, possibly narrower at the top (Three.js's `CylinderGeometry`).
+/// A cylinder along `y`, possibly narrower at the top.
 pub struct CylinderGeometry;
 
 // `new` gives the shared geometry, like `new THREE.CylinderGeometry(...)`, not a `CylinderGeometry`.
@@ -379,7 +379,7 @@ impl CylinderGeometry {
     }
 }
 
-/// A cone along `y`, its point at the top (Three.js's `ConeGeometry`).
+/// A cone along `y`, its point at the top.
 pub struct ConeGeometry;
 
 // `new` gives the shared geometry, like `new THREE.ConeGeometry(...)`, not a `ConeGeometry`.
@@ -391,7 +391,7 @@ impl ConeGeometry {
     }
 }
 
-/// A ring (Three.js's `TorusGeometry`), in the `xy` plane.
+/// A ring, in the `xy` plane.
 pub struct TorusGeometry;
 
 // `new` gives the shared geometry, like `new THREE.TorusGeometry(...)`, not a `TorusGeometry`.
@@ -412,7 +412,7 @@ impl TorusGeometry {
             (p, (p - center).normalize())
         });
         with_collider(
-            b.build(), // Three.js's ring lies around z.
+            b.build(), // The ring lies around z.
             Collider::new(Shape::Torus {
                 major_radius: radius,
                 minor_radius: tube,

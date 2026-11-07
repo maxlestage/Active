@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::hash::Hash;
 
 use super::world::Resource;
-use crate::three::math::Vec2;
+use crate::scene::math::Vec2;
 
 /// Which buttons are down, and which went down or up this frame.
 #[derive(Clone, Debug)]
@@ -103,7 +103,7 @@ impl<T: Copy + Eq + Hash + 'static> ButtonInput<T> {
 
 macro_rules! key_codes {
     ($($name:ident),* $(,)?) => {
-        /// A key, by its place on the keyboard (the W3C `KeyboardEvent.code`, like Bevy):
+        /// A key, by its place on the keyboard (the W3C `KeyboardEvent.code`):
         /// `KeyCode::KeyW` is the key of W on a QWERTY keyboard, Z on an AZERTY one.
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
         #[allow(missing_docs)]

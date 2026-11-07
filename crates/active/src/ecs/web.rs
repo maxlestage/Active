@@ -11,9 +11,9 @@ use super::app::App;
 use super::input::{KeyCode, MouseButton, PendingInput};
 use super::pbr::RenderFrame;
 use super::window::{PrimaryWindow, Window};
-use crate::three::math::Vec2;
-use crate::three::renderer::Listeners;
-use crate::three::{AnimationLoop, WebGLRenderer, animation_loop};
+use crate::scene::math::Vec2;
+use crate::scene::renderer::Listeners;
+use crate::scene::{AnimationLoop, Renderer, animation_loop};
 
 /// An app running in a canvas: it stops, and lets the canvas go, when dropped.
 #[must_use = "the app stops when this handle is dropped"]
@@ -49,7 +49,7 @@ impl App {
     /// })
     /// ```
     pub fn run_in(mut self, canvas: &crate::event::Dom) -> Result<Running, String> {
-        let mut renderer = WebGLRenderer::new(canvas)?;
+        let mut renderer = Renderer::new(canvas)?;
         let window = web_sys::window().ok_or("no window")?;
         renderer.set_pixel_ratio(window.device_pixel_ratio().min(2.0));
         let canvas: web_sys::HtmlElement = canvas

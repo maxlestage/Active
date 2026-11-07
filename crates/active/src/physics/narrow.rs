@@ -5,7 +5,7 @@
 //! convex shapes overlap, and EPA, which finds how deep and in which direction.
 
 use super::shape::{Placed, Shape};
-use crate::three::math::{Quat, Vec3};
+use crate::scene::math::{Quat, Vec3};
 
 /// Contacts are kept until the shapes are this far apart (meters): a body resting on
 /// another keeps its contact instead of losing and finding it again each step. Moving

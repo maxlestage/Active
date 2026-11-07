@@ -1,4 +1,4 @@
-//! Physics for the entities, the way Avian and Rapier write it for Bevy: every entity with
+//! Physics for the entities: every entity with
 //! a mesh (or a `Collider`) gets a body, with the mass of its volume, pulled by gravity,
 //! pushed by its forces and colliding with the others.
 
@@ -13,7 +13,7 @@ use super::time::Time;
 use super::transform::{ChildOf, GlobalTransform, Transform};
 use super::world::{Component, Entity, Resource, World};
 use crate::physics::{Attraction, Body, BodyId, BodyKind, Collider, CollisionEvent, PhysicsWorld};
-use crate::three::math::{Mat4, Quat, Vec3};
+use crate::scene::math::{Mat4, Quat, Vec3};
 
 /// How an entity moves. Without it: a mesh with a volume is `Dynamic`, a flat one
 /// (`Plane3d`, `Circle`, `Rectangle`) is `Static` (ground), and a child of another entity is
@@ -364,7 +364,7 @@ fn find(world: &World) -> Vec<Found> {
                 };
                 match asset.collider() {
                     Some(c) => (*c, asset.is_flat()),
-                    None => (crate::three::physics::bounding_box(asset.geometry()), false),
+                    None => (crate::scene::physics::bounding_box(asset.geometry()), false),
                 }
             }
             (None, None) => continue,
@@ -479,7 +479,7 @@ pub fn step_physics(world: &mut World) {
             tracked.chosen_mass = true;
         }
         if tracked.collider != f.collider
-            || !crate::three::physics::same_scale(tracked.scale, f.scale)
+            || !crate::scene::physics::same_scale(tracked.scale, f.scale)
         {
             // Same density, new volume: the mass follows.
             body.set_collider(f.collider.scaled(f.scale));
@@ -524,7 +524,7 @@ pub fn step_physics(world: &mut World) {
                     let target = f.pose.0 + f.pose.1 * body.collider().center_of_mass();
                     body.linear_velocity = (target - body.center_of_mass()) / dt;
                     body.angular_velocity =
-                        crate::three::physics::turn_rate(body.rotation, f.pose.1, dt);
+                        crate::scene::physics::turn_rate(body.rotation, f.pose.1, dt);
                 } else {
                     body.linear_velocity = Vec3::ZERO;
                     body.angular_velocity = Vec3::ZERO;

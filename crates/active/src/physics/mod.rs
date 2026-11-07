@@ -1,15 +1,15 @@
 //! Rigid-body physics in 3D: bodies with a mass, forces and torques, gravity, collisions
-//! between every shape of [`three`](crate::three) and [`ecs`](crate::ecs) (balls, boxes,
+//! between every shape of [`three`](crate::scene) and [`ecs`](crate::ecs) (balls, boxes,
 //! cylinders, cones, capsules, rings), friction and bounce, and bodies that attract each
 //! other.
 //!
 //! [`ecs`](crate::ecs) gives every mesh a body (its `PhysicsPlugin` is in `DefaultPlugins`),
-//! [`three::Physics`](crate::three::Physics) does the same for a Three.js-style scene, and
+//! [`scene::Physics`](crate::scene::Physics) does the same for a scene, and
 //! [`PhysicsWorld`] can be used directly:
 //!
 //! ```
 //! use active::physics::*;
-//! use active::three::math::Vec3;
+//! use active::scene::math::Vec3;
 //!
 //! let mut world = PhysicsWorld::new();
 //! world.add(Body::fixed(Collider::cuboid(20.0, 1.0, 20.0)).at(Vec3::new(0.0, -0.5, 0.0)));
@@ -59,7 +59,7 @@ use std::collections::{BTreeMap, HashSet};
 pub use gravity::Attraction;
 pub use shape::{Collider, Shape};
 
-use crate::three::math::{Quat, Vec3};
+use crate::scene::math::{Quat, Vec3};
 use narrow::{ContactPoint, Contacts};
 use shape::Placed;
 

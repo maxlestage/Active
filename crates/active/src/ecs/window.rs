@@ -2,7 +2,7 @@
 
 use super::app::{App, Plugin};
 use super::world::Component;
-use crate::three::math::Vec2;
+use crate::scene::math::Vec2;
 
 /// The canvas the app draws in, on an entity with [`PrimaryWindow`]:
 /// `window: Single<&Window>`, then `window.width()`.

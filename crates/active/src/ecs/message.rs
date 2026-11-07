@@ -10,8 +10,8 @@ use std::ops::Deref;
 use super::system::{SystemMeta, SystemParam, SystemParamItem};
 use super::world::{Resource, World};
 
-/// A value systems write and others read, buffered for two frames (Bevy's
-/// `#[derive(Message)]`): `impl Message for Collision {}`. Register it with
+/// A value systems write and others read, buffered for two frames:
+/// `impl Message for Collision {}`. Register it with
 /// `app.add_message::<Collision>()`.
 pub trait Message: 'static {}
 
@@ -173,8 +173,8 @@ impl<M: Message> SystemParam for MessageReader<'_, '_, M> {
 
 // ----- Events and observers -------------------------------------------------------------
 
-/// Something that happens and is handled at once by its observers (Bevy's
-/// `#[derive(Event)]`): `impl Event for Explosion {}`, then `commands.trigger(Explosion
+/// Something that happens and is handled at once by its observers:
+/// `impl Event for Explosion {}`, then `commands.trigger(Explosion
 /// { .. })` and `app.add_observer(|explosion: On<Explosion>| ..)`.
 pub trait Event: 'static {}
 

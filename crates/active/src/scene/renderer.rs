@@ -1,10 +1,10 @@
-//! The browser side: [`WebGLRenderer`] draws a [`Frame`] with WebGL 2, [`animation_loop`]
+//! The browser side: [`Renderer`] draws a [`Frame`] with WebGL 2, [`animation_loop`]
 //! calls a closure before each repaint, and the pointer listeners of
 //! [`OrbitControls`](super::OrbitControls).
 //!
 //! One shader program draws every material: the kind is a uniform, the lights are arrays
 //! (4 directional and 8 point lights at most, the others are ignored), and the lighting
-//! follows Three.js's physically based model (Lambert diffuse, GGX specular, the same light
+//! follows a physically based model (Lambert diffuse, GGX specular, the same light
 //! falloff), then the tone mapping and the sRGB output.
 
 use std::cell::{Cell, RefCell};
@@ -243,21 +243,21 @@ struct GpuGeometry {
     used: u64,
 }
 
-/// Draws scenes in a `<canvas>` with WebGL 2 (`new THREE.WebGLRenderer({ canvas })`).
+/// Draws scenes in a `<canvas>` with WebGL 2 (`new THREE.Renderer({ canvas })`).
 ///
 /// Without [`set_size`](Self::set_size), the drawing follows the size the page gives the
 /// canvas (its CSS size × the pixel ratio), checked at each render. Without a background
 /// the canvas is transparent, and the page shows through.
 ///
 /// ```ignore
-/// let mut renderer = WebGLRenderer::new(&canvas)?;
+/// let mut renderer = Renderer::new(&canvas)?;
 /// renderer.set_pixel_ratio(web_sys::window().unwrap().device_pixel_ratio());
 /// let looping = animation_loop(move |_time| {
 ///     scene[cube].rotation.y += 0.01;
 ///     renderer.render(&scene, &camera);
 /// });
 /// ```
-pub struct WebGLRenderer {
+pub struct Renderer {
     canvas: HtmlCanvasElement,
     gl: Gl,
     program: Option<WebGlProgram>,
@@ -269,21 +269,20 @@ pub struct WebGLRenderer {
     size: Option<(f64, f64)>,
     clear_color: Color,
     clear_alpha: f32,
-    /// How colors brighter than white are brought into range (Three.js's
-    /// `renderer.toneMapping`).
+    /// How colors brighter than white are brought into range.
     pub tone_mapping: ToneMapping,
     /// The exposure, used with a tone mapping (`renderer.toneMappingExposure`).
     pub tone_mapping_exposure: f32,
 }
 
-impl WebGLRenderer {
+impl Renderer {
     /// A renderer drawing in `canvas` (the element given to `on_mount` or `use_action`).
     /// Fails when it is not a canvas, or when the browser has no WebGL 2.
-    pub fn new(canvas: &crate::event::Dom) -> Result<WebGLRenderer, String> {
+    pub fn new(canvas: &crate::event::Dom) -> Result<Renderer, String> {
         let canvas: HtmlCanvasElement = canvas
             .clone()
             .dyn_into()
-            .map_err(|_| "WebGLRenderer::new needs a <canvas> element".to_owned())?;
+            .map_err(|_| "Renderer::new needs a <canvas> element".to_owned())?;
         let options = js_sys::Object::new();
         for (key, value) in [
             ("antialias", true),
@@ -304,7 +303,7 @@ impl WebGLRenderer {
         };
         let program = link(&gl)?;
         let u = Uniforms::new(&gl, &program);
-        Ok(WebGLRenderer {
+        Ok(Renderer {
             canvas,
             gl,
             program: Some(program),
@@ -604,7 +603,7 @@ impl WebGLRenderer {
     }
 }
 
-impl Drop for WebGLRenderer {
+impl Drop for Renderer {
     fn drop(&mut self) {
         for (_, g) in self.geometries.drain() {
             delete(&self.gl, g);
@@ -757,7 +756,7 @@ fn delete(gl: &Gl, g: GpuGeometry) {
 }
 
 /// The page's `window.devicePixelRatio` (1 when unknown): pass it to
-/// [`WebGLRenderer::set_pixel_ratio`] for sharp images on high-density screens.
+/// [`Renderer::set_pixel_ratio`] for sharp images on high-density screens.
 pub fn device_pixel_ratio() -> f64 {
     web_sys::window().map_or(1.0, |w| w.device_pixel_ratio())
 }

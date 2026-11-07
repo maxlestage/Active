@@ -1,11 +1,11 @@
-//! Physics for a scene, the way Three.js apps use cannon-es or Rapier: every mesh gets a
-//! body with a mass, and the scene follows the bodies.
+//! Physics for a scene: every mesh gets a body with a mass, and the scene follows the
+//! bodies.
 
 use std::collections::{HashMap, HashSet};
 
 use super::camera::euler_from_matrix;
+use super::graph::{ObjectId, ObjectKind, Scene};
 use super::math::{Matrix4, Quaternion, Vector3};
-use super::scene::{ObjectId, ObjectKind, Scene};
 use crate::physics::{Body, BodyId, BodyKind, Collider, PhysicsWorld, Shape};
 
 struct Tracked {
@@ -26,7 +26,7 @@ struct Tracked {
 /// follow their parent and push what they meet.
 ///
 /// ```
-/// use active::three::*;
+/// use active::scene::*;
 ///
 /// let mut scene = Scene::new();
 /// let floor = scene.add(Mesh::new(PlaneGeometry::new(20.0, 20.0), MeshStandardMaterial::new()));
@@ -259,7 +259,7 @@ pub(crate) fn bounding_box(geometry: &super::BufferGeometry) -> Collider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::three::{
+    use crate::scene::{
         BoxGeometry, Group, Mesh, MeshStandardMaterial, PlaneGeometry, SphereGeometry,
     };
 

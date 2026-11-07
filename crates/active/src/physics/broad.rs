@@ -3,7 +3,7 @@
 //! of different sizes).
 
 use super::shape::Aabb;
-use crate::three::math::Vec3;
+use crate::scene::math::Vec3;
 
 /// A body covering more cells than this is tested against every other one instead (a
 /// floor, a wall).

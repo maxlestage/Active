@@ -1,8 +1,8 @@
-//! 3D in the browser, the way Three.js does it (its API as of r187), written in Rust for
-//! Active: a scene of meshes, lights and a camera, drawn with WebGL 2.
+//! Active's 3D: a scene of meshes, lights and a camera, drawn in the browser with
+//! WebGL 2, from the same Rust code as the pages around it.
 //!
 //! ```
-//! use active::three::*;
+//! use active::scene::*;
 //!
 //! let mut scene = Scene::new();
 //! let cube = scene.add(Mesh::new(
@@ -25,11 +25,11 @@
 mod camera;
 mod controls;
 pub(crate) mod geometry;
+mod graph;
 mod light;
 mod material;
 pub mod math;
 pub(crate) mod physics;
-mod scene;
 
 #[cfg(feature = "client")]
 pub(crate) mod renderer;
@@ -40,6 +40,10 @@ pub use geometry::{
     BoxGeometry, BufferGeometry, ConeGeometry, CylinderGeometry, Geometry, PlaneGeometry,
     SphereGeometry, TorusGeometry,
 };
+pub use graph::{
+    Draw, Frame, Group, Lights, Mesh, Object3D, ObjectId, ObjectKind, PointLightData, Scene,
+    ToneMapping,
+};
 pub use light::{AmbientLight, DirectionalLight, HemisphereLight, Light, PointLight};
 pub use material::{
     Material, MeshBasicMaterial, MeshLambertMaterial, MeshNormalMaterial, MeshStandardMaterial,
@@ -47,10 +51,6 @@ pub use material::{
 };
 pub use math::{Color, Euler, EulerOrder, Matrix4, Quaternion, Vector2, Vector3};
 pub use physics::Physics;
-pub use scene::{
-    Draw, Frame, Group, Lights, Mesh, Object3D, ObjectId, ObjectKind, PointLightData, Scene,
-    ToneMapping,
-};
 
 #[cfg(feature = "client")]
-pub use renderer::{AnimationLoop, WebGLRenderer, animation_loop, device_pixel_ratio};
+pub use renderer::{AnimationLoop, Renderer, animation_loop, device_pixel_ratio};

@@ -677,9 +677,8 @@ impl ScheduleConfigs {
 
 /// What `add_systems` takes: a system, a tuple of them, with `.chain()` and `.run_if(..)`.
 ///
-/// The systems of a schedule run one after the other, in the order they were added (Bevy
-/// runs them in parallel, ordered by `.chain()`, `.before()` and `.after()`): `.chain()` is
-/// always kept.
+/// The systems of a schedule run one after the other, in the order they were added, so that
+/// a frame always gives the same result: `.chain()` is always kept.
 pub trait IntoScheduleConfigs<Marker>: Sized {
     /// The configs.
     fn into_configs(self) -> ScheduleConfigs;

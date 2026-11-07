@@ -702,14 +702,34 @@ fn home(ctx: &Ctx<'_>) -> Node {
             ))
             .into(),
         section()
-            .id("three")
-            .class("section three")
+            .id("scene")
+            .class("section scene3d")
             .child(section_head(
                 "04 — 3D".into(),
-                h.three_title,
-                Some(h.three_text),
+                h.scene_title,
+                Some(h.scene_text),
             ))
             .child(island("scene", lang.code(), crate::islands::scene))
+            .child(
+                div()
+                    .class("cards cards--three")
+                    .children(h.engines.iter().enumerate().map(|(i, f)| {
+                        article()
+                            .class("card")
+                            .attr("data-reveal", "")
+                            .attr("data-spot", "")
+                            .style(format!("--d:{}ms", i * 90))
+                            .child(span().class("num").text(format!("0{}", i + 1)))
+                            .child(
+                                h3().child(
+                                    code().text(f.title.split(',').next().unwrap_or(f.title)),
+                                )
+                                .text(f.title.split_once(',').map_or("", |(_, rest)| rest)),
+                            )
+                            .child(p().text(f.text))
+                            .child(span().class("rule"))
+                    })),
+            )
             .into(),
         section()
             .id("benchmarks")
