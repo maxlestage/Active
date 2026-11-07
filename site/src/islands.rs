@@ -55,7 +55,7 @@ pub fn dust(props: &str) -> Node {
     ])
 }
 
-/// The 3D demo: a Bevy-style app (`active::ecs`) drawing in a canvas. The server renders
+/// The 3D demo: a game of `active::ecs` drawing in a canvas. The server renders
 /// the canvas and its caption; the browser starts the app, stopped when the island goes.
 pub fn scene(props: &str) -> Node {
     let l = labels(lang(props));

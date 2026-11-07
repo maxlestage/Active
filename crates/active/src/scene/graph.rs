@@ -1,5 +1,5 @@
-//! The scene graph: objects placed relative to their parent (Three.js's `Object3D`,
-//! `Scene`, `Mesh` and `Group`), and the frame that a renderer draws from it.
+//! The scene graph: objects placed relative to their parent (`Object3D`, `Scene`,
+//! `Mesh` and `Group`), and the frame that a renderer draws from it.
 
 use std::ops::{Index, IndexMut};
 
@@ -9,7 +9,7 @@ use super::light::Light;
 use super::material::Material;
 use super::math::{Color, Euler, Matrix4, Quaternion, Vector3};
 
-/// A geometry drawn with a material (Three.js's `Mesh`).
+/// A geometry drawn with a material.
 #[derive(Clone, Debug)]
 pub struct Mesh {
     /// Its vertices and triangles.
@@ -28,7 +28,7 @@ impl Mesh {
     }
 }
 
-/// An empty object that only groups others (Three.js's `Group`).
+/// An empty object that only groups others.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Group;
 
@@ -72,7 +72,7 @@ impl From<Light> for ObjectKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ObjectId(usize);
 
-/// An object of the scene, placed relative to its parent (Three.js's `Object3D`).
+/// An object of the scene, placed relative to its parent.
 #[derive(Clone, Debug)]
 pub struct Object3D {
     /// A name, for [`Scene::get_object_by_name`].
@@ -117,12 +117,12 @@ impl Object3D {
         )
     }
 
-    /// Turns its `-z` axis (for a light or a camera; `+z` for Three.js meshes, which face
+    /// Turns its `-z` axis (for a light or a camera; `+z` for meshes, which face
     /// their target with their front) towards a point of its parent's space.
     pub fn look_at(&mut self, target: impl Into<Vector3>) {
         let target = target.into();
         self.rotation = match self.kind {
-            // Comme Three.js : les objets autres que caméras et lumières regardent avec +z.
+            // Les objets autres que caméras et lumières regardent avec +z.
             ObjectKind::Mesh(_) | ObjectKind::Group => {
                 euler_looking(target, self.position, self.up)
             }
@@ -157,7 +157,7 @@ impl Object3D {
     }
 }
 
-/// A world of objects (Three.js's `Scene`): `let cube = scene.add(mesh);` then
+/// A world of objects: `let cube = scene.add(mesh);` then
 /// `scene[cube].rotation.y += 0.01`.
 #[derive(Clone, Debug, Default)]
 pub struct Scene {
@@ -447,8 +447,8 @@ pub struct Frame<'a> {
     pub lights: Lights,
     /// The meshes.
     pub meshes: Vec<Draw<'a>>,
-    /// A factor applied to the light before tone mapping (1 for Three.js scenes; Bevy's
-    /// physical units need a camera exposure).
+    /// A factor applied to the light before tone mapping (1 for a scene; the game
+    /// engine's physical units need a camera exposure).
     pub exposure: f32,
     /// How bright colors are brought into the screen's range.
     pub tone_mapping: ToneMapping,
@@ -473,17 +473,17 @@ impl Frame<'_> {
 /// How colors brighter than white are brought into the screen's range.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ToneMapping {
-    /// Clamped (Three.js's default, `NoToneMapping`).
+    /// Clamped (the default).
     #[default]
     None,
-    /// The filmic curve of ACES (`ACESFilmicToneMapping`, close to Bevy's default look).
+    /// The filmic curve of ACES (the filmic look of games).
     AcesFilmic,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::three::{
+    use crate::scene::{
         BoxGeometry, DirectionalLight, MeshStandardMaterial, PerspectiveCamera, PointLight,
     };
 

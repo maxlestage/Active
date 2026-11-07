@@ -71,8 +71,10 @@ pub struct Home {
     pub tabs: [&'static str; 4],
     pub play_title: &'static str,
     pub play_text: &'static str,
-    pub three_title: &'static str,
-    pub three_text: &'static str,
+    pub scene_title: &'static str,
+    pub scene_text: &'static str,
+    /// The three engines of the 3D section, and what they bring.
+    pub engines: [Item; 3],
     pub play: Play,
     pub bench_title: &'static str,
     pub bench_text: &'static str,
@@ -237,8 +239,22 @@ static EN: Dict = Dict {
         tabs: ["Component", "SEO", "Island", "Server"],
         play_title: "Try it: *Rust writes your head.*",
         play_text: "The same active::Seo rendered this preview on the server; every keystroke now runs it again in your browser, compiled to WebAssembly.",
-        three_title: "3D in the page: *Three.js and Bevy, in Rust.*",
-        three_text: "active::three draws scenes with WebGL 2 the way Three.js does; active::ecs writes games the way Bevy does. This one is a Bevy app with physics: every shape has a mass, falls, bounces and pushes the others.",
+        scene_title: "3D in the page: *a game engine and physics, in Rust.*",
+        scene_text: "active::scene draws 3D scenes with WebGL 2, active::ecs runs games, active::physics gives every object a mass: one language from the server to the canvas, nothing to install, tested without a browser. This one is a game: every shape falls, bounces, rolls and pushes the others.",
+        engines: [
+            Item {
+                title: "active::scene, the 3D scene",
+                text: "Meshes, lights in physical units, cameras, physically based materials and orbit controls, drawn with WebGL 2 by one shader. The scene and what it would draw can be checked on the server.",
+            },
+            Item {
+                title: "active::ecs, the game engine",
+                text: "Entities, components and systems, plugins, schedules, states, messages, input and time. Systems run in the order they were added: a game gives the same result every time, and runs in cargo test.",
+            },
+            Item {
+                title: "active::physics, the physics",
+                text: "A mass from the volume, gravity, friction, rolling, bounces, stacks and sleep, checked against the formulas of mechanics. Nothing goes through a 2 cm wall, even at 120 m/s.",
+            },
+        ],
         play: Play {
             title: "Title",
             description: "Description",
@@ -453,8 +469,22 @@ static FR: Dict = Dict {
         tabs: ["Composant", "SEO", "Îlot", "Serveur"],
         play_title: "Essayez : *Rust écrit votre head.*",
         play_text: "Le même active::Seo a rendu cet aperçu sur le serveur ; chaque frappe le relance maintenant dans votre navigateur, compilé en WebAssembly.",
-        three_title: "De la 3D dans la page : *Three.js et Bevy, en Rust.*",
-        three_text: "active::three dessine des scènes avec WebGL 2 comme Three.js ; active::ecs écrit des jeux comme Bevy. Celui-ci est une app Bevy avec sa physique : chaque forme a une masse, tombe, rebondit et pousse les autres.",
+        scene_title: "De la 3D dans la page : *un moteur de jeu et sa physique, en Rust.*",
+        scene_text: "active::scene dessine des scènes 3D en WebGL 2, active::ecs fait tourner des jeux, active::physics donne une masse à chaque objet : un seul langage du serveur au canvas, rien à installer, testé sans navigateur. Celui-ci est un jeu : chaque forme tombe, rebondit, roule et pousse les autres.",
+        engines: [
+            Item {
+                title: "active::scene, la scène 3D",
+                text: "Maillages, lumières en unités physiques, caméras, matériaux physiquement réalistes et contrôles d'orbite, dessinés en WebGL 2 par un seul shader. La scène et ce qu'elle dessinerait se vérifient sur le serveur.",
+            },
+            Item {
+                title: "active::ecs, le moteur de jeu",
+                text: "Entités, composants et systèmes, plugins, horaires, états, messages, entrées et temps. Les systèmes s'exécutent dans l'ordre où ils ont été ajoutés : un jeu donne le même résultat à chaque fois, et tourne dans cargo test.",
+            },
+            Item {
+                title: "active::physics, la physique",
+                text: "Une masse tirée du volume, la gravité, le frottement, le roulement, les rebonds, les piles et le sommeil, vérifiés contre les formules de la mécanique. Rien ne traverse une paroi de 2 cm, même à 120 m/s.",
+            },
+        ],
         play: Play {
             title: "Titre",
             description: "Description",
@@ -669,8 +699,22 @@ static ES: Dict = Dict {
         tabs: ["Componente", "SEO", "Isla", "Servidor"],
         play_title: "Pruébalo: *Rust escribe tu head.*",
         play_text: "El mismo active::Seo renderizó esta vista previa en el servidor; cada tecla lo vuelve a ejecutar ahora en tu navegador, compilado a WebAssembly.",
-        three_title: "3D en la página: *Three.js y Bevy, en Rust.*",
-        three_text: "active::three dibuja escenas con WebGL 2 como Three.js; active::ecs escribe juegos como Bevy. Este es una app de Bevy con física: cada forma tiene una masa, cae, rebota y empuja a las demás.",
+        scene_title: "3D en la página: *un motor de juegos y su física, en Rust.*",
+        scene_text: "active::scene dibuja escenas 3D con WebGL 2, active::ecs ejecuta juegos, active::physics da una masa a cada objeto: un solo lenguaje del servidor al canvas, nada que instalar, probado sin navegador. Este es un juego: cada forma cae, rebota, rueda y empuja a las demás.",
+        engines: [
+            Item {
+                title: "active::scene, la escena 3D",
+                text: "Mallas, luces en unidades físicas, cámaras, materiales físicamente realistas y controles de órbita, dibujados con WebGL 2 por un solo shader. La escena y lo que dibujaría se comprueban en el servidor.",
+            },
+            Item {
+                title: "active::ecs, el motor de juegos",
+                text: "Entidades, componentes y sistemas, plugins, horarios, estados, mensajes, entrada y tiempo. Los sistemas se ejecutan en el orden en que se añadieron: un juego da el mismo resultado cada vez, y funciona en cargo test.",
+            },
+            Item {
+                title: "active::physics, la física",
+                text: "Una masa sacada del volumen, gravedad, rozamiento, rodadura, rebotes, pilas y sueño, comprobados con las fórmulas de la mecánica. Nada atraviesa una pared de 2 cm, ni siquiera a 120 m/s.",
+            },
+        ],
         play: Play {
             title: "Título",
             description: "Descripción",

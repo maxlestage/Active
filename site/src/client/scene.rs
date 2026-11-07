@@ -1,4 +1,4 @@
-//! The 3D demo of the home page, written like a Bevy game with `active::ecs`: shapes turn
+//! The 3D demo of the home page, a game written with `active::ecs`: shapes turn
 //! on a disc under two lights; clicking the disc drops a new one, which falls, bounces,
 //! rolls and piles up with the others (the physics of `DefaultPlugins`: every mesh has a
 //! mass); the turning shapes push them aside; dragging turns the camera.
@@ -182,7 +182,7 @@ fn spin(
 }
 
 /// Dragging turns the camera; a click without a drag drops a shape where it points.
-// A Bevy system asks for what it uses: many parameters are usual.
+// A system asks for what it uses: many parameters are usual.
 #[allow(clippy::too_many_arguments)]
 fn pointer(
     mut commands: Commands,

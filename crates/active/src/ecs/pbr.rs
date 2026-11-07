@@ -1,6 +1,6 @@
-//! 3D the way Bevy writes it: assets (`Assets<Mesh>`, `Assets<StandardMaterial>`), mesh
+//! The 3D of the game engine: assets (`Assets<Mesh>`, `Assets<StandardMaterial>`), mesh
 //! primitives, materials, lights in physical units, cameras with an exposure and a tone
-//! mapping, drawn by [`active::three`](crate::three)'s renderer.
+//! mapping, drawn by [`active::scene`](crate::scene)'s renderer.
 
 use std::collections::HashMap;
 use std::f32::consts::{FRAC_PI_4, PI, TAU};
@@ -14,12 +14,12 @@ use super::transform::{GlobalTransform, InheritedVisibility, Transform, Visibili
 use super::window::{PrimaryWindow, Window};
 use super::world::{Component, Entity, Resource, World, require};
 use crate::physics::{Collider, Shape};
-use crate::three::math::{Color as Linear, Mat4, Quat, Vec2, Vec3, linear_to_srgb, srgb_to_linear};
-use crate::three::{self, BufferGeometry, Geometry, Lights, PointLightData, ToneMapping};
+use crate::scene::math::{Color as Linear, Mat4, Quat, Vec2, Vec3, linear_to_srgb, srgb_to_linear};
+use crate::scene::{self, BufferGeometry, Geometry, Lights, PointLightData, ToneMapping};
 
 // ----- Colors ---------------------------------------------------------------------------
 
-/// A color with its opacity, as Bevy writes it: `Color::srgb(0.8, 0.7, 0.6)`,
+/// A color with its opacity: `Color::srgb(0.8, 0.7, 0.6)`,
 /// `Color::WHITE`, `Color::srgb_u8(124, 144, 255)`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Color {
@@ -433,7 +433,7 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    /// A mesh from a Three.js geometry.
+    /// A mesh from a geometry of [`active::scene`](crate::scene).
     pub fn from_geometry(geometry: Geometry) -> Mesh {
         Mesh { geometry }
     }
@@ -517,7 +517,7 @@ impl Default for Cuboid {
 impl From<Cuboid> for Mesh {
     fn from(c: Cuboid) -> Mesh {
         let s = c.half_size * 2.0;
-        Mesh::from(three::BoxGeometry::new(s.x, s.y, s.z))
+        Mesh::from(scene::BoxGeometry::new(s.x, s.y, s.z))
     }
 }
 
@@ -566,8 +566,8 @@ impl SphereMeshBuilder {
         self
     }
 
-    /// As finely as an icosphere subdivided this many times (Bevy's default mesh is
-    /// `ico(5)`; this one is made of meridians and parallels too).
+    /// As finely as an icosphere subdivided this many times (the default is `ico(5)`;
+    /// this one is made of meridians and parallels too).
     pub fn ico(self, subdivisions: u32) -> SphereMeshBuilder {
         let n = 5 * (subdivisions + 1).min(12);
         self.uv(n * 2, n)
@@ -575,7 +575,7 @@ impl SphereMeshBuilder {
 
     /// The mesh.
     pub fn build(&self) -> Mesh {
-        Mesh::from(three::SphereGeometry::new(
+        Mesh::from(scene::SphereGeometry::new(
             self.radius,
             self.sectors,
             self.stacks,
@@ -644,19 +644,19 @@ impl PlaneMeshBuilder {
     /// The mesh.
     pub fn build(&self) -> Mesh {
         let size = self.plane.half_size;
-        // Three.js's plane faces +z, with its height along y: turned so that y becomes -z
+        // The scene's plane faces +z, with its height along y: turned so that y becomes -z
         // and it faces the normal.
-        let flat = three::PlaneGeometry::new(size.x * 2.0, size.y * 2.0);
+        let flat = scene::PlaneGeometry::new(size.x * 2.0, size.y * 2.0);
         let up = Quat::from_rotation_x(-PI / 2.0);
         let facing = Quat::from_unit_vectors(Vec3::Y, self.plane.normal);
         let turn = facing * up;
-        let t = three::geometry::slab(size.x.max(size.y) * 2.0);
+        let t = scene::geometry::slab(size.x.max(size.y) * 2.0);
         let collider = Collider::new(Shape::Cuboid {
             half_extents: Vec3::new(size.x, t, size.y),
         })
         .with_rotation(facing)
         .with_offset(facing * Vec3::new(0.0, -t, 0.0));
-        Mesh::from(three::geometry::with_collider(
+        Mesh::from(scene::geometry::with_collider(
             rotated(&flat, turn),
             collider,
             true,
@@ -694,7 +694,7 @@ impl Rectangle {
 
 impl From<Rectangle> for Mesh {
     fn from(r: Rectangle) -> Mesh {
-        Mesh::from(three::PlaneGeometry::new(
+        Mesh::from(scene::PlaneGeometry::new(
             r.half_size.x * 2.0,
             r.half_size.y * 2.0,
         ))
@@ -730,7 +730,7 @@ impl From<Circle> for Mesh {
             .flat_map(|i| [0, 1 + i, 1 + (i + 1) % SEGMENTS])
             .collect();
         // A slab under the disc, along its axis (z), so that it can be a floor.
-        let t = three::geometry::slab(c.radius * 2.0);
+        let t = scene::geometry::slab(c.radius * 2.0);
         let collider = Collider::new(Shape::Cylinder {
             radius: c.radius,
             half_height: t,
@@ -738,7 +738,7 @@ impl From<Circle> for Mesh {
         .with_rotation(Quat::from_rotation_x(PI / 2.0))
         .with_offset(Vec3::new(0.0, 0.0, -t));
         let disc = BufferGeometry::new(positions, normals, uvs, indices);
-        Mesh::from(three::geometry::with_collider(disc, collider, true))
+        Mesh::from(scene::geometry::with_collider(disc, collider, true))
     }
 }
 
@@ -763,7 +763,7 @@ impl Cylinder {
 
 impl From<Cylinder> for Mesh {
     fn from(c: Cylinder) -> Mesh {
-        Mesh::from(three::CylinderGeometry::new(
+        Mesh::from(scene::CylinderGeometry::new(
             c.radius,
             c.radius,
             c.half_height * 2.0,
@@ -790,7 +790,7 @@ impl Cone {
 
 impl From<Cone> for Mesh {
     fn from(c: Cone) -> Mesh {
-        Mesh::from(three::ConeGeometry::new(c.radius, c.height, 32))
+        Mesh::from(scene::ConeGeometry::new(c.radius, c.height, 32))
     }
 }
 
@@ -815,13 +815,14 @@ impl Torus {
 
 impl From<Torus> for Mesh {
     fn from(t: Torus) -> Mesh {
-        // Three.js's torus lies around z: turned to lie around y, like Bevy's.
-        let ring = three::TorusGeometry::new(t.major_radius, t.minor_radius, 24, 48);
+        // The scene's torus lies around z: turned to lie around y, like the other round
+        // shapes.
+        let ring = scene::TorusGeometry::new(t.major_radius, t.minor_radius, 24, 48);
         let collider = Collider::new(Shape::Torus {
             major_radius: t.major_radius,
             minor_radius: t.minor_radius,
         });
-        Mesh::from(three::geometry::with_collider(
+        Mesh::from(scene::geometry::with_collider(
             rotated(&ring, Quat::from_rotation_x(PI / 2.0)),
             collider,
             false,
@@ -869,7 +870,7 @@ pub enum Face {
     Back,
 }
 
-/// The physically based material of Bevy: `materials.add(Color::srgb(0.3, 0.5, 0.3))`, or
+/// The physically based material: `materials.add(Color::srgb(0.3, 0.5, 0.3))`, or
 /// with its fields: `StandardMaterial { base_color: .., metallic: 1.0, ..default() }`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StandardMaterial {
@@ -925,15 +926,15 @@ impl From<Color> for StandardMaterial {
 }
 
 impl StandardMaterial {
-    /// The Three.js material that draws it.
-    pub fn to_three(&self) -> three::Material {
+    /// The scene material that draws it.
+    pub fn to_scene_material(&self) -> scene::Material {
         let transparent = !matches!(self.alpha_mode, AlphaMode::Opaque | AlphaMode::Mask(_));
         let side = match (self.double_sided, self.cull_mode) {
-            (true, _) | (_, None) => three::Side::Double,
-            (false, Some(Face::Front)) => three::Side::Back,
-            (false, Some(Face::Back)) => three::Side::Front,
+            (true, _) | (_, None) => scene::Side::Double,
+            (false, Some(Face::Front)) => scene::Side::Back,
+            (false, Some(Face::Back)) => scene::Side::Front,
         };
-        let surface = three::Surface {
+        let surface = scene::Surface {
             color: self.base_color.into(),
             opacity: self.base_color.alpha.clamp(0.0, 1.0),
             transparent,
@@ -941,14 +942,14 @@ impl StandardMaterial {
             wireframe: false,
         };
         if self.unlit {
-            three::Material::Basic(three::MeshBasicMaterial { surface })
+            scene::Material::Basic(scene::MeshBasicMaterial { surface })
         } else {
-            let mut standard = three::MeshStandardMaterial::new()
+            let mut standard = scene::MeshStandardMaterial::new()
                 .roughness(self.perceptual_roughness)
                 .metalness(self.metallic)
                 .emissive(self.emissive.linear());
             standard.surface = surface;
-            three::Material::Standard(standard)
+            scene::Material::Standard(standard)
         }
     }
 }
@@ -972,7 +973,7 @@ impl<M: 'static> Component for MeshMaterial3d<M> {}
 
 // ----- Lights ---------------------------------------------------------------------------
 
-/// The units of light, as Bevy names them.
+/// The units of light.
 pub mod light_consts {
     /// Illuminance (for `DirectionalLight`), in lux.
     pub mod lux {
@@ -1325,7 +1326,7 @@ impl InfinitePlane3d {
 /// .looking_at(Vec3::ZERO, Vec3::Y)))`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Camera3d {
-    // Like Bevy's, made with `Camera3d::default()`.
+    // Made with `Camera3d::default()`.
     _private: (),
 }
 
@@ -1553,10 +1554,10 @@ impl Plugin for PbrPlugin {
 // ----- What the renderer draws ----------------------------------------------------------
 
 /// What the camera sees, made from the world, for the renderer: `frame()` gives the
-/// Three.js [`Frame`](three::Frame).
+/// scene's [`Frame`](scene::Frame).
 #[derive(Clone, Debug)]
 pub struct RenderFrame {
-    meshes: Vec<(Geometry, three::Material, Mat4)>,
+    meshes: Vec<(Geometry, scene::Material, Mat4)>,
     camera: Mat4,
     projection: Mat4,
     background: Option<Linear>,
@@ -1599,7 +1600,7 @@ impl RenderFrame {
         let (camera_matrix, projection) = (transform.to_matrix(), projection.matrix(viewport));
         drop((camera, transform));
 
-        // Bevy's ambient light is not divided by π like the others: the shader does.
+        // The ambient light is not divided by π like the others: the shader does.
         let mut lights = Lights {
             ambient: Linear::from(ambient.0).scale(ambient.1 * PI),
             ..Lights::default()
@@ -1645,7 +1646,11 @@ impl RenderFrame {
                 continue;
             }
             if let (Some(mesh), Some(material)) = (assets.get(mesh.0), materials.get(material.0)) {
-                meshes.push((mesh.geometry.clone(), material.to_three(), at.to_matrix()));
+                meshes.push((
+                    mesh.geometry.clone(),
+                    material.to_scene_material(),
+                    at.to_matrix(),
+                ));
             }
         }
         Some(RenderFrame {
@@ -1660,8 +1665,8 @@ impl RenderFrame {
     }
 
     /// The frame to draw.
-    pub fn frame(&self) -> three::Frame<'_> {
-        let mut frame = three::Frame::new(self.camera, self.projection);
+    pub fn frame(&self) -> scene::Frame<'_> {
+        let mut frame = scene::Frame::new(self.camera, self.projection);
         frame.background = self.background;
         frame.lights = self.lights.clone();
         frame.exposure = self.exposure;
@@ -1669,7 +1674,7 @@ impl RenderFrame {
         frame.meshes = self
             .meshes
             .iter()
-            .map(|(geometry, material, world)| three::Draw {
+            .map(|(geometry, material, world)| scene::Draw {
                 geometry,
                 material,
                 world: *world,

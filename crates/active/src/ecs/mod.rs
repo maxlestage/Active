@@ -1,6 +1,5 @@
-//! Games and simulations the way Bevy writes them (its API as of 0.20), written for
-//! Active: an entity component system, an `App` with plugins and schedules, and 3D drawn
-//! by [`active::three`](crate::three) in a canvas.
+//! Active's game engine: an entity component system, an `App` with plugins and schedules, and 3D drawn
+//! by [`active::scene`](crate::scene) in a canvas.
 //!
 //! ```
 //! use active::ecs::prelude::*;
@@ -37,11 +36,11 @@
 //! assert_eq!(frame.mesh_count(), 1);
 //! ```
 //!
-//! What differs from Bevy: components, resources, messages, events and states are declared
-//! with `impl Component for T {}` (or the [`component!`](crate::component) macro) rather
-//! than derived; the systems of a schedule run one after the other, in the order they were
-//! added; shadows, textures, spot lights and the 2D renderer are not there. Everything but
-//! drawing works on the server and in tests too.
+//! Components, resources, messages, events and states are declared with
+//! `impl Component for T {}` (or the [`component!`](crate::component) macro); the systems
+//! of a schedule run one after the other, in the order they were added, so a game behaves
+//! the same every time. Shadows, textures, spot lights and 2D are not there yet.
+//! Everything but drawing works on the server and in tests too.
 
 // The lifetimes of `SystemParam::get_param` are written out, like the trait's.
 #![allow(clippy::needless_lifetimes)]
@@ -142,7 +141,7 @@ pub fn default<T: Default>() -> T {
 /// Everything at once: `use active::ecs::prelude::*;`.
 pub mod prelude {
     pub use super::*;
-    pub use crate::three::math::{Mat4, Quat, Vec2, Vec3};
+    pub use crate::scene::math::{Mat4, Quat, Vec2, Vec3};
 }
 
 #[cfg(test)]

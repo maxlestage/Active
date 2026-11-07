@@ -1,6 +1,6 @@
 //! The ECS, system by system.
 
-// Written like Bevy code: `Query<&T>`, not `Query<'_, '_, &T>`.
+// Written as games are: `Query<&T>`, not `Query<'_, '_, &T>`.
 #![allow(elided_lifetimes_in_paths)]
 
 use std::cell::Cell;
@@ -621,7 +621,7 @@ fn the_frame_has_the_meshes_lights_and_camera_in_physical_units() {
     // The sun shines down: the direction towards it is up.
     assert!((frame.lights.directional[0].0 - Vec3::Y).length() < 1e-5);
     assert!((frame.exposure - 1.0 / (2f32.powf(9.7) * 1.2)).abs() < 1e-9);
-    assert_eq!(frame.tone_mapping, crate::three::ToneMapping::AcesFilmic);
+    assert_eq!(frame.tone_mapping, crate::scene::ToneMapping::AcesFilmic);
     assert!(frame.background.is_some());
 }
 
@@ -659,7 +659,7 @@ fn the_pointer_casts_a_ray_from_the_camera() {
 }
 
 #[test]
-fn colors_convert_like_bevy() {
+fn colors_convert_between_srgb_and_linear() {
     let c = Color::srgb_u8(255, 128, 0);
     let linear = c.to_linear();
     assert!((linear.green - 0.2158605).abs() < 1e-4, "{linear:?}");

@@ -1,4 +1,4 @@
-//! Materials: how a surface answers the light (Three.js's `MeshBasicMaterial`,
+//! Materials: how a surface answers the light (`MeshBasicMaterial`,
 //! `MeshLambertMaterial`, `MeshStandardMaterial` and `MeshNormalMaterial`).
 
 use super::math::Color;
@@ -170,7 +170,7 @@ impl MeshLambertMaterial {
 surface_builders!(MeshLambertMaterial, Lambert);
 
 /// Physically based: a surface between plastic and metal, between mirror and rough
-/// (Three.js's standard material, Bevy's `StandardMaterial`).
+/// (the same model as the game engine's `StandardMaterial`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct MeshStandardMaterial {
     /// Color, opacity, sides.
@@ -198,7 +198,7 @@ impl Default for MeshStandardMaterial {
 }
 
 impl MeshStandardMaterial {
-    /// A white, rough, dielectric material (Three.js's defaults).
+    /// A white, rough, dielectric material (the usual defaults).
     pub fn new() -> Self {
         Self::default()
     }

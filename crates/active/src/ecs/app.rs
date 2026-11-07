@@ -563,7 +563,7 @@ impl PluginGroupBuilder {
     }
 
     /// Adds a plugin at the end.
-    #[allow(clippy::should_implement_trait)] // Bevy's name
+    #[allow(clippy::should_implement_trait)] // the usual name
     pub fn add<P: Plugin>(mut self, plugin: P) -> PluginGroupBuilder {
         self.plugins.push((TypeId::of::<P>(), Box::new(plugin)));
         self

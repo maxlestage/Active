@@ -19,10 +19,10 @@ pub mod pwa;
 mod reactive;
 mod resource;
 mod router;
+pub mod scene;
 mod seo;
 pub mod ssr;
 mod store;
-pub mod three;
 mod view;
 
 #[cfg(feature = "client")]

@@ -1,6 +1,6 @@
 //! Shapes: what collides, and where the mass is.
 
-use crate::three::math::{Quat, Vec3};
+use crate::scene::math::{Quat, Vec3};
 
 /// A convex shape around its own origin. Round shapes stand along `y`.
 #[derive(Clone, Copy, Debug, PartialEq)]

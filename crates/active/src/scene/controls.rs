@@ -1,5 +1,5 @@
 //! `OrbitControls`: turn around a point with the mouse or a finger, zoom with the wheel or
-//! two fingers, slide with the right button (Three.js's `examples/jsm/controls`).
+//! two fingers, slide with the right button.
 
 use std::cell::RefCell;
 use std::f32::consts::{PI, TAU};
@@ -83,7 +83,7 @@ pub(crate) struct Input {
 /// [`update`](Self::update) each frame, before drawing.
 ///
 /// ```
-/// use active::three::{OrbitControls, PerspectiveCamera, Vector3};
+/// use active::scene::{OrbitControls, PerspectiveCamera, Vector3};
 ///
 /// let mut camera = PerspectiveCamera::new(50.0, 0.0, 0.1, 100.0);
 /// camera.position = Vector3::new(0.0, 0.0, 5.0);

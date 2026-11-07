@@ -3,7 +3,7 @@
 //! cost from O(n²) to O(n log n) (the 2D simulation this engine learned from used a
 //! quadtree).
 
-use crate::three::math::Vec3;
+use crate::scene::math::Vec3;
 
 /// Mutual attraction between the bodies: every dynamic body pulls the others towards it.
 #[derive(Clone, Copy, Debug, PartialEq)]

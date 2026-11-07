@@ -1,6 +1,6 @@
 //! How long the physics of the home page's demo takes per frame (20 shapes on a disc).
 use active::physics::*;
-use active::three::math::{Quat, Vec3};
+use active::scene::math::{Quat, Vec3};
 
 fn main() {
     let mut world = PhysicsWorld::new();

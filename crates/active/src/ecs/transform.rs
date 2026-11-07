@@ -5,7 +5,7 @@ use std::ops::{Deref, Mul};
 
 use super::query::{Query, With, Without};
 use super::world::{Component, Entity, World, require};
-use crate::three::math::{Mat4, Quat, Vec3};
+use crate::scene::math::{Mat4, Quat, Vec3};
 
 /// Where an entity is, relative to its parent: a translation, a rotation and a scale.
 ///

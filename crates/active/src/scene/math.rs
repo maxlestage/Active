@@ -1,8 +1,8 @@
 //! The maths of 3D: vectors, quaternions, Euler angles, 4×4 matrices and colors.
 //!
-//! The names are those of Three.js (`Vector3`, `Quaternion`, `Matrix4`, `Color`); the
-//! aliases `Vec3`, `Quat` and `Mat4` are those of Bevy (glam). Matrices are stored in
-//! column-major order, like WebGL and Three.js; angles are in radians.
+//! `Vector3`, `Quaternion`, `Matrix4` and `Color`, with the short aliases `Vec3`, `Quat`
+//! and `Mat4` used by the game engine. Matrices are stored in column-major order, as WebGL
+//! wants them; angles are in radians.
 
 use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -41,10 +41,10 @@ pub struct Vector3 {
     pub z: f32,
 }
 
-/// Bevy's name for [`Vector3`].
+/// The short name of [`Vector3`].
 pub type Vec3 = Vector3;
 
-/// Bevy's name for [`Vector2`].
+/// The short name of [`Vector2`].
 pub type Vec2 = Vector2;
 
 impl Vector3 {
@@ -75,7 +75,7 @@ impl Vector3 {
         Vector3::new(v, v, v)
     }
 
-    /// Sets the three components (Three.js's `set`).
+    /// Sets the three components.
     pub fn set(&mut self, x: f32, y: f32, z: f32) -> &mut Self {
         *self = Vector3::new(x, y, z);
         self
@@ -260,7 +260,7 @@ impl Neg for Vector3 {
     }
 }
 
-/// The order in which the rotations of an [`Euler`] apply (Three.js's default is `XYZ`).
+/// The order in which the rotations of an [`Euler`] apply (`XYZ` by default).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum EulerOrder {
     /// Around `x`, then `y`, then `z` (as the matrix product `X · Y · Z`).
@@ -278,7 +278,7 @@ pub enum EulerOrder {
     XZY,
 }
 
-/// A rotation as three angles around the axes, in radians (Three.js's `object.rotation`).
+/// A rotation as three angles around the axes, in radians.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Euler {
     /// The angle around `x`.
@@ -324,7 +324,7 @@ pub struct Quaternion {
     pub w: f32,
 }
 
-/// Bevy's name for [`Quaternion`].
+/// The short name of [`Quaternion`].
 pub type Quat = Quaternion;
 
 impl Default for Quaternion {
@@ -368,7 +368,7 @@ impl Quaternion {
         Quaternion::from_axis_angle(Vector3::Z, angle)
     }
 
-    /// The rotation of Euler angles (Three.js's `setFromEuler`).
+    /// The rotation of Euler angles.
     pub fn from_euler(e: Euler) -> Quaternion {
         let (x, y, z) = (
             Quaternion::from_rotation_x(e.x),
@@ -430,7 +430,7 @@ impl Quaternion {
     }
 
     /// The shortest rotation turning the unit vector `from` into the unit vector `to`
-    /// (`setFromUnitVectors`, Bevy's `from_rotation_arc`).
+    /// (`from_rotation_arc`).
     pub fn from_unit_vectors(from: Vector3, to: Vector3) -> Quaternion {
         let r = from.dot(to) + 1.0;
         if r < 1e-6 {
@@ -510,14 +510,14 @@ impl Mul<Vector3> for Quaternion {
     }
 }
 
-/// A 4×4 matrix in column-major order (Three.js's `elements`).
+/// A 4×4 matrix in column-major order.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Matrix4 {
     /// The 16 numbers, column after column.
     pub elements: [f32; 16],
 }
 
-/// Bevy's name for [`Matrix4`].
+/// The short name of [`Matrix4`].
 pub type Mat4 = Matrix4;
 
 impl Default for Matrix4 {
@@ -777,7 +777,7 @@ impl Mul<Vector3> for Matrix4 {
     }
 }
 
-/// A color, in linear RGB (the working space of lighting; Three.js since r152).
+/// A color, in linear RGB (the working space of lighting).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Color {
     /// Red, from 0 to 1 (more for HDR).
@@ -808,13 +808,12 @@ impl Color {
         b: 0.0,
     };
 
-    /// A color from a hexadecimal sRGB value, like `0x44aa88` (Three.js's `new Color(0x44aa88)`).
+    /// A color from a hexadecimal sRGB value, like `0x44aa88`.
     pub fn hex(hex: u32) -> Color {
         Color::srgb_u8((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
     }
 
-    /// A color from sRGB components from 0 to 1, as CSS and image editors give them (Bevy's
-    /// `Color::srgb`).
+    /// A color from sRGB components from 0 to 1, as CSS and image editors give them.
     pub fn srgb(r: f32, g: f32, b: f32) -> Color {
         Color {
             r: srgb_to_linear(r),
@@ -832,7 +831,7 @@ impl Color {
         )
     }
 
-    /// A color from linear components (Bevy's `Color::linear_rgb`).
+    /// A color from linear components.
     pub const fn linear_rgb(r: f32, g: f32, b: f32) -> Color {
         Color { r, g, b }
     }
@@ -846,7 +845,7 @@ impl Color {
         }
     }
 
-    /// The sRGB hexadecimal value (Three.js's `getHex`).
+    /// The sRGB hexadecimal value.
     pub fn to_hex(self) -> u32 {
         let c = |v: f32| (linear_to_srgb(v).clamp(0.0, 1.0) * 255.0).round() as u32;
         (c(self.r) << 16) | (c(self.g) << 8) | c(self.b)
@@ -882,7 +881,7 @@ pub fn linear_to_srgb(c: f32) -> f32 {
     }
 }
 
-/// Degrees to radians (Three.js's `MathUtils.degToRad`).
+/// Degrees to radians.
 pub fn deg_to_rad(degrees: f32) -> f32 {
     degrees.to_radians()
 }

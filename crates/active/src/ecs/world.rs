@@ -48,7 +48,7 @@ impl fmt::Display for Entity {
     }
 }
 
-/// Data attached to entities (Bevy's `#[derive(Component)]`): write `impl Component for
+/// Data attached to entities: write `impl Component for
 /// Player {}`, or [`component!`](crate::component)`(Player, Speed)`.
 ///
 /// The hooks run when the component is added or replaced, and when it is removed; the
@@ -66,11 +66,11 @@ pub trait Component: 'static {
     }
 }
 
-/// Data of the world itself, one value per type (Bevy's `#[derive(Resource)]`): write
+/// Data of the world itself, one value per type: write
 /// `impl Resource for Score {}`, or [`resource!`](crate::resource)`(Score)`.
 pub trait Resource: 'static {}
 
-/// Implements [`Component`] for types (Bevy's `#[derive(Component)]`).
+/// Implements [`Component`] for types.
 ///
 /// ```
 /// use active::ecs::prelude::*;
@@ -84,7 +84,7 @@ macro_rules! component {
     ($($t:ty),+ $(,)?) => { $(impl $crate::ecs::Component for $t {})+ };
 }
 
-/// Implements [`Resource`] for types (Bevy's `#[derive(Resource)]`).
+/// Implements [`Resource`] for types.
 #[macro_export]
 macro_rules! resource {
     ($($t:ty),+ $(,)?) => { $(impl $crate::ecs::Resource for $t {})+ };
@@ -721,7 +721,7 @@ bundle_tuple!(B0, B1, B2, B3, B4, B5, B6, B7, B8, B9);
 bundle_tuple!(B0, B1, B2, B3, B4, B5, B6, B7, B8, B9, B10);
 bundle_tuple!(B0, B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11);
 
-/// Inserts `T::default()` unless the entity has a `T` (the required components of Bevy).
+/// Inserts `T::default()` unless the entity has a `T` (required components).
 pub(crate) fn require<T: Component + Default>(world: &mut World, entity: Entity) {
     if !world.has::<T>(entity) {
         world.insert(entity, T::default());

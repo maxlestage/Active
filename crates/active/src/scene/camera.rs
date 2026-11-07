@@ -1,4 +1,4 @@
-//! Cameras (Three.js's `PerspectiveCamera` and `OrthographicCamera`): where the scene is
+//! Cameras: where the scene is
 //! seen from, and how it is projected on the screen.
 
 use super::math::{Euler, Matrix4, Quaternion, Vector3, deg_to_rad};
@@ -148,7 +148,7 @@ pub(crate) fn euler_looking(eye: Vector3, target: Vector3, up: Vector3) -> Euler
     euler_from_matrix(&Matrix4::look_rotation(target - eye, up))
 }
 
-/// The `XYZ` Euler angles of a rotation matrix (Three.js's `setFromRotationMatrix`).
+/// The `XYZ` Euler angles of a rotation matrix.
 pub(crate) fn euler_from_matrix(m: &Matrix4) -> Euler {
     let e = &m.elements;
     let (m11, m12, m13) = (e[0], e[4], e[8]);

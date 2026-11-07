@@ -1,5 +1,5 @@
-//! Lights (Three.js's `AmbientLight`, `HemisphereLight`, `DirectionalLight` and
-//! `PointLight`). Intensities follow Three.js's physical units: a directional light of
+//! Lights (`AmbientLight`, `HemisphereLight`, `DirectionalLight` and `PointLight`).
+//! Intensities are in physical units: a directional light of
 //! intensity 3 is a bright sun, a point light is in candela.
 
 use super::math::{Color, Vector3};
