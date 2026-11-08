@@ -2,7 +2,7 @@
 name = "active"
 version = "0.2.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.86"
 description = "A simple, fast front-end library for Rust: components, state, routing, complete SEO tags, server rendering and WebAssembly islands."
 authors = ["Maxime Nathan Lestage"]
 license-file = "LICENSE"
@@ -69,6 +69,9 @@ web-sys = { version = "0.3.77", optional = true, features = [
   "WheelEvent",
   "Window",
 ] }
+# The physics engine behind active::physics (https://rapier.rs). The block solver solves
+# the contact points of a face two by two, which steadies a box landing flat.
+rapier3d = { version = "0.36.1", features = ["block-solver"] }
 
 [package.metadata.docs.rs]
 features = ["client"]

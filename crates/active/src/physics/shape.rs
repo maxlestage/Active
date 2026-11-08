@@ -470,65 +470,6 @@ impl Collider {
     }
 }
 
-/// An axis-aligned box, for the broad phase.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Aabb {
-    pub(crate) min: Vec3,
-    pub(crate) max: Vec3,
-}
-
-impl Aabb {
-    pub(crate) fn overlaps(&self, o: &Aabb) -> bool {
-        self.min.x <= o.max.x
-            && self.max.x >= o.min.x
-            && self.min.y <= o.max.y
-            && self.max.y >= o.min.y
-            && self.min.z <= o.max.z
-            && self.max.z >= o.min.z
-    }
-}
-
-/// A shape where it is in the world.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Placed {
-    pub(crate) shape: Shape,
-    pub(crate) center: Vec3,
-    pub(crate) rotation: Quat,
-}
-
-impl Placed {
-    pub(crate) fn new(collider: &Collider, position: Vec3, rotation: Quat) -> Placed {
-        Placed {
-            shape: collider.shape,
-            center: position + rotation * collider.offset,
-            rotation: (rotation * collider.rotation).normalize(),
-        }
-    }
-
-    /// The farthest point along a world direction.
-    pub(crate) fn support(&self, dir: Vec3) -> Vec3 {
-        self.center + self.rotation * self.shape.support(self.rotation.inverse() * dir)
-    }
-
-    pub(crate) fn aabb(&self, margin: f32) -> Aabb {
-        let m = Vec3::splat(margin);
-        let max = Vec3::new(
-            self.support(Vec3::X).x,
-            self.support(Vec3::Y).y,
-            self.support(Vec3::Z).z,
-        );
-        let min = Vec3::new(
-            self.support(Vec3::NEG_X).x,
-            self.support(Vec3::NEG_Y).y,
-            self.support(Vec3::NEG_Z).z,
-        );
-        Aabb {
-            min: min - m,
-            max: max + m,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -659,15 +600,5 @@ mod tests {
             minor_radius: 0.5,
         };
         assert!((torus.support(Vec3::X) - Vec3::new(2.5, 0.0, 0.0)).length() < 1e-6);
-        let placed = Placed::new(
-            &Collider::cuboid(2.0, 2.0, 2.0),
-            Vec3::new(5.0, 0.0, 0.0),
-            Quat::IDENTITY,
-        );
-        let aabb = placed.aabb(0.0);
-        assert_eq!(
-            (aabb.min, aabb.max),
-            (Vec3::new(4.0, -1.0, -1.0), Vec3::new(6.0, 1.0, 1.0))
-        );
     }
 }

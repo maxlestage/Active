@@ -1,6 +1,7 @@
-//! Physics for the entities: every entity with
-//! a mesh (or a `Collider`) gets a body, with the mass of its volume, pulled by gravity,
-//! pushed by its forces and colliding with the others.
+//! Physics for the entities, run by [Rapier](https://rapier.rs) through
+//! [`crate::physics`]: every entity with a mesh (or a `Collider`) gets a body, with the
+//! mass of its volume, pulled by gravity, pushed by its forces and colliding with the
+//! others.
 
 use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
@@ -224,9 +225,9 @@ impl Resource for Attraction {}
 pub struct PhysicsSettings {
     /// Stopped (`true`) or running.
     pub paused: bool,
-    /// Substeps per frame: more is steadier (4).
+    /// Substeps of the solver per sixtieth of a second: more is steadier (4).
     pub substeps: u32,
-    /// Solver passes per substep: more makes stacks stiffer (6).
+    /// Solver passes per substep: more makes stacks stiffer, and is slower (1).
     pub iterations: u32,
     /// The longest frame simulated at once: a slow frame slows the simulation down instead
     /// of letting objects go through each other (1/30 s).
@@ -238,7 +239,7 @@ impl Default for PhysicsSettings {
         PhysicsSettings {
             paused: false,
             substeps: 4,
-            iterations: 6,
+            iterations: 1,
             max_step: 1.0 / 30.0,
         }
     }
