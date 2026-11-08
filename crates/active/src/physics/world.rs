@@ -1,8 +1,8 @@
-//! The bodies and the world that moves them, on Rapier.
+//! The bodies and the world that moves them, on the engine of [`super::engine`].
 
 use std::collections::BTreeSet;
 
-use super::rapier::prelude as rp;
+use super::engine::prelude as rp;
 use super::{Attraction, Collider, Shape, gravity};
 use crate::scene::math::{Quat, Vec3};
 
@@ -284,7 +284,7 @@ pub enum CollisionEvent {
     Ended(BodyId, BodyId),
 }
 
-/// What was last sent to Rapier, or read back from it: what differs was changed by hand.
+/// What was last sent to the engine, or read back from it: what differs was changed by hand.
 #[derive(Clone, Debug)]
 struct Synced {
     kind: BodyKind,
@@ -342,7 +342,7 @@ pub struct PhysicsWorld {
     free: Vec<u32>,
     /// The acceleration of gravity (9.81 m/s² down by default).
     pub gravity: Vec3,
-    /// Substeps per sixtieth of a second, the substeps of Rapier's solver: more is more
+    /// Substeps per sixtieth of a second, the substeps of the solver: more is more
     /// precise, and slower (4). A longer step is cut into more substeps, so that the
     /// motion does not depend on the frame rate.
     pub substeps: u32,
@@ -373,7 +373,7 @@ impl std::fmt::Debug for PhysicsWorld {
     }
 }
 
-/// Closer than this (m), two surfaces touch: what Rapier lets bodies overlap by.
+/// Closer than this (m), two surfaces touch: what the engine lets bodies overlap by.
 const TOUCH: f32 = 0.005;
 /// Below this speed (m/s) for half a second, a group of touching bodies sleeps.
 const SLEEP_SPEED: f32 = 0.02;
@@ -430,7 +430,7 @@ impl PhysicsWorld {
             .gyroscopic_forces_enabled(true)
             .user_data(index as u128);
         let handle = self.engine.insert_body(rigid);
-        // Rapier lets a body sleep below 0.1 m/s: a box sliding slowly on ice would stop
+        // The engine lets a body sleep below 0.1 m/s: a box sliding slowly on ice would stop
         // dead. Here, below 2 cm/s.
         self.engine.bodies[handle]
             .activation_mut()
@@ -563,18 +563,20 @@ impl PhysicsWorld {
         self.bodies().map(|(_, b)| b.kinetic_energy()).sum()
     }
 
-    /// The Rapier world underneath, to read what this module does not show (contact
+    /// The engine underneath, to read what this module does not show (contact
     /// points, ray casts through its query pipeline). Bodies and colliders carry the index
     /// of their [`BodyId`] in their `user_data`.
-    pub fn rapier(&self) -> &rp::PhysicsWorld {
+    #[doc(hidden)]
+    pub fn engine(&self) -> &rp::PhysicsWorld {
         &self.engine
     }
 
-    /// The Rapier world underneath, to change: joints, collision groups, solver
+    /// The engine underneath, to change: joints, collision groups, solver
     /// settings. What is changed there on a body is kept, and read back into its
     /// [`Body`] after the next [`step`](Self::step); what is changed on the [`Body`] wins
     /// over it.
-    pub fn rapier_mut(&mut self) -> &mut rp::PhysicsWorld {
+    #[doc(hidden)]
+    pub fn engine_mut(&mut self) -> &mut rp::PhysicsWorld {
         &mut self.engine
     }
 
@@ -617,7 +619,7 @@ impl PhysicsWorld {
         self.last_attraction = self.attraction;
     }
 
-    /// Sends Rapier what was changed by hand since the last step, and wakes it up.
+    /// Sends the engine what was changed by hand since the last step, and wakes it up.
     fn send_changes(&mut self) {
         let everything =
             self.gravity != self.last_gravity || self.attraction != self.last_attraction;
@@ -720,7 +722,7 @@ impl PhysicsWorld {
     fn free_flight(&self) -> Vec<Free> {
         let mut touching = vec![false; self.slots.len()];
         for pair in self.engine.narrow_phase.contact_pairs() {
-            // Close enough for Rapier to keep contact points: not free (a body that rests
+            // Close enough for the engine to keep contact points: not free (a body that rests
             // lifts off its support by a hair at times, and must not be moved then).
             if pair.manifolds().iter().all(|m| m.points.is_empty()) {
                 continue;
@@ -744,7 +746,7 @@ impl PhysicsWorld {
                     handle: e.handle,
                     accel: self.gravity * b.gravity_scale + b.force / b.mass,
                     // Turning freely: no torque, no damping, and an inertia that differs
-                    // along its axes (otherwise Rapier's turn is already exact).
+                    // along its axes (otherwise the engine's turn is already exact).
                     spin: (b.torque == Vec3::ZERO
                         && b.angular_damping == 0.0
                         && !is_isotropic(b.inertia))
@@ -754,7 +756,7 @@ impl PhysicsWorld {
             .collect()
     }
 
-    /// Rapier moves a body with its velocity at the end of each substep (semi-implicit
+    /// The engine moves a body with its velocity at the end of each substep (semi-implicit
     /// Euler), which lands a thrown ball `a·h·T/2` too far along its acceleration after
     /// `T` seconds of flight, and turns it with an approximate gyroscopic term, which lets
     /// the angular momentum of a tumbling body drift. The bodies far from anything follow
@@ -809,7 +811,7 @@ impl PhysicsWorld {
         gravity::accelerations(&positions, &masses, &cfg)
     }
 
-    /// Rolling resistance, which Rapier does not have: at each contact, the ground
+    /// Rolling resistance: at each contact, the ground
     /// deforms a little under a round body and pushes back ahead of where it touches,
     /// a torque of at most `rolling_friction × normal force × lever arm` against its
     /// rolling and its spinning.
@@ -940,7 +942,7 @@ impl PhysicsWorld {
                     .is_some_and(|b| !b.is_fixed() && !b.is_sleeping())
             };
             let touching = if awake(c1) || awake(c2) {
-                // Rapier keeps the contacts of a pair while they are close, and the
+                // The engine keeps the contacts of a pair while they are close, and the
                 // distances it stores date from when it last computed them: the
                 // distance now is between the anchors of each contact on both bodies.
                 pair.manifolds().iter().any(|m| {
@@ -973,7 +975,7 @@ impl PhysicsWorld {
         self.touching = now;
     }
 
-    /// The bodies as Rapier left them; the forces of the step are spent.
+    /// The bodies as the engine left them; the forces of the step are spent.
     fn read_back(&mut self) {
         for entry in self.slots.iter_mut().filter_map(|s| s.entry.as_mut()) {
             let rb = &self.engine.bodies[entry.handle];
@@ -1039,7 +1041,7 @@ fn free_rotation(rotation: Quat, frame: Quat, i: Vec3, w: Vec3, h: f32) -> (Quat
     )
 }
 
-/// `I⁻¹ v` of a Rapier body, in the world.
+/// `I⁻¹ v` of a body of the engine, in the world.
 fn inverse_inertia(b: &rp::RigidBody, v: Vec3) -> Vec3 {
     let props = b.mass_properties().local_mprops;
     let frame = *b.rotation() * props.principal_inertia_local_frame;
@@ -1098,7 +1100,7 @@ fn collider_of(b: &Body, index: u32) -> rp::ColliderBuilder {
         .user_data(index as u128)
 }
 
-/// The Rapier shape of a [`Shape`].
+/// The shape of the engine for a [`Shape`].
 fn shape_of(shape: &Shape) -> rp::SharedShape {
     let tiny = 1e-4;
     match *shape {

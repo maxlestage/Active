@@ -20,7 +20,7 @@ panic = "abort"
 [profile.dev.package."*"]
 opt-level = 2
 
-# Active itself too: its physics (the copy of Rapier) would be tens of times slower
+# Active itself too: its physics would be tens of times slower
 # unoptimised, in `cargo run` as in `cargo test`.
 [profile.dev.package.active]
 opt-level = 2

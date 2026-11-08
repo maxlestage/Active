@@ -16,8 +16,8 @@ include = ["src", "examples", "tests", "README.md", "LICENSE"]
 
 [features]
 default = ["physics"]
-# Rigid-body physics (active::physics, and the physics of active::scene and active::ecs),
-# run by the copy of Rapier in active::physics::rapier. Without it (`default-features =
+# Rigid-body physics (active::physics, and the physics of active::scene and active::ecs).
+# Without it (`default-features =
 # false`), the server build has no dependency at all.
 physics = [
   "dep:approx",
@@ -87,9 +87,8 @@ web-sys = { version = "0.3.77", optional = true, features = [
   "WheelEvent",
   "Window",
 ] }
-# The libraries of Rapier, the physics engine copied into active::physics::rapier (feature
-# `physics`): Parry for the collisions, nalgebra and glam for the math, and the small crates
-# Rapier is written with. The versions and features are those of rapier3d 0.36.1.
+# The libraries of the physics engine (feature `physics`): collisions, linear algebra,
+# SIMD and the small crates it is written with.
 approx = { version = "0.5", default-features = false, features = ["std"], optional = true }
 arrayvec = { version = "0.7", default-features = false, optional = true }
 bitflags = { version = "2", optional = true }
@@ -105,7 +104,7 @@ thiserror = { version = "2", default-features = false, features = ["std"], optio
 wide = { version = "1", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
-# The tests of the copy of Rapier, as rapier3d has them.
+# The tests of the physics engine.
 oorandom = { version = "11", default-features = false }
 
 [package.metadata.docs.rs]
