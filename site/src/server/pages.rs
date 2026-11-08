@@ -703,7 +703,7 @@ fn home(ctx: &Ctx<'_>) -> Node {
             .into(),
         section()
             .id("scene")
-            .class("section scene3d")
+            .class("section engines")
             .child(section_head(
                 "04 — 3D".into(),
                 h.scene_title,

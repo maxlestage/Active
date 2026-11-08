@@ -138,6 +138,22 @@ async fn every_page_ends_with_the_signature_footer() {
 }
 
 #[tokio::test]
+async fn the_3d_section_flows_with_the_page() {
+    // `.scene3d` is the canvas of the demo: a fixed height and no touch scrolling. Given to
+    // its section too, the section was cut to that height, its cards spilled over the next
+    // sections and a finger could not scroll past it.
+    for lang in ["en", "fr", "es"] {
+        let html = text(get(&format!("/{lang}/"), &[]).await).await;
+        assert!(html.contains(r#"id="scene""#), "{lang}");
+        assert_eq!(
+            html.matches("scene3d").count(),
+            1,
+            "{lang}: only the canvas"
+        );
+    }
+}
+
+#[tokio::test]
 async fn the_opening_curtain_plays_once_per_session() {
     let first = get("/en/", &[]).await;
     assert!(header_of(&first, header::SET_COOKIE).starts_with("active-intro=1"));
