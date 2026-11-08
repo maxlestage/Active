@@ -428,10 +428,10 @@ pub fn propagate_transforms(
             return;
         };
         let world = parent * transform.to_matrix();
-        if let Ok(mut global) = globals.get_mut(entity) {
-            if global.0 != world {
-                global.0 = world;
-            }
+        if let Ok(mut global) = globals.get_mut(entity)
+            && global.0 != world
+        {
+            global.0 = world;
         }
         let children: Vec<Entity> = children.map(|c| c.to_vec()).unwrap_or_default();
         drop(transform);
@@ -444,10 +444,10 @@ pub fn propagate_transforms(
     }
     for (entity, transform) in &roots {
         let matrix = transform.to_matrix();
-        if let Ok(mut global) = globals.get_mut(entity) {
-            if global.0 != matrix {
-                global.0 = matrix;
-            }
+        if let Ok(mut global) = globals.get_mut(entity)
+            && global.0 != matrix
+        {
+            global.0 = matrix;
         }
         drop(transform);
         if let Ok(children) = root_children.get(entity) {
@@ -480,10 +480,10 @@ pub fn propagate_visibility(
             Visibility::Hidden => false,
             Visibility::Visible => true,
         };
-        if let Ok(mut v) = inherited.get_mut(entity) {
-            if v.0 != visible {
-                v.0 = visible;
-            }
+        if let Ok(mut v) = inherited.get_mut(entity)
+            && v.0 != visible
+        {
+            v.0 = visible;
         }
         let children: Vec<Entity> = children.map(|c| c.to_vec()).unwrap_or_default();
         if depth < 1024 {
@@ -494,10 +494,10 @@ pub fn propagate_visibility(
     }
     for (entity, visibility, children) in &roots {
         let visible = *visibility != Visibility::Hidden;
-        if let Ok(mut v) = inherited.get_mut(entity) {
-            if v.0 != visible {
-                v.0 = visible;
-            }
+        if let Ok(mut v) = inherited.get_mut(entity)
+            && v.0 != visible
+        {
+            v.0 = visible;
         }
         for child in children.map(|c| c.to_vec()).unwrap_or_default() {
             walk(child, visible, &nodes, &mut inherited, 1);
