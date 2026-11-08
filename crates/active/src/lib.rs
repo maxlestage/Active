@@ -1,9 +1,9 @@
 #![doc = include_str!("../README.md")]
-// No `unsafe` in Active: only the copy of Rapier (physics::rapier) allows it.
+// No `unsafe` in Active: only the physics engine (physics::engine) allows it.
 #![deny(unsafe_code)]
 #![warn(missing_docs, rust_2018_idioms)]
 
-// The crates the copy of Rapier names from anywhere, as it did from its own root.
+// The crates the physics engine names from anywhere, as from a crate root.
 #[cfg(feature = "physics")]
 extern crate alloc;
 #[cfg(feature = "physics")]

@@ -252,7 +252,7 @@ static EN: Dict = Dict {
             },
             Item {
                 title: "active::physics, the physics",
-                text: "Rapier, copied into Active: a mass from the volume, gravity, friction, rolling, bounces, stacks and sleep, checked against the formulas of mechanics. Nothing goes through a 2 cm wall, even at 120 m/s.",
+                text: "A mass from the volume, gravity, friction, rolling, bounces, stacks and sleep, checked against the formulas of mechanics. Nothing goes through a 2 cm wall, even at 120 m/s.",
             },
         ],
         play: Play {
@@ -482,7 +482,7 @@ static FR: Dict = Dict {
             },
             Item {
                 title: "active::physics, la physique",
-                text: "Rapier, copié dans Active : une masse tirée du volume, la gravité, le frottement, le roulement, les rebonds, les piles et le sommeil, vérifiés contre les formules de la mécanique. Rien ne traverse une paroi de 2 cm, même à 120 m/s.",
+                text: "Une masse tirée du volume, la gravité, le frottement, le roulement, les rebonds, les piles et le sommeil, vérifiés contre les formules de la mécanique. Rien ne traverse une paroi de 2 cm, même à 120 m/s.",
             },
         ],
         play: Play {
@@ -712,7 +712,7 @@ static ES: Dict = Dict {
             },
             Item {
                 title: "active::physics, la física",
-                text: "Rapier, copiado dentro de Active: una masa sacada del volumen, gravedad, rozamiento, rodadura, rebotes, pilas y sueño, comprobados con las fórmulas de la mecánica. Nada atraviesa una pared de 2 cm, ni siquiera a 120 m/s.",
+                text: "Una masa sacada del volumen, gravedad, rozamiento, rodadura, rebotes, pilas y sueño, comprobados con las fórmulas de la mecánica. Nada atraviesa una pared de 2 cm, ni siquiera a 120 m/s.",
             },
         ],
         play: Play {

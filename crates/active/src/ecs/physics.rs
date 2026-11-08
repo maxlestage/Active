@@ -1,5 +1,4 @@
-//! Physics for the entities, run by [Rapier](https://rapier.rs) through
-//! [`crate::physics`]: every entity with a mesh (or a `Collider`) gets a body, with the
+//! Physics for the entities, run by [`crate::physics`]: every entity with a mesh (or a `Collider`) gets a body, with the
 //! mass of its volume, pulled by gravity, pushed by its forces and colliding with the
 //! others.
 
