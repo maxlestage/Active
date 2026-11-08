@@ -1,6 +1,17 @@
 #![doc = include_str!("../README.md")]
-#![forbid(unsafe_code)]
+// No `unsafe` in Active: only the copy of Rapier (physics::rapier) allows it.
+#![deny(unsafe_code)]
 #![warn(missing_docs, rust_2018_idioms)]
+
+// The crates the copy of Rapier names from anywhere, as it did from its own root.
+#[cfg(feature = "physics")]
+extern crate alloc;
+#[cfg(feature = "physics")]
+extern crate nalgebra as na;
+#[cfg(feature = "physics")]
+extern crate num_traits as num;
+#[cfg(feature = "physics")]
+extern crate parry3d as parry;
 
 mod boundary;
 mod cache;

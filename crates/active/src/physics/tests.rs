@@ -1,6 +1,7 @@
 //! The engine, body by body: what a physics teacher would check.
 
 use super::*;
+use crate::scene::math::{Quat, Vec3};
 use std::f32::consts::FRAC_PI_2;
 
 fn floor(world: &mut PhysicsWorld) -> BodyId {

@@ -1,5 +1,6 @@
 //! The physics example of the documentation (site/docs/*/3d.md), run without a browser.
 
+#![cfg(feature = "physics")]
 #![allow(elided_lifetimes_in_paths)]
 
 use active::ecs::prelude::*;
