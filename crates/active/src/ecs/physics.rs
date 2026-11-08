@@ -486,10 +486,10 @@ pub fn step_physics(world: &mut World) {
             tracked.collider = f.collider;
             tracked.scale = f.scale;
         }
-        if let Some(d) = component::<ColliderDensity>(world, e) {
-            if (body.density() - d.0).abs() > 1e-6 * d.0.abs().max(1.0) {
-                body.set_density(d.0);
-            }
+        if let Some(d) = component::<ColliderDensity>(world, e)
+            && (body.density() - d.0).abs() > 1e-6 * d.0.abs().max(1.0)
+        {
+            body.set_density(d.0);
         }
         if tracked.chosen_mass {
             let m = chosen.unwrap_or(tracked.mass);
@@ -568,11 +568,11 @@ pub fn step_physics(world: &mut World) {
                     once.push(e);
                 }
             }
-            if let Some(impulse) = component::<ExternalImpulse>(world, e) {
-                if impulse.0 != Vec3::ZERO {
-                    body.apply_impulse(impulse.0);
-                    once.push(e);
-                }
+            if let Some(impulse) = component::<ExternalImpulse>(world, e)
+                && impulse.0 != Vec3::ZERO
+            {
+                body.apply_impulse(impulse.0);
+                once.push(e);
             }
         }
     }
@@ -601,22 +601,22 @@ pub fn step_physics(world: &mut World) {
         }
         sleeping.push((e, body.is_sleeping()));
         // The mass it has now (its scale or density may have changed it).
-        if component::<Mass>(world, e).is_some_and(|m| m.0 != t.mass) {
-            if let Some(mut m) = world.get_mut::<Mass>(e) {
-                m.0 = t.mass;
-            }
+        if component::<Mass>(world, e).is_some_and(|m| m.0 != t.mass)
+            && let Some(mut m) = world.get_mut::<Mass>(e)
+        {
+            m.0 = t.mass;
         }
         let velocity = (body.linear_velocity, body.angular_velocity);
         t.velocity = velocity;
-        if component::<LinearVelocity>(world, e).is_some_and(|v| v.0 != velocity.0) {
-            if let Some(mut v) = world.get_mut::<LinearVelocity>(e) {
-                v.0 = velocity.0;
-            }
+        if component::<LinearVelocity>(world, e).is_some_and(|v| v.0 != velocity.0)
+            && let Some(mut v) = world.get_mut::<LinearVelocity>(e)
+        {
+            v.0 = velocity.0;
         }
-        if component::<AngularVelocity>(world, e).is_some_and(|v| v.0 != velocity.1) {
-            if let Some(mut v) = world.get_mut::<AngularVelocity>(e) {
-                v.0 = velocity.1;
-            }
+        if component::<AngularVelocity>(world, e).is_some_and(|v| v.0 != velocity.1)
+            && let Some(mut v) = world.get_mut::<AngularVelocity>(e)
+        {
+            v.0 = velocity.1;
         }
         let pose = (body.position, body.rotation);
         let local = match world.get::<ChildOf>(e).map(|c| c.0) {
@@ -632,11 +632,11 @@ pub fn step_physics(world: &mut World) {
             None => pose,
         };
         if pose != t.pose || world.get::<ChildOf>(e).is_some() {
-            if let Some(mut transform) = world.get_mut::<Transform>(e) {
-                if (transform.translation, transform.rotation) != local {
-                    transform.translation = local.0;
-                    transform.rotation = local.1;
-                }
+            if let Some(mut transform) = world.get_mut::<Transform>(e)
+                && (transform.translation, transform.rotation) != local
+            {
+                transform.translation = local.0;
+                transform.rotation = local.1;
             }
             t.pose = if world.get::<ChildOf>(e).is_some() {
                 pose
@@ -646,15 +646,15 @@ pub fn step_physics(world: &mut World) {
         }
     }
     for e in once {
-        if let Some(mut f) = world.get_mut::<ExternalForce>(e) {
-            if !f.persistent {
-                f.force = Vec3::ZERO;
-            }
+        if let Some(mut f) = world.get_mut::<ExternalForce>(e)
+            && !f.persistent
+        {
+            f.force = Vec3::ZERO;
         }
-        if let Some(mut t) = world.get_mut::<ExternalTorque>(e) {
-            if !t.persistent {
-                t.torque = Vec3::ZERO;
-            }
+        if let Some(mut t) = world.get_mut::<ExternalTorque>(e)
+            && !t.persistent
+        {
+            t.torque = Vec3::ZERO;
         }
         if let Some(mut i) = world.get_mut::<ExternalImpulse>(e) {
             i.0 = Vec3::ZERO;

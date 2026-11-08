@@ -398,10 +398,10 @@ where
                 if shown.with(|k| *k != next_kind) {
                     // Another kind: the view is rebuilt below, with the new value.
                     shown.set(next_kind);
-                } else if let Some(state) = current.get().filter(|s| s.is_alive()) {
-                    if state.with(|v| *v != next) {
-                        state.set(next);
-                    }
+                } else if let Some(state) = current.get().filter(|s| s.is_alive())
+                    && state.with(|v| *v != next)
+                {
+                    state.set(next);
                 }
             });
         });
@@ -794,10 +794,10 @@ impl Element {
                 let text = e.value();
                 let parsed = text.trim().parse::<T>().ok();
                 shown.set(text);
-                if let Some(value) = parsed {
-                    if state.with(|current| *current != value) {
-                        state.set(value);
-                    }
+                if let Some(value) = parsed
+                    && state.with(|current| *current != value)
+                {
+                    state.set(value);
                 }
             })
     }

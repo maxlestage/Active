@@ -390,23 +390,23 @@ where
         _type: std::marker::PhantomData,
     };
     // In a `suspense`, counted until the first data arrives.
-    if let Some(pending) = use_context::<Pending>() {
-        if untrack(|| current.borrow().data.with(Option::is_none)) {
-            let counted = Rc::new(Cell::new(true));
-            pending.add(1);
-            let c = counted.clone();
-            effect(move || {
-                if c.get() && query.with(|d| d.is_some()) {
-                    c.set(false);
-                    pending.add(-1);
-                }
-            });
-            on_cleanup(move || {
-                if counted.replace(false) {
-                    pending.add(-1);
-                }
-            });
-        }
+    if let Some(pending) = use_context::<Pending>()
+        && untrack(|| current.borrow().data.with(Option::is_none))
+    {
+        let counted = Rc::new(Cell::new(true));
+        pending.add(1);
+        let c = counted.clone();
+        effect(move || {
+            if c.get() && query.with(|d| d.is_some()) {
+                c.set(false);
+                pending.add(-1);
+            }
+        });
+        on_cleanup(move || {
+            if counted.replace(false) {
+                pending.add(-1);
+            }
+        });
     }
     query
 }

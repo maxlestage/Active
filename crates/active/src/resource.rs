@@ -135,10 +135,10 @@ where
     {
         let counted = counted.clone();
         on_cleanup(move || {
-            if counted.replace(false) {
-                if let Some(p) = pending {
-                    p.add(-1);
-                }
+            if counted.replace(false)
+                && let Some(p) = pending
+            {
+                p.add(-1);
             }
         });
     }
@@ -158,10 +158,10 @@ where
                     value.set(Some(v));
                     loading.set(false);
                 });
-                if counted.replace(false) {
-                    if let Some(p) = pending {
-                        p.add(-1);
-                    }
+                if counted.replace(false)
+                    && let Some(p) = pending
+                {
+                    p.add(-1);
                 }
             }
         };
@@ -172,10 +172,11 @@ where
                     if !loading.get() {
                         loading.set(true);
                     }
-                    if value.with(Option::is_none) && !counted.replace(true) {
-                        if let Some(p) = pending {
-                            p.add(1);
-                        }
+                    if value.with(Option::is_none)
+                        && !counted.replace(true)
+                        && let Some(p) = pending
+                    {
+                        p.add(1);
                     }
                 });
                 spawn(task, Box::new(finish));
