@@ -728,10 +728,10 @@ impl PhysicsWorld {
                 continue;
             }
             for c in [pair.collider1, pair.collider2] {
-                if let Some(c) = self.engine.colliders.get(c) {
-                    if let Some(t) = touching.get_mut(c.user_data as usize) {
-                        *t = true;
-                    }
+                if let Some(c) = self.engine.colliders.get(c)
+                    && let Some(t) = touching.get_mut(c.user_data as usize)
+                {
+                    *t = true;
                 }
             }
         }
