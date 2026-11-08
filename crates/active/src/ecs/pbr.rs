@@ -470,7 +470,9 @@ impl From<Geometry> for Mesh {
 /// The same geometry, turned by a rotation.
 fn rotated(geometry: &BufferGeometry, rotation: Quat) -> Geometry {
     let turn = |v: &[f32]| -> Vec<f32> {
-        v.chunks_exact(3)
+        v.as_chunks::<3>()
+            .0
+            .iter()
             .flat_map(|p| (rotation * Vec3::new(p[0], p[1], p[2])).to_array())
             .collect()
     };
