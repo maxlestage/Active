@@ -2,7 +2,7 @@
 name = "active"
 version = "0.2.0"
 edition = "2024"
-rust-version = "1.86"
+rust-version = "1.89"
 description = "A simple, fast front-end library for Rust: components, state, routing, complete SEO tags, server rendering and WebAssembly islands."
 authors = ["Maxime Nathan Lestage"]
 license-file = "LICENSE"

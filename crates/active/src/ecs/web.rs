@@ -177,10 +177,10 @@ pub(crate) fn run_in_page(app: App) -> Result<(), String> {
 fn input_listeners(canvas: &web_sys::HtmlElement, app: Rc<RefCell<App>>) -> Listeners {
     let mut listeners = Listeners::new(canvas);
     let send = move |f: &dyn Fn(&mut PendingInput)| {
-        if let Ok(app) = app.try_borrow() {
-            if let Some(mut pending) = app.world().get_resource_mut::<PendingInput>() {
-                f(&mut pending);
-            }
+        if let Ok(app) = app.try_borrow()
+            && let Some(mut pending) = app.world().get_resource_mut::<PendingInput>()
+        {
+            f(&mut pending);
         }
     };
     let send = Rc::new(send);

@@ -339,10 +339,10 @@ fn remove_same_meta(head: &DomElement, tag: &DomElement) {
             continue;
         };
         for i in 0..metas.length() {
-            if let Some(meta) = metas.item(i).and_then(|n| n.dyn_into::<DomElement>().ok()) {
-                if meta.get_attribute(attr).as_deref() == Some(key.as_str()) {
-                    meta.remove();
-                }
+            if let Some(meta) = metas.item(i).and_then(|n| n.dyn_into::<DomElement>().ok())
+                && meta.get_attribute(attr).as_deref() == Some(key.as_str())
+            {
+                meta.remove();
             }
         }
     }
@@ -932,10 +932,10 @@ fn sync_property(dom: &DomElement, name: &str, value: Option<&str>) {
                 if area.value() != value {
                     area.set_value(value);
                 }
-            } else if let Some(select) = dom.dyn_ref::<HtmlSelectElement>() {
-                if select.value() != value {
-                    select.set_value(value);
-                }
+            } else if let Some(select) = dom.dyn_ref::<HtmlSelectElement>()
+                && select.value() != value
+            {
+                select.set_value(value);
             }
         }
         "checked" => {
@@ -1068,13 +1068,13 @@ impl Focus {
             options.set_prevent_scroll(true);
             let _ = html.focus_with_options(&options);
         }
-        if let Some((from, to, text)) = &self.selection {
-            if text_selection(&target).is_some_and(|(_, _, now)| now == *text) {
-                if let Some(input) = target.dyn_ref::<HtmlInputElement>() {
-                    let _ = input.set_selection_range(*from, *to);
-                } else if let Some(area) = target.dyn_ref::<HtmlTextAreaElement>() {
-                    let _ = area.set_selection_range(*from, *to);
-                }
+        if let Some((from, to, text)) = &self.selection
+            && text_selection(&target).is_some_and(|(_, _, now)| now == *text)
+        {
+            if let Some(input) = target.dyn_ref::<HtmlInputElement>() {
+                let _ = input.set_selection_range(*from, *to);
+            } else if let Some(area) = target.dyn_ref::<HtmlTextAreaElement>() {
+                let _ = area.set_selection_range(*from, *to);
             }
         }
     }
