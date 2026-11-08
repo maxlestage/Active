@@ -672,263 +672,268 @@ fn colors_convert_between_srgb_and_linear() {
 
 // ----- Physics ----------------------------------------------------------------------------
 
-fn physics_app() -> App {
-    let mut app = App::new();
-    app.add_plugins(DefaultPlugins);
-    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f64(
-        1.0 / 60.0,
-    )));
-    app
-}
+#[cfg(feature = "physics")]
+mod physics {
+    use super::*;
 
-fn frames(app: &mut App, n: usize) {
-    for _ in 0..n {
-        app.update();
+    fn physics_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f64(
+            1.0 / 60.0,
+        )));
+        app
     }
-}
 
-fn spawn_shape(app: &mut App, mesh: impl Into<Mesh>, at: Vec3) -> Entity {
-    let world = app.world_mut();
-    let mesh = world.resource_mut::<Assets<Mesh>>().add(mesh);
-    let material = world
-        .resource_mut::<Assets<StandardMaterial>>()
-        .add(Color::WHITE);
-    world
-        .spawn((
-            Mesh3d(mesh),
-            MeshMaterial3d(material),
-            Transform::from_translation(at),
-        ))
-        .id()
-}
+    fn frames(app: &mut App, n: usize) {
+        for _ in 0..n {
+            app.update();
+        }
+    }
 
-fn floor(app: &mut App) -> Entity {
-    let world = app.world_mut();
-    let mesh = world
-        .resource_mut::<Assets<Mesh>>()
-        .add(Plane3d::default().mesh().size(40.0, 40.0));
-    let material = world
-        .resource_mut::<Assets<StandardMaterial>>()
-        .add(Color::WHITE);
-    world.spawn((Mesh3d(mesh), MeshMaterial3d(material))).id()
-}
+    fn spawn_shape(app: &mut App, mesh: impl Into<Mesh>, at: Vec3) -> Entity {
+        let world = app.world_mut();
+        let mesh = world.resource_mut::<Assets<Mesh>>().add(mesh);
+        let material = world
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(Color::WHITE);
+        world
+            .spawn((
+                Mesh3d(mesh),
+                MeshMaterial3d(material),
+                Transform::from_translation(at),
+            ))
+            .id()
+    }
 
-#[test]
-fn every_mesh_has_a_mass_falls_and_lands() {
-    let mut app = physics_app();
-    let ground = floor(&mut app);
-    let cube = spawn_shape(
-        &mut app,
-        Cuboid::new(1.0, 1.0, 1.0),
-        Vec3::new(0.0, 3.0, 0.0),
-    );
-    let ball = spawn_shape(&mut app, Sphere::new(0.5), Vec3::new(2.0, 3.0, 0.0));
-    let can = spawn_shape(&mut app, Cylinder::new(0.4, 1.0), Vec3::new(-2.0, 3.0, 0.0));
-    frames(&mut app, 180);
-    let world = app.world();
-    // The mass of its volume (density 1), and the kind of body of its shape.
-    assert!((world.get::<Mass>(cube).unwrap().0 - 1.0).abs() < 1e-5);
-    assert_eq!(*world.get::<RigidBody>(cube).unwrap(), RigidBody::Dynamic);
-    assert_eq!(*world.get::<RigidBody>(ground).unwrap(), RigidBody::Static);
-    for (e, y) in [(cube, 0.5), (ball, 0.5), (can, 0.5)] {
-        let t = world.get::<Transform>(e).unwrap();
-        assert!(
-            (t.translation.y - y).abs() < 0.02,
-            "{e}: {:?}",
-            t.translation
+    fn floor(app: &mut App) -> Entity {
+        let world = app.world_mut();
+        let mesh = world
+            .resource_mut::<Assets<Mesh>>()
+            .add(Plane3d::default().mesh().size(40.0, 40.0));
+        let material = world
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(Color::WHITE);
+        world.spawn((Mesh3d(mesh), MeshMaterial3d(material))).id()
+    }
+
+    #[test]
+    fn every_mesh_has_a_mass_falls_and_lands() {
+        let mut app = physics_app();
+        let ground = floor(&mut app);
+        let cube = spawn_shape(
+            &mut app,
+            Cuboid::new(1.0, 1.0, 1.0),
+            Vec3::new(0.0, 3.0, 0.0),
         );
+        let ball = spawn_shape(&mut app, Sphere::new(0.5), Vec3::new(2.0, 3.0, 0.0));
+        let can = spawn_shape(&mut app, Cylinder::new(0.4, 1.0), Vec3::new(-2.0, 3.0, 0.0));
+        frames(&mut app, 180);
+        let world = app.world();
+        // The mass of its volume (density 1), and the kind of body of its shape.
+        assert!((world.get::<Mass>(cube).unwrap().0 - 1.0).abs() < 1e-5);
+        assert_eq!(*world.get::<RigidBody>(cube).unwrap(), RigidBody::Dynamic);
+        assert_eq!(*world.get::<RigidBody>(ground).unwrap(), RigidBody::Static);
+        for (e, y) in [(cube, 0.5), (ball, 0.5), (can, 0.5)] {
+            let t = world.get::<Transform>(e).unwrap();
+            assert!(
+                (t.translation.y - y).abs() < 0.02,
+                "{e}: {:?}",
+                t.translation
+            );
+        }
+        assert!(world.has::<Sleeping>(cube), "still: asleep");
     }
-    assert!(world.has::<Sleeping>(cube), "still: asleep");
-}
 
-#[test]
-fn the_mass_follows_the_volume_until_the_code_chooses_one() {
-    let mut app = physics_app();
-    app.insert_resource(Gravity(Vec3::ZERO));
-    let cube = spawn_shape(&mut app, Cuboid::new(1.0, 1.0, 1.0), Vec3::ZERO);
-    frames(&mut app, 1);
-    let mass = |app: &App| {
-        let body = app
-            .world()
-            .resource::<PhysicsState>()
-            .body(cube)
+    #[test]
+    fn the_mass_follows_the_volume_until_the_code_chooses_one() {
+        let mut app = physics_app();
+        app.insert_resource(Gravity(Vec3::ZERO));
+        let cube = spawn_shape(&mut app, Cuboid::new(1.0, 1.0, 1.0), Vec3::ZERO);
+        frames(&mut app, 1);
+        let mass = |app: &App| {
+            let body = app
+                .world()
+                .resource::<PhysicsState>()
+                .body(cube)
+                .unwrap()
+                .mass();
+            let component = app.world().get::<Mass>(cube).unwrap().0;
+            assert_eq!(body, component, "the component says the mass of the body");
+            body
+        };
+        assert!((mass(&app) - 1.0).abs() < 1e-5);
+        // Twice as big on each side: eight times the volume, eight times the mass.
+        app.world_mut().get_mut::<Transform>(cube).unwrap().scale = Vec3::splat(2.0);
+        frames(&mut app, 1);
+        assert!((mass(&app) - 8.0).abs() < 1e-4, "{}", mass(&app));
+        // Steel.
+        app.world_mut().insert(cube, ColliderDensity(7800.0));
+        frames(&mut app, 1);
+        assert!((mass(&app) - 8.0 * 7800.0).abs() < 1.0, "{}", mass(&app));
+        // A mass chosen by the code stays, whatever the size.
+        app.world_mut().get_mut::<Mass>(cube).unwrap().0 = 5.0;
+        frames(&mut app, 1);
+        assert_eq!(mass(&app), 5.0);
+        app.world_mut().get_mut::<Transform>(cube).unwrap().scale = Vec3::splat(3.0);
+        frames(&mut app, 1);
+        assert_eq!(mass(&app), 5.0);
+    }
+
+    #[test]
+    fn forces_impulses_and_velocities_move_bodies() {
+        let mut app = physics_app();
+        app.insert_resource(Gravity(Vec3::ZERO));
+        let pushed = spawn_shape(&mut app, Cuboid::new(1.0, 1.0, 1.0), Vec3::ZERO);
+        let kicked = spawn_shape(
+            &mut app,
+            Cuboid::new(1.0, 1.0, 1.0),
+            Vec3::new(0.0, 5.0, 0.0),
+        );
+        let thrown = spawn_shape(&mut app, Sphere::new(0.5), Vec3::new(0.0, 10.0, 0.0));
+        let world = app.world_mut();
+        world.insert(
+            pushed,
+            (
+                ExternalForce::new(Vec3::new(2.0, 0.0, 0.0)),
+                Mass(2.0),
+                LinearDamping(0.0),
+            ),
+        );
+        world.insert(
+            kicked,
+            (
+                ExternalImpulse(Vec3::new(0.0, 0.0, 3.0)),
+                Mass(3.0),
+                LinearDamping(0.0),
+            ),
+        );
+        world.insert(
+            thrown,
+            (LinearVelocity(Vec3::new(4.0, 0.0, 0.0)), LinearDamping(0.0)),
+        );
+        frames(&mut app, 60);
+        let world = app.world();
+        // F/m = 1 m/s² for one second; J/m = 1 m/s once; 4 m/s kept.
+        assert!(
+            (world.get::<LinearVelocity>(pushed).unwrap().x - 1.0).abs() < 0.02,
+            "{:?}",
+            world.get::<LinearVelocity>(pushed)
+        );
+        assert!((world.get::<LinearVelocity>(kicked).unwrap().z - 1.0).abs() < 1e-3);
+        assert_eq!(
+            world.get::<ExternalImpulse>(kicked).unwrap().0,
+            Vec3::ZERO,
+            "applied once"
+        );
+        assert!((world.get::<Transform>(thrown).unwrap().translation.x - 4.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn bodies_can_be_static_kinematic_or_moved_by_code() {
+        let mut app = physics_app();
+        floor(&mut app);
+        let fixed = spawn_shape(
+            &mut app,
+            Cuboid::new(1.0, 1.0, 1.0),
+            Vec3::new(0.0, 3.0, 0.0),
+        );
+        app.world_mut().insert(fixed, RigidBody::Static);
+        let teleported = spawn_shape(&mut app, Sphere::new(0.5), Vec3::new(3.0, 0.5, 0.0));
+        frames(&mut app, 30);
+        app.world()
+            .get_mut::<Transform>(teleported)
             .unwrap()
-            .mass();
-        let component = app.world().get::<Mass>(cube).unwrap().0;
-        assert_eq!(body, component, "the component says the mass of the body");
-        body
-    };
-    assert!((mass(&app) - 1.0).abs() < 1e-5);
-    // Twice as big on each side: eight times the volume, eight times the mass.
-    app.world_mut().get_mut::<Transform>(cube).unwrap().scale = Vec3::splat(2.0);
-    frames(&mut app, 1);
-    assert!((mass(&app) - 8.0).abs() < 1e-4, "{}", mass(&app));
-    // Steel.
-    app.world_mut().insert(cube, ColliderDensity(7800.0));
-    frames(&mut app, 1);
-    assert!((mass(&app) - 8.0 * 7800.0).abs() < 1.0, "{}", mass(&app));
-    // A mass chosen by the code stays, whatever the size.
-    app.world_mut().get_mut::<Mass>(cube).unwrap().0 = 5.0;
-    frames(&mut app, 1);
-    assert_eq!(mass(&app), 5.0);
-    app.world_mut().get_mut::<Transform>(cube).unwrap().scale = Vec3::splat(3.0);
-    frames(&mut app, 1);
-    assert_eq!(mass(&app), 5.0);
-}
+            .translation = Vec3::new(3.0, 6.0, 0.0);
+        frames(&mut app, 2);
+        let world = app.world();
+        assert_eq!(
+            world.get::<Transform>(fixed).unwrap().translation.y,
+            3.0,
+            "static: it stays"
+        );
+        let y = world.get::<Transform>(teleported).unwrap().translation.y;
+        assert!(y > 5.5, "moved by the code, then falling: {y}");
+    }
 
-#[test]
-fn forces_impulses_and_velocities_move_bodies() {
-    let mut app = physics_app();
-    app.insert_resource(Gravity(Vec3::ZERO));
-    let pushed = spawn_shape(&mut app, Cuboid::new(1.0, 1.0, 1.0), Vec3::ZERO);
-    let kicked = spawn_shape(
-        &mut app,
-        Cuboid::new(1.0, 1.0, 1.0),
-        Vec3::new(0.0, 5.0, 0.0),
-    );
-    let thrown = spawn_shape(&mut app, Sphere::new(0.5), Vec3::new(0.0, 10.0, 0.0));
-    let world = app.world_mut();
-    world.insert(
-        pushed,
-        (
-            ExternalForce::new(Vec3::new(2.0, 0.0, 0.0)),
-            Mass(2.0),
-            LinearDamping(0.0),
-        ),
-    );
-    world.insert(
-        kicked,
-        (
-            ExternalImpulse(Vec3::new(0.0, 0.0, 3.0)),
-            Mass(3.0),
-            LinearDamping(0.0),
-        ),
-    );
-    world.insert(
-        thrown,
-        (LinearVelocity(Vec3::new(4.0, 0.0, 0.0)), LinearDamping(0.0)),
-    );
-    frames(&mut app, 60);
-    let world = app.world();
-    // F/m = 1 m/s² for one second; J/m = 1 m/s once; 4 m/s kept.
-    assert!(
-        (world.get::<LinearVelocity>(pushed).unwrap().x - 1.0).abs() < 0.02,
-        "{:?}",
-        world.get::<LinearVelocity>(pushed)
-    );
-    assert!((world.get::<LinearVelocity>(kicked).unwrap().z - 1.0).abs() < 1e-3);
-    assert_eq!(
-        world.get::<ExternalImpulse>(kicked).unwrap().0,
-        Vec3::ZERO,
-        "applied once"
-    );
-    assert!((world.get::<Transform>(thrown).unwrap().translation.x - 4.0).abs() < 0.1);
-}
+    #[test]
+    fn children_are_kinematic_and_push() {
+        let mut app = physics_app();
+        floor(&mut app);
+        let world = app.world_mut();
+        let arm = world.spawn(Transform::default()).id();
+        let mesh = world
+            .resource_mut::<Assets<Mesh>>()
+            .add(Cuboid::new(1.5, 1.0, 0.2));
+        let material = world
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(Color::WHITE);
+        let paddle = world
+            .spawn((
+                Mesh3d(mesh),
+                MeshMaterial3d(material),
+                Transform::from_xyz(2.5, 0.5, 0.0),
+                ChildOf(arm),
+            ))
+            .id();
+        let start = Vec3::new(2.5 * 0.5f32.cos(), 0.3, -2.5 * 0.5f32.sin());
+        let ball = spawn_shape(&mut app, Sphere::new(0.3), start);
+        app.add_systems(
+            Update,
+            move |mut t: Query<&mut Transform, Without<Mesh3d>>| {
+                for mut t in &mut t {
+                    t.rotate_y(0.02);
+                }
+            },
+        );
+        frames(&mut app, 180);
+        let world = app.world();
+        assert_eq!(
+            *world.get::<RigidBody>(paddle).unwrap(),
+            RigidBody::Kinematic
+        );
+        let moved = world.get::<Transform>(ball).unwrap().translation;
+        assert!((moved - start).length() > 0.5, "pushed: {moved:?}");
+    }
 
-#[test]
-fn bodies_can_be_static_kinematic_or_moved_by_code() {
-    let mut app = physics_app();
-    floor(&mut app);
-    let fixed = spawn_shape(
-        &mut app,
-        Cuboid::new(1.0, 1.0, 1.0),
-        Vec3::new(0.0, 3.0, 0.0),
-    );
-    app.world_mut().insert(fixed, RigidBody::Static);
-    let teleported = spawn_shape(&mut app, Sphere::new(0.5), Vec3::new(3.0, 0.5, 0.0));
-    frames(&mut app, 30);
-    app.world()
-        .get_mut::<Transform>(teleported)
-        .unwrap()
-        .translation = Vec3::new(3.0, 6.0, 0.0);
-    frames(&mut app, 2);
-    let world = app.world();
-    assert_eq!(
-        world.get::<Transform>(fixed).unwrap().translation.y,
-        3.0,
-        "static: it stays"
-    );
-    let y = world.get::<Transform>(teleported).unwrap().translation.y;
-    assert!(y > 5.5, "moved by the code, then falling: {y}");
-}
+    #[test]
+    fn collisions_arrive_as_messages_and_bodies_can_attract() {
+        let mut app = physics_app();
+        app.init_resource::<Log>();
+        let ground = floor(&mut app);
+        let ball = spawn_shape(&mut app, Sphere::new(0.5), Vec3::new(0.0, 1.0, 0.0));
+        app.add_systems(
+            Update,
+            |mut started: MessageReader<CollisionStarted>, mut log: ResMut<Log>| {
+                for CollisionStarted(a, b) in started.read() {
+                    log.0.push(format!("{a} {b}"));
+                }
+            },
+        );
+        frames(&mut app, 60);
+        // It lands, bounces a little (restitution 0.2: 2 cm), and lands again.
+        let landings = log(&app);
+        assert!(!landings.is_empty());
+        assert!(
+            landings.iter().all(|l| *l == format!("{ground} {ball}")),
+            "{landings:?}"
+        );
+        assert_eq!(
+            app.world().resource::<PhysicsState>().touching(ball),
+            [ground]
+        );
 
-#[test]
-fn children_are_kinematic_and_push() {
-    let mut app = physics_app();
-    floor(&mut app);
-    let world = app.world_mut();
-    let arm = world.spawn(Transform::default()).id();
-    let mesh = world
-        .resource_mut::<Assets<Mesh>>()
-        .add(Cuboid::new(1.5, 1.0, 0.2));
-    let material = world
-        .resource_mut::<Assets<StandardMaterial>>()
-        .add(Color::WHITE);
-    let paddle = world
-        .spawn((
-            Mesh3d(mesh),
-            MeshMaterial3d(material),
-            Transform::from_xyz(2.5, 0.5, 0.0),
-            ChildOf(arm),
-        ))
-        .id();
-    let start = Vec3::new(2.5 * 0.5f32.cos(), 0.3, -2.5 * 0.5f32.sin());
-    let ball = spawn_shape(&mut app, Sphere::new(0.3), start);
-    app.add_systems(
-        Update,
-        move |mut t: Query<&mut Transform, Without<Mesh3d>>| {
-            for mut t in &mut t {
-                t.rotate_y(0.02);
-            }
-        },
-    );
-    frames(&mut app, 180);
-    let world = app.world();
-    assert_eq!(
-        *world.get::<RigidBody>(paddle).unwrap(),
-        RigidBody::Kinematic
-    );
-    let moved = world.get::<Transform>(ball).unwrap().translation;
-    assert!((moved - start).length() > 0.5, "pushed: {moved:?}");
-}
-
-#[test]
-fn collisions_arrive_as_messages_and_bodies_can_attract() {
-    let mut app = physics_app();
-    app.init_resource::<Log>();
-    let ground = floor(&mut app);
-    let ball = spawn_shape(&mut app, Sphere::new(0.5), Vec3::new(0.0, 1.0, 0.0));
-    app.add_systems(
-        Update,
-        |mut started: MessageReader<CollisionStarted>, mut log: ResMut<Log>| {
-            for CollisionStarted(a, b) in started.read() {
-                log.0.push(format!("{a} {b}"));
-            }
-        },
-    );
-    frames(&mut app, 60);
-    // It lands, bounces a little (restitution 0.2: 2 cm), and lands again.
-    let landings = log(&app);
-    assert!(!landings.is_empty());
-    assert!(
-        landings.iter().all(|l| *l == format!("{ground} {ball}")),
-        "{landings:?}"
-    );
-    assert_eq!(
-        app.world().resource::<PhysicsState>().touching(ball),
-        [ground]
-    );
-
-    let mut space = physics_app();
-    space
-        .insert_resource(Gravity(Vec3::ZERO))
-        .insert_resource(Attraction::new(1.0));
-    let a = spawn_shape(&mut space, Sphere::new(0.2), Vec3::new(-2.0, 0.0, 0.0));
-    let b = spawn_shape(&mut space, Sphere::new(0.2), Vec3::new(2.0, 0.0, 0.0));
-    space.world_mut().insert(a, Mass(50.0));
-    space.world_mut().insert(b, Mass(50.0));
-    frames(&mut space, 120);
-    let gap = space.world().get::<Transform>(b).unwrap().translation.x
-        - space.world().get::<Transform>(a).unwrap().translation.x;
-    assert!(gap < 3.5, "they came closer: {gap}");
+        let mut space = physics_app();
+        space
+            .insert_resource(Gravity(Vec3::ZERO))
+            .insert_resource(Attraction::new(1.0));
+        let a = spawn_shape(&mut space, Sphere::new(0.2), Vec3::new(-2.0, 0.0, 0.0));
+        let b = spawn_shape(&mut space, Sphere::new(0.2), Vec3::new(2.0, 0.0, 0.0));
+        space.world_mut().insert(a, Mass(50.0));
+        space.world_mut().insert(b, Mass(50.0));
+        frames(&mut space, 120);
+        let gap = space.world().get::<Transform>(b).unwrap().translation.x
+            - space.world().get::<Transform>(a).unwrap().translation.x;
+        assert!(gap < 3.5, "they came closer: {gap}");
+    }
 }

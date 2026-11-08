@@ -2,6 +2,7 @@
 //! for its motion to look real, measured with tight tolerances.
 
 use super::*;
+use crate::scene::math::{Quat, Vec3};
 use std::f32::consts::PI;
 
 fn run(world: &mut PhysicsWorld, seconds: f32) {

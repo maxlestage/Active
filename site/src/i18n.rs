@@ -213,11 +213,11 @@ static EN: Dict = Dict {
                 label: "lines of JavaScript to write",
             },
             Stat {
-                value: 1.0,
+                value: 0.0,
                 decimals: 0,
                 prefix: "",
                 suffix: "",
-                label: "dependency on the server: Rapier, for physics",
+                label: "dependencies on the server without physics",
             },
             Stat {
                 value: 1.0,
@@ -252,7 +252,7 @@ static EN: Dict = Dict {
             },
             Item {
                 title: "active::physics, the physics",
-                text: "Run by Rapier: a mass from the volume, gravity, friction, rolling, bounces, stacks and sleep, checked against the formulas of mechanics. Nothing goes through a 2 cm wall, even at 120 m/s.",
+                text: "Rapier, copied into Active: a mass from the volume, gravity, friction, rolling, bounces, stacks and sleep, checked against the formulas of mechanics. Nothing goes through a 2 cm wall, even at 120 m/s.",
             },
         ],
         play: Play {
@@ -443,11 +443,11 @@ static FR: Dict = Dict {
                 label: "ligne de JavaScript à écrire",
             },
             Stat {
-                value: 1.0,
+                value: 0.0,
                 decimals: 0,
                 prefix: "",
                 suffix: "",
-                label: "dépendance côté serveur : Rapier, pour la physique",
+                label: "dépendance côté serveur sans la physique",
             },
             Stat {
                 value: 1.0,
@@ -482,7 +482,7 @@ static FR: Dict = Dict {
             },
             Item {
                 title: "active::physics, la physique",
-                text: "Animée par Rapier : une masse tirée du volume, la gravité, le frottement, le roulement, les rebonds, les piles et le sommeil, vérifiés contre les formules de la mécanique. Rien ne traverse une paroi de 2 cm, même à 120 m/s.",
+                text: "Rapier, copié dans Active : une masse tirée du volume, la gravité, le frottement, le roulement, les rebonds, les piles et le sommeil, vérifiés contre les formules de la mécanique. Rien ne traverse une paroi de 2 cm, même à 120 m/s.",
             },
         ],
         play: Play {
@@ -673,11 +673,11 @@ static ES: Dict = Dict {
                 label: "líneas de JavaScript que escribir",
             },
             Stat {
-                value: 1.0,
+                value: 0.0,
                 decimals: 0,
                 prefix: "",
                 suffix: "",
-                label: "dependencia en el servidor: Rapier, para la física",
+                label: "dependencias en el servidor sin la física",
             },
             Stat {
                 value: 1.0,
@@ -712,7 +712,7 @@ static ES: Dict = Dict {
             },
             Item {
                 title: "active::physics, la física",
-                text: "Movida por Rapier: una masa sacada del volumen, gravedad, rozamiento, rodadura, rebotes, pilas y sueño, comprobados con las fórmulas de la mecánica. Nada atraviesa una pared de 2 cm, ni siquiera a 120 m/s.",
+                text: "Rapier, copiado dentro de Active: una masa sacada del volumen, gravedad, rozamiento, rodadura, rebotes, pilas y sueño, comprobados con las fórmulas de la mecánica. Nada atraviesa una pared de 2 cm, ni siquiera a 120 m/s.",
             },
         ],
         play: Play {

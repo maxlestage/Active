@@ -49,6 +49,7 @@ mod app;
 mod input;
 mod message;
 mod pbr;
+#[cfg(feature = "physics")]
 mod physics;
 mod query;
 mod system;
@@ -83,6 +84,7 @@ pub use pbr::{
     PointLight, Projection, Ray3d, Rectangle, RenderFrame, ScalingMode, Sphere, SphereMeshBuilder,
     StandardMaterial, Tonemapping, Torus, ViewportConversionError, light_consts, palettes,
 };
+#[cfg(feature = "physics")]
 pub use physics::{
     AngularDamping, AngularVelocity, ColliderDensity, CollisionEnded, CollisionStarted,
     ExternalForce, ExternalImpulse, ExternalTorque, Friction, Gravity, GravityScale, LinearDamping,

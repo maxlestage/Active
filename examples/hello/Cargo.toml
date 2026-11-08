@@ -10,8 +10,9 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-active = { path = "../../crates/active" }
+# No physics here: the server has no dependency but std.
+active = { path = "../../crates/active", default-features = false }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-active = { path = "../../crates/active", features = ["client"] }
+active = { path = "../../crates/active", default-features = false, features = ["client"] }
 wasm-bindgen = "=0.2.129"

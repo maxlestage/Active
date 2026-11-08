@@ -63,5 +63,14 @@ other than those written below.
    settled amicably falls under the jurisdiction of the competent French
    courts.
 
+8. Third-party code
+   The directories crates/active/src/physics/rapier and crates/active/tests/rapier
+   hold a copy of Rapier (https://rapier.rs), Copyright 2020 Sébastien Crozet
+   (Dimforge), changed by the Author. They are not the Author's exclusive
+   property and this license does not cover them: they are distributed under
+   the Apache License, Version 2.0, whose text is in
+   crates/active/src/physics/rapier/LICENSE. Nothing in this license limits the
+   rights that the Apache License gives on them.
+
 For any other use (modification, redistribution, commercial licensing), contact
 the Author.

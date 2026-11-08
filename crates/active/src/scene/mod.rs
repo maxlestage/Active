@@ -29,6 +29,7 @@ mod graph;
 mod light;
 mod material;
 pub mod math;
+#[cfg(feature = "physics")]
 pub(crate) mod physics;
 
 #[cfg(feature = "client")]
@@ -50,6 +51,7 @@ pub use material::{
     Side, Surface,
 };
 pub use math::{Color, Euler, EulerOrder, Matrix4, Quaternion, Vector2, Vector3};
+#[cfg(feature = "physics")]
 pub use physics::Physics;
 
 #[cfg(feature = "client")]

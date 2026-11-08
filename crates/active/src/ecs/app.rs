@@ -608,13 +608,16 @@ pub struct DefaultPlugins;
 
 impl PluginGroup for DefaultPlugins {
     fn build(self) -> PluginGroupBuilder {
-        PluginGroupBuilder::new()
+        let plugins = PluginGroupBuilder::new()
             .add(TimePlugin)
             .add(InputPlugin)
             .add(TransformPlugin)
             .add(super::window::WindowPlugin::default())
-            .add(super::pbr::PbrPlugin)
-            .add(super::physics::PhysicsPlugin)
+            .add(super::pbr::PbrPlugin);
+        // With the `physics` feature, on by default.
+        #[cfg(feature = "physics")]
+        let plugins = plugins.add(super::physics::PhysicsPlugin);
+        plugins
     }
 }
 

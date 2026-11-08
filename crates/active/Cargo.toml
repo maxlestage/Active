@@ -15,7 +15,25 @@ categories = ["web-programming", "wasm", "gui"]
 include = ["src", "examples", "tests", "README.md", "LICENSE"]
 
 [features]
-default = []
+default = ["physics"]
+# Rigid-body physics (active::physics, and the physics of active::scene and active::ecs),
+# run by the copy of Rapier in active::physics::rapier. Without it (`default-features =
+# false`), the server build has no dependency at all.
+physics = [
+  "dep:approx",
+  "dep:arrayvec",
+  "dep:bitflags",
+  "dep:glamx",
+  "dep:log",
+  "dep:nalgebra",
+  "dep:num-traits",
+  "dep:parry3d",
+  "dep:profiling",
+  "dep:simba",
+  "dep:static_assertions",
+  "dep:thiserror",
+  "dep:wide",
+]
 # Browser side (compile for wasm32): hydrate islands, mount client-side apps, run effects,
 # listen to events, route and update the <head>.
 client = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys"]
@@ -69,9 +87,30 @@ web-sys = { version = "0.3.77", optional = true, features = [
   "WheelEvent",
   "Window",
 ] }
-# The physics engine behind active::physics (https://rapier.rs). The block solver solves
-# the contact points of a face two by two, which steadies a box landing flat.
-rapier3d = { version = "0.36.1", features = ["block-solver"] }
+# The libraries of Rapier, the physics engine copied into active::physics::rapier (feature
+# `physics`): Parry for the collisions, nalgebra and glam for the math, and the small crates
+# Rapier is written with. The versions and features are those of rapier3d 0.36.1.
+approx = { version = "0.5", default-features = false, features = ["std"], optional = true }
+arrayvec = { version = "0.7", default-features = false, optional = true }
+bitflags = { version = "2", optional = true }
+glamx = { version = "0.3.1", default-features = false, features = ["nalgebra"], optional = true }
+log = { version = "0.4", optional = true }
+nalgebra = { version = "0.35", default-features = false, features = ["macros", "std", "alloc"], optional = true }
+num-traits = { version = "0.2", default-features = false, features = ["std"], optional = true }
+parry3d = { version = "0.31.1", default-features = false, features = ["required-features", "std", "alloc"], optional = true }
+profiling = { version = "1.0", optional = true }
+simba = { version = "0.10.2", default-features = false, features = ["wide", "std"], optional = true }
+static_assertions = { version = "1", optional = true }
+thiserror = { version = "2", default-features = false, features = ["std"], optional = true }
+wide = { version = "1", default-features = false, features = ["std"], optional = true }
+
+[dev-dependencies]
+# The tests of the copy of Rapier, as rapier3d has them.
+oorandom = { version = "11", default-features = false }
 
 [package.metadata.docs.rs]
 features = ["client"]
+
+[[example]]
+name = "physics_timing"
+required-features = ["physics"]

@@ -6,11 +6,24 @@ version = 4
 name = "active"
 version = "0.2.0"
 dependencies = [
+ "approx",
+ "arrayvec",
+ "bitflags",
+ "glamx",
  "js-sys",
- "rapier3d",
+ "log",
+ "nalgebra",
+ "num-traits",
+ "oorandom",
+ "parry3d",
+ "profiling",
+ "simba",
+ "static_assertions",
+ "thiserror",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "wide",
 ]
 
 [[package]]
@@ -613,6 +626,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
+name = "oorandom"
+version = "11.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
+
+[[package]]
 name = "ordered-float"
 version = "5.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -742,28 +761,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
-]
-
-[[package]]
-name = "rapier3d"
-version = "0.36.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "033e2edc815d61ab97bd74ed5d1cbea5ebe575218774a7cfedbd3551f0033317"
-dependencies = [
- "approx",
- "arrayvec",
- "bitflags",
- "glamx",
- "log",
- "nalgebra",
- "num-traits",
- "parry3d",
- "profiling",
- "serde",
- "simba",
- "static_assertions",
- "thiserror",
- "wide",
 ]
 
 [[package]]
