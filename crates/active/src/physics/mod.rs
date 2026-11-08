@@ -1,6 +1,7 @@
-//! Rigid-body physics in 3D: bodies with a mass, forces and torques, gravity, collisions
-//! between every shape of [`three`](crate::scene) and [`ecs`](crate::ecs) (balls, boxes,
-//! cylinders, cones, capsules, rings), friction and bounce, and bodies that attract each
+//! Rigid-body physics in 3D, run by [Rapier](https://rapier.rs): bodies with a mass,
+//! forces and torques, gravity, collisions between every shape of
+//! [`scene`](crate::scene) and [`ecs`](crate::ecs) (balls, boxes, cylinders, cones,
+//! capsules, rings), friction, rolling resistance and bounce, and bodies that attract each
 //! other.
 //!
 //! [`ecs`](crate::ecs) gives every mesh a body (its `PhysicsPlugin` is in `DefaultPlugins`),
@@ -21,47 +22,42 @@
 //! assert!((y - 0.5).abs() < 0.02, "it rests on the floor: {y}");
 //! ```
 //!
-//! How it works. Each step is cut into substeps (4 per sixtieth of a second by default,
-//! more for a longer step, so the motion does not depend on the frame rate). In each:
+//! How it works. [`Body`] and [`Collider`] are plain values, in the units and the math
+//! types of [`scene`](crate::scene): you read and change their fields between two steps.
+//! [`PhysicsWorld`] keeps a Rapier body and collider for each of them, and every
+//! [`step`](PhysicsWorld::step):
 //!
-//! 1. Forces and gravity change the velocities (semi-implicit Euler, the velocity form of
-//!    Verlet integration). Attraction pulls half before the move and half after, as
-//!    leapfrog does, which keeps orbits closed.
-//! 2. The grid of the broad phase finds the bodies whose boxes overlap, the boxes
-//!    stretched by how far each body can go in the substep.
-//! 3. The narrow phase finds their contact points, also when they are still apart but
-//!    may meet during the substep (speculative contacts: nothing goes through a thin
-//!    wall): exact formulas for balls, boxes and capsules, and for the other shapes GJK and
-//!    EPA on the shapes rounded by that margin (the normal is then well defined even where
-//!    they barely touch); then the touching face of one shape clipped by the flat face of
-//!    the other, along its exact normal, so that bodies rest flat.
-//! 4. The solver applies impulses at the contacts (sequential impulses, starting from
-//!    the previous ones): friction in a true Coulomb cone, rolling resistance, and
-//!    contacts that are stiff, heavily damped springs (the soft step of Box2D v3), so
-//!    that stacks stand still instead of trembling.
-//! 5. The bodies move: along the exact parabola in free flight, and turning by exact
-//!    rotations around their principal axes, which keeps the angular momentum of a
-//!    tumbling body (it wobbles and flips as a real one does).
-//! 6. A last pass removes the speed used to push overlaps apart, then the contacts that
-//!    were hit fast enough bounce by exactly their restitution.
+//! 1. Sends Rapier what changed by hand since the last step (a place, a velocity, a
+//!    shape, a mass, a material, a force), and wakes up what was changed.
+//! 2. Cuts the step into steps of at most a sixtieth of a second (so the motion does not
+//!    depend on the frame rate); each is solved by Rapier in
+//!    [`substeps`](PhysicsWorld::substeps) (its TGS soft solver): broad phase, contacts
+//!    (with continuous collision detection: nothing goes through a thin wall), Coulomb
+//!    friction, restitution, gyroscopic forces (a tumbling brick wobbles and flips as a
+//!    real one does) and islands that fall asleep.
+//! 3. Adds what Rapier does not have: the attraction between bodies ([`Attraction`],
+//!    a Barnes–Hut octree) and the rolling resistance of round bodies
+//!    ([`Body::rolling_friction`]).
+//! 4. Reads the bodies back, and the pairs that started or stopped touching
+//!    ([`events`](PhysicsWorld::events)).
 //!
-//! Groups of touching bodies that stay still fall asleep together and cost nothing,
-//! until something touches them or the code changes them. Units are SI: meters,
-//! kilograms, seconds, newtons.
+//! The masses and inertias stay the exact ones of [`Shape`] (including the rings and the
+//! cut cones Rapier has no primitive for: a ring collides as 24 capsules along its tube, a
+//! cut cone as a convex hull). Units are SI: meters, kilograms, seconds, newtons.
 
-mod broad;
 mod gravity;
-mod narrow;
 mod shape;
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeSet;
 
 pub use gravity::Attraction;
+/// Rapier itself, for what [`PhysicsWorld::rapier_mut`] gives access to (joints, ray
+/// casts, collision groups).
+pub use rapier3d as rapier;
 pub use shape::{Collider, Shape};
 
 use crate::scene::math::{Quat, Vec3};
-use narrow::{ContactPoint, Contacts};
-use shape::Placed;
+use rapier3d::prelude as rp;
 
 /// How a body moves.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -112,16 +108,6 @@ pub struct Body {
     /// How much gravity pulls it (0: it floats, -1: it falls up).
     pub gravity_scale: f32,
     sleeping: bool,
-    rest_time: f32,
-    // Where the last step left it: a body moved or changed by hand since then wakes up,
-    // and wakes what touches it.
-    last_position: Vec3,
-    last_rotation: Quat,
-    changed: bool,
-    // The uniform acceleration of this substep (gravity, forces), and whether a contact
-    // pressed on it: in free flight, it moves along the exact parabola.
-    accel: Vec3,
-    pressed: bool,
 }
 
 impl Body {
@@ -145,12 +131,6 @@ impl Body {
             angular_damping: 0.0,
             gravity_scale: 1.0,
             sleeping: false,
-            rest_time: 0.0,
-            last_position: Vec3::ZERO,
-            last_rotation: Quat::IDENTITY,
-            changed: true,
-            accel: Vec3::ZERO,
-            pressed: false,
         };
         body.set_density(1.0);
         body
@@ -211,7 +191,6 @@ impl Body {
         let density = self.density();
         self.collider = collider;
         self.set_density(density);
-        self.changed = true;
     }
 
     /// Its mass, in kg.
@@ -320,19 +299,6 @@ impl Body {
     /// Wakes it up.
     pub fn wake_up(&mut self) {
         self.sleeping = false;
-        self.rest_time = 0.0;
-    }
-
-    fn is_awake_dynamic(&self) -> bool {
-        self.kind == BodyKind::Dynamic && !self.sleeping
-    }
-
-    fn inverse_mass(&self) -> f32 {
-        if self.is_awake_dynamic() {
-            1.0 / self.mass
-        } else {
-            0.0
-        }
     }
 
     fn inertia_frame(&self) -> Quat {
@@ -341,7 +307,7 @@ impl Body {
 
     /// `I⁻¹ v` in the world (zero for bodies that do not turn).
     fn inverse_inertia(&self, v: Vec3) -> Vec3 {
-        if !self.is_awake_dynamic() {
+        if self.kind != BodyKind::Dynamic {
             return Vec3::ZERO;
         }
         let q = self.inertia_frame();
@@ -352,14 +318,6 @@ impl Body {
             local.y * inv(self.inertia.y),
             local.z * inv(self.inertia.z),
         )
-    }
-
-    fn placed(&self) -> Placed {
-        Placed::new(&self.collider, self.position, self.rotation)
-    }
-
-    fn motion(&self) -> f32 {
-        self.linear_velocity.length_squared() + self.angular_velocity.length_squared()
     }
 }
 
@@ -379,59 +337,56 @@ pub enum CollisionEvent {
     Ended(BodyId, BodyId),
 }
 
-struct Slot {
-    generation: u32,
-    body: Option<Body>,
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-struct Contact {
-    local_a: Vec3,
-    local_b: Vec3,
-    normal: Vec3,
-    depth: f32,
-    normal_impulse: f32,
-    tangent_impulse: [f32; 2],
-    // Solver data, computed before each solve.
-    ra: Vec3,
-    rb: Vec3,
-    tangents: [Vec3; 2],
-    normal_mass: f32,
-    tangent_mass: [f32; 2],
-    /// The normal velocity before the solve: how fast they came together.
-    approach: f32,
-    /// The largest normal impulse of the solve: zero if they never actually met.
-    max_impulse: f32,
-}
-
-struct Manifold {
-    contacts: Vec<Contact>,
+/// What was last sent to Rapier, or read back from it: what differs was changed by hand.
+#[derive(Clone, Debug)]
+struct Synced {
+    kind: BodyKind,
+    collider: Collider,
+    mass: f32,
+    inertia: Vec3,
+    position: Vec3,
+    rotation: Quat,
+    linear_velocity: Vec3,
+    angular_velocity: Vec3,
     friction: f32,
     restitution: f32,
-    rolling: f32,
-    /// The angular impulse resisting rolling (around the two tangents) and spinning
-    /// (around the normal), kept from step to step like the contact impulses.
-    roll_impulse: [f32; 3],
-    roll_axes: [Vec3; 3],
-    roll_mass: [f32; 3],
-    /// The lever arm of the rolling resistance: from the contact to the center of the
-    /// body that rolls.
-    roll_arm: f32,
+    linear_damping: f32,
+    angular_damping: f32,
+    gravity_scale: f32,
+    sleeping: bool,
 }
 
-impl Manifold {
-    fn new(contacts: Vec<Contact>, friction: f32, restitution: f32, rolling: f32) -> Manifold {
-        Manifold {
-            contacts,
-            friction,
-            restitution,
-            rolling,
-            roll_impulse: [0.0; 3],
-            roll_axes: [Vec3::ZERO; 3],
-            roll_mass: [0.0; 3],
-            roll_arm: 0.0,
+impl Synced {
+    fn of(b: &Body) -> Synced {
+        Synced {
+            kind: b.kind,
+            collider: b.collider,
+            mass: b.mass,
+            inertia: b.inertia,
+            position: b.position,
+            rotation: b.rotation,
+            linear_velocity: b.linear_velocity,
+            angular_velocity: b.angular_velocity,
+            friction: b.friction,
+            restitution: b.restitution,
+            linear_damping: b.linear_damping,
+            angular_damping: b.angular_damping,
+            gravity_scale: b.gravity_scale,
+            sleeping: b.sleeping,
         }
     }
+}
+
+struct Entry {
+    body: Body,
+    handle: rp::RigidBodyHandle,
+    collider: rp::ColliderHandle,
+    synced: Synced,
+}
+
+struct Slot {
+    generation: u32,
+    entry: Option<Entry>,
 }
 
 /// The bodies, and what moves them.
@@ -440,19 +395,16 @@ pub struct PhysicsWorld {
     free: Vec<u32>,
     /// The acceleration of gravity (9.81 m/s² down by default).
     pub gravity: Vec3,
-    /// Substeps per sixtieth of a second: more is more precise, and slower (4). A longer
-    /// step is cut into more substeps, so that the motion does not depend on the frame
-    /// rate.
+    /// Substeps per sixtieth of a second, the substeps of Rapier's solver: more is more
+    /// precise, and slower (4). A longer step is cut into more substeps, so that the
+    /// motion does not depend on the frame rate.
     pub substeps: u32,
-    /// Solver passes per substep: more makes stacks stiffer (6).
+    /// Solver passes per substep: more makes stacks stiffer, and is slower (1).
     pub iterations: u32,
     /// Whether bodies attract each other, and how much.
     pub attraction: Option<Attraction>,
-    manifolds: BTreeMap<(u32, u32), Manifold>,
-    touching: HashSet<(u32, u32)>,
-    /// The pairs that touched during one of the substeps of this step: a bounce can begin
-    /// and end within a step.
-    touched: HashSet<(u32, u32)>,
+    engine: rp::PhysicsWorld,
+    touching: BTreeSet<(u32, u32)>,
     events: Vec<CollisionEvent>,
     // The gravity and attraction of the last step: when they change, everything wakes.
     last_gravity: Vec3,
@@ -474,60 +426,80 @@ impl std::fmt::Debug for PhysicsWorld {
     }
 }
 
-/// Above this approach speed, contacts bounce (m/s): slower, a bounce would be too small
-/// to see, and resting bodies would tremble.
-const BOUNCE_THRESHOLD: f32 = 0.5;
-/// Contacts are very stiff springs, heavily damped: the overlaps they push out, and the
-/// rocking of a tall stack, fade away instead of ringing (the soft step of Box2D v3).
-/// Their frequency (Hz), twice as high against a body that does not move, and their
-/// damping ratio.
-const CONTACT_HERTZ: f32 = 30.0;
-const CONTACT_DAMPING: f32 = 10.0;
-/// The fastest an overlap is pushed out (m/s).
-const MAX_PUSH: f32 = 3.0;
-/// Below these speeds (m/s, rad/s) for half a second, a group of touching bodies sleeps.
+/// Closer than this (m), two surfaces touch: what Rapier lets bodies overlap by.
+const TOUCH: f32 = 0.005;
+/// Below this speed (m/s) for half a second, a group of touching bodies sleeps.
 const SLEEP_SPEED: f32 = 0.02;
-const SLEEP_SPIN: f32 = 0.05;
-const SLEEP_TIME: f32 = 0.5;
-/// The most substeps of one step: a longer step than that is less precise.
-const MAX_SUBSTEPS: u32 = 1024;
+/// The most steps of a sixtieth of a second in one step: a longer step is less precise.
+const MAX_STEPS: u32 = 256;
+/// A ring collides as this many capsules along its tube.
+const RING_SEGMENTS: usize = 24;
+/// A cut cone collides as the convex hull of two polygons of this many sides.
+const FRUSTUM_SIDES: usize = 24;
 
 impl PhysicsWorld {
     /// An empty world, with Earth's gravity.
     pub fn new() -> PhysicsWorld {
+        let gravity = Vec3::new(0.0, -9.81, 0.0);
+        let mut engine = rp::PhysicsWorld::new();
+        engine.gravity = vector(gravity);
         PhysicsWorld {
             slots: Vec::new(),
             free: Vec::new(),
-            gravity: Vec3::new(0.0, -9.81, 0.0),
+            gravity,
             substeps: 4,
-            iterations: 6,
+            iterations: 1,
             attraction: None,
-            manifolds: BTreeMap::new(),
-            touching: HashSet::new(),
-            touched: HashSet::new(),
+            engine,
+            touching: BTreeSet::new(),
             events: Vec::new(),
-            last_gravity: Vec3::new(0.0, -9.81, 0.0),
+            last_gravity: gravity,
             last_attraction: None,
         }
     }
 
     /// Adds a body.
-    pub fn add(&mut self, body: Body) -> BodyId {
-        if let Some(index) = self.free.pop() {
-            let slot = &mut self.slots[index as usize];
-            slot.body = Some(body);
-            return BodyId {
-                index,
-                generation: slot.generation,
-            };
-        }
-        self.slots.push(Slot {
-            generation: 0,
-            body: Some(body),
+    pub fn add(&mut self, mut body: Body) -> BodyId {
+        let index = match self.free.pop() {
+            Some(index) => index,
+            None => {
+                self.slots.push(Slot {
+                    generation: 0,
+                    entry: None,
+                });
+                (self.slots.len() - 1) as u32
+            }
+        };
+        body.sleeping = false;
+        let rigid = rp::RigidBodyBuilder::new(body_type(body.kind))
+            .pose(pose(body.position, body.rotation))
+            .linvel(vector(body.linear_velocity))
+            .angvel(vector(body.angular_velocity))
+            .linear_damping(body.linear_damping)
+            .angular_damping(body.angular_damping)
+            .gravity_scale(body.gravity_scale)
+            .additional_mass_properties(mass_properties(&body))
+            .ccd_enabled(body.kind == BodyKind::Dynamic)
+            .gyroscopic_forces_enabled(true)
+            .user_data(index as u128);
+        let handle = self.engine.insert_body(rigid);
+        // Rapier lets a body sleep below 0.1 m/s: a box sliding slowly on ice would stop
+        // dead. Here, below 2 cm/s.
+        self.engine.bodies[handle]
+            .activation_mut()
+            .normalized_linear_threshold = SLEEP_SPEED / 2.0;
+        let collider = self
+            .engine
+            .insert_collider(collider_of(&body, index), Some(handle));
+        self.slots[index as usize].entry = Some(Entry {
+            synced: Synced::of(&body),
+            body,
+            handle,
+            collider,
         });
         BodyId {
-            index: (self.slots.len() - 1) as u32,
-            generation: 0,
+            index,
+            generation: self.slots[index as usize].generation,
         }
     }
 
@@ -537,40 +509,33 @@ impl PhysicsWorld {
         if slot.generation != id.generation {
             return None;
         }
-        let body = slot.body.take()?;
+        let entry = slot.entry.take()?;
         slot.generation = slot.generation.wrapping_add(1);
         self.free.push(id.index);
         // What rested on it falls.
-        let partners: Vec<u32> = self
-            .manifolds
-            .keys()
-            .filter_map(|&(a, b)| {
-                if a == id.index {
-                    Some(b)
-                } else if b == id.index {
-                    Some(a)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        for i in partners {
-            if let Some(b) = self.slots[i as usize].body.as_mut() {
-                b.wake_up();
+        for &(a, b) in &self.touching {
+            let other = if a == id.index {
+                b
+            } else if b == id.index {
+                a
+            } else {
+                continue;
+            };
+            if let Some(e) = self.slots[other as usize].entry.as_ref() {
+                self.engine.wake_up(e.handle, true);
             }
         }
-        self.manifolds
-            .retain(|&(a, b), _| a != id.index && b != id.index);
         self.touching
             .retain(|&(a, b)| a != id.index && b != id.index);
-        Some(body)
+        self.engine.remove_body_with_colliders(entry.handle, true);
+        Some(entry.body)
     }
 
     /// A body.
     pub fn body(&self, id: BodyId) -> Option<&Body> {
         let slot = self.slots.get(id.index as usize)?;
         if slot.generation == id.generation {
-            slot.body.as_ref()
+            slot.entry.as_ref().map(|e| &e.body)
         } else {
             None
         }
@@ -580,7 +545,7 @@ impl PhysicsWorld {
     pub fn body_mut(&mut self, id: BodyId) -> Option<&mut Body> {
         let slot = self.slots.get_mut(id.index as usize)?;
         if slot.generation == id.generation {
-            slot.body.as_mut()
+            slot.entry.as_mut().map(|e| &mut e.body)
         } else {
             None
         }
@@ -588,7 +553,7 @@ impl PhysicsWorld {
 
     /// How many bodies there are.
     pub fn len(&self) -> usize {
-        self.slots.iter().filter(|s| s.body.is_some()).count()
+        self.slots.len() - self.free.len()
     }
 
     /// Whether there are none.
@@ -599,13 +564,13 @@ impl PhysicsWorld {
     /// The bodies and their ids.
     pub fn bodies(&self) -> impl Iterator<Item = (BodyId, &Body)> {
         self.slots.iter().enumerate().filter_map(|(i, s)| {
-            s.body.as_ref().map(|b| {
+            s.entry.as_ref().map(|e| {
                 (
                     BodyId {
                         index: i as u32,
                         generation: s.generation,
                     },
-                    b,
+                    &e.body,
                 )
             })
         })
@@ -651,111 +616,226 @@ impl PhysicsWorld {
         self.bodies().map(|(_, b)| b.kinetic_energy()).sum()
     }
 
-    /// Moves the world forward by `dt` seconds. Any step works: it is cut into substeps
-    /// of at most 1/240 s (with the default [`substeps`](Self::substeps)), so a long
-    /// frame gives the same motion as several short ones.
+    /// The Rapier world underneath, to read what this module does not show (contact
+    /// points, ray casts through its query pipeline). Bodies and colliders carry the index
+    /// of their [`BodyId`] in their `user_data`.
+    pub fn rapier(&self) -> &rp::PhysicsWorld {
+        &self.engine
+    }
+
+    /// The Rapier world underneath, to change: joints, collision groups, solver
+    /// settings. What is changed there on a body is kept, and read back into its
+    /// [`Body`] after the next [`step`](Self::step); what is changed on the [`Body`] wins
+    /// over it.
+    pub fn rapier_mut(&mut self) -> &mut rp::PhysicsWorld {
+        &mut self.engine
+    }
+
+    /// Moves the world forward by `dt` seconds. Any step works: it is cut into steps of
+    /// at most a sixtieth of a second, each solved in [`substeps`](Self::substeps), so a
+    /// long frame gives the same motion as several short ones.
     pub fn step(&mut self, dt: f32) {
         self.events.clear();
         if dt <= 0.0 || !dt.is_finite() {
             return;
         }
-        self.wake_changed();
-        let per_frame = self.substeps.max(1);
+        self.send_changes();
         // A little tolerance: 1/60 s in f32 is not exactly a sixtieth.
-        let wanted = (dt * 60.0 * per_frame as f32 - 1e-3).ceil();
-        let substeps = (wanted.max(0.0) as u32).clamp(per_frame, MAX_SUBSTEPS);
-        let h = dt / substeps as f32;
-        let relax = (self.iterations / 2).max(1);
+        let steps = ((dt * 60.0 - 1e-3).ceil().max(1.0) as u32).min(MAX_STEPS);
+        let h = dt / steps as f32;
+        let params = &mut self.engine.integration_parameters;
+        params.dt = h;
+        params.num_solver_iterations = self.substeps.max(1) as usize;
+        params.num_internal_pgs_iterations = self.iterations.max(1) as usize;
+        self.engine.gravity = vector(self.gravity);
         // Attraction, which changes with the positions, is applied as leapfrog does: half
         // its pull before the move, half after, from the new positions (second order, and
         // orbits stay closed).
         let mut pull = self.attraction_accelerations();
-        for _ in 0..substeps {
-            self.integrate_velocities(h, &pull);
-            self.detect(h);
-            let mut manifolds = std::mem::take(&mut self.manifolds);
-            let mut motions = self.motions();
-            Self::prepare(&mut manifolds, &motions);
-            Self::warm_start(&manifolds, &mut motions);
-            for _ in 0..self.iterations.max(1) {
-                Self::solve(&mut manifolds, &mut motions, h, true);
-            }
-            self.store(&motions);
-            self.integrate_positions(h);
-            self.refresh(&mut motions);
-            // The speed used to push bodies apart is not kept: it would make them jump.
-            for _ in 0..relax {
-                Self::solve(&mut manifolds, &mut motions, h, false);
-            }
-            // Bounces last, once the contacts hold: only the contacts that were really
-            // reached bounce, and by exactly their restitution.
-            for _ in 0..relax {
-                Self::bounce(&mut manifolds, &mut motions);
-            }
-            self.store(&motions);
-            self.manifolds = manifolds;
+        for _ in 0..steps {
+            self.kick(&pull, 0.5 * h);
+            self.apply_forces();
+            let free = self.free_flight();
+            self.engine.step();
+            self.follow_free_flights(&free, h);
+            self.resist_rolling();
+            self.update_touching();
             if self.attraction.is_some() {
                 pull = self.attraction_accelerations();
                 self.kick(&pull, 0.5 * h);
             }
         }
-        self.sleep(dt);
-        self.update_touching();
+        self.read_back();
         self.last_gravity = self.gravity;
         self.last_attraction = self.attraction;
-        for slot in &mut self.slots {
-            if let Some(b) = slot.body.as_mut() {
-                b.force = Vec3::ZERO;
-                b.torque = Vec3::ZERO;
-                b.last_position = b.position;
-                b.last_rotation = b.rotation;
+    }
+
+    /// Sends Rapier what was changed by hand since the last step, and wakes it up.
+    fn send_changes(&mut self) {
+        let everything =
+            self.gravity != self.last_gravity || self.attraction != self.last_attraction;
+        if everything {
+            self.engine.wake_up_all(true);
+        }
+        let engine = &mut self.engine;
+        for entry in self.slots.iter_mut().filter_map(|s| s.entry.as_mut()) {
+            let (b, s) = (&entry.body, &mut entry.synced);
+            let rb = &mut engine.bodies[entry.handle];
+            let mut wake = b.force != Vec3::ZERO || b.torque != Vec3::ZERO;
+            if b.kind != s.kind {
+                rb.set_body_type(body_type(b.kind), true);
+                rb.enable_ccd(b.kind == BodyKind::Dynamic);
+                wake = true;
+            }
+            if b.collider != s.collider {
+                let c = &mut engine.colliders[entry.collider];
+                c.set_shape(shape_of(&b.collider.shape));
+                c.set_position_wrt_parent(pose(b.collider.offset, b.collider.rotation));
+                wake = true;
+            }
+            if b.collider != s.collider || b.mass != s.mass || b.inertia != s.inertia {
+                rb.set_additional_mass_properties(mass_properties(b), true);
+                wake = true;
+            }
+            if b.position != s.position || b.rotation != s.rotation {
+                rb.set_position(pose(b.position, b.rotation), true);
+                wake = true;
+            }
+            if b.linear_velocity != s.linear_velocity {
+                rb.set_linvel(vector(b.linear_velocity), true);
+                wake = true;
+            }
+            if b.angular_velocity != s.angular_velocity {
+                rb.set_angvel(vector(b.angular_velocity), true);
+                wake = true;
+            }
+            if b.linear_damping != s.linear_damping {
+                rb.set_linear_damping(b.linear_damping);
+            }
+            if b.angular_damping != s.angular_damping {
+                rb.set_angular_damping(b.angular_damping);
+            }
+            if b.gravity_scale != s.gravity_scale {
+                rb.set_gravity_scale(b.gravity_scale, true);
+                wake = true;
+            }
+            if b.friction != s.friction || b.restitution != s.restitution {
+                let c = &mut engine.colliders[entry.collider];
+                c.set_friction(b.friction.max(0.0));
+                c.set_restitution(b.restitution.clamp(0.0, 1.0));
+            }
+            if s.sleeping && !b.sleeping {
+                wake = true;
+            }
+            if wake && b.kind != BodyKind::Static {
+                engine.bodies[entry.handle].wake_up(true);
+            }
+            *s = Synced::of(b);
+        }
+    }
+
+    /// The forces set by hand, for the next step.
+    fn apply_forces(&mut self) {
+        for entry in self.slots.iter().filter_map(|s| s.entry.as_ref()) {
+            let b = &entry.body;
+            if b.kind != BodyKind::Dynamic {
+                continue;
+            }
+            let rb = &mut self.engine.bodies[entry.handle];
+            let force = b.force;
+            rb.reset_forces(false);
+            rb.reset_torques(false);
+            if force != Vec3::ZERO {
+                rb.add_force(vector(force), false);
+            }
+            if b.torque != Vec3::ZERO {
+                rb.add_torque(vector(b.torque), false);
             }
         }
     }
 
-    /// Wakes the sleeping bodies that were changed by hand since the last step (a
-    /// velocity, a force, a new place), those touching a body moved or changed by hand,
-    /// and every body when gravity changed.
-    fn wake_changed(&mut self) {
-        let everything =
-            self.gravity != self.last_gravity || self.attraction != self.last_attraction;
-        let mut moved = HashSet::new();
-        for (i, slot) in self.slots.iter_mut().enumerate() {
-            let Some(b) = slot.body.as_mut() else {
+    /// Changes the velocities of the dynamic bodies by `accelerations × dt`.
+    fn kick(&mut self, accelerations: &[Vec3], dt: f32) {
+        for (slot, a) in self.slots.iter().zip(accelerations) {
+            let Some(e) = slot.entry.as_ref() else {
                 continue;
             };
-            let by_hand =
-                b.changed || b.position != b.last_position || b.rotation != b.last_rotation;
-            b.changed = false;
-            if by_hand {
-                moved.insert(i as u32);
-            }
-            let pushed = b.linear_velocity != Vec3::ZERO
-                || b.angular_velocity != Vec3::ZERO
-                || b.force != Vec3::ZERO
-                || b.torque != Vec3::ZERO;
-            if b.sleeping && (everything || by_hand || pushed) {
-                b.wake_up();
+            let rb = &mut self.engine.bodies[e.handle];
+            if e.body.kind == BodyKind::Dynamic && !rb.is_sleeping() && *a != Vec3::ZERO {
+                let v = point(rb.linvel()) + *a * dt;
+                rb.set_linvel(vector(v), false);
             }
         }
-        if moved.is_empty() {
-            return;
+    }
+
+    /// The awake dynamic bodies far from anything, and their uniform acceleration
+    /// (gravity and the forces set by hand).
+    fn free_flight(&self) -> Vec<Free> {
+        let mut touching = vec![false; self.slots.len()];
+        for pair in self.engine.narrow_phase.contact_pairs() {
+            // Close enough for Rapier to keep contact points: not free (a body that rests
+            // lifts off its support by a hair at times, and must not be moved then).
+            if pair.manifolds().iter().all(|m| m.points.is_empty()) {
+                continue;
+            }
+            for c in [pair.collider1, pair.collider2] {
+                if let Some(c) = self.engine.colliders.get(c) {
+                    if let Some(t) = touching.get_mut(c.user_data as usize) {
+                        *t = true;
+                    }
+                }
+            }
         }
-        let partners: Vec<u32> = self
-            .manifolds
-            .keys()
-            .flat_map(|&(a, b)| {
-                [
-                    moved.contains(&a).then_some(b),
-                    moved.contains(&b).then_some(a),
-                ]
+        self.slots
+            .iter()
+            .zip(touching)
+            .filter_map(|(slot, touching)| {
+                let e = slot.entry.as_ref()?;
+                let b = &e.body;
+                let rb = &self.engine.bodies[e.handle];
+                (b.kind == BodyKind::Dynamic && !touching && !rb.is_sleeping()).then(|| Free {
+                    handle: e.handle,
+                    accel: self.gravity * b.gravity_scale + b.force / b.mass,
+                    // Turning freely: no torque, no damping, and an inertia that differs
+                    // along its axes (otherwise Rapier's turn is already exact).
+                    spin: (b.torque == Vec3::ZERO
+                        && b.angular_damping == 0.0
+                        && !is_isotropic(b.inertia))
+                    .then(|| (rotation(*rb.rotation()), point(rb.angvel()))),
+                })
             })
-            .flatten()
-            .collect();
-        for i in partners {
-            if let Some(b) = self.slots[i as usize].body.as_mut() {
-                b.wake_up();
+            .collect()
+    }
+
+    /// Rapier moves a body with its velocity at the end of each substep (semi-implicit
+    /// Euler), which lands a thrown ball `a·h·T/2` too far along its acceleration after
+    /// `T` seconds of flight, and turns it with an approximate gyroscopic term, which lets
+    /// the angular momentum of a tumbling body drift. The bodies far from anything follow
+    /// their exact parabola instead, and turn by the exact free rotation.
+    fn follow_free_flights(&mut self, free: &[Free], h: f32) {
+        let substeps = self.substeps.max(1);
+        let substep = h / substeps as f32;
+        for f in free {
+            let rb = &mut self.engine.bodies[f.handle];
+            if rb.is_sleeping() {
+                continue;
             }
+            let com = point(rb.center_of_mass()) + f.accel * (-0.5 * h * substep);
+            let props = rb.mass_properties().local_mprops;
+            let mut turn = rotation(*rb.rotation());
+            if let Some((mut q, mut w)) = f.spin {
+                let frame = rotation(props.principal_inertia_local_frame);
+                let inv = point(props.inv_principal_inertia);
+                let of = |i: f32| if i > 0.0 { 1.0 / i } else { 0.0 };
+                let inertia = Vec3::new(of(inv.x), of(inv.y), of(inv.z));
+                for _ in 0..substeps {
+                    (q, w) = free_rotation(q, frame, inertia, w, substep);
+                }
+                turn = q;
+                rb.set_angvel(vector(w), false);
+            }
+            let origin = com - turn * point(props.local_com);
+            rb.set_position(pose(origin, turn), false);
         }
     }
 
@@ -768,10 +848,10 @@ impl PhysicsWorld {
             Vec::with_capacity(self.slots.len()),
         );
         for slot in &self.slots {
-            match &slot.body {
-                Some(b) if b.kind == BodyKind::Dynamic => {
-                    positions.push(b.center_of_mass());
-                    masses.push(b.mass);
+            match &slot.entry {
+                Some(e) if e.body.kind == BodyKind::Dynamic => {
+                    positions.push(point(self.engine.bodies[e.handle].center_of_mass()));
+                    masses.push(e.body.mass);
                 }
                 _ => {
                     positions.push(Vec3::ZERO);
@@ -782,589 +862,194 @@ impl PhysicsWorld {
         gravity::accelerations(&positions, &masses, &cfg)
     }
 
-    fn integrate_velocities(&mut self, h: f32, pull: &[Vec3]) {
-        let gravity = self.gravity;
-        for (i, slot) in self.slots.iter_mut().enumerate() {
-            let Some(b) = slot.body.as_mut() else {
-                continue;
-            };
-            if !b.is_awake_dynamic() {
-                continue;
-            }
-            let uniform = gravity * b.gravity_scale + b.force / b.mass;
-            b.accel = uniform;
-            b.pressed = false;
-            let mut a = uniform;
-            if let Some(p) = pull.get(i) {
-                a += *p * 0.5;
-            }
-            b.linear_velocity += a * h;
-            let torque = b.torque;
-            b.angular_velocity += b.inverse_inertia(torque) * h;
-            if b.linear_damping > 0.0 {
-                b.linear_velocity *= 1.0 / (1.0 + h * b.linear_damping);
-            }
-            if b.angular_damping > 0.0 {
-                b.angular_velocity *= 1.0 / (1.0 + h * b.angular_damping);
-            }
-            // Limits that keep a bad frame from blowing everything up.
-            let speed = b.linear_velocity.length();
-            if speed > 500.0 {
-                b.linear_velocity *= 500.0 / speed;
-            }
-            let spin = b.angular_velocity.length();
-            if spin > 100.0 {
-                b.angular_velocity *= 100.0 / spin;
-            }
-        }
-    }
-
-    /// The second half of the pull of attraction.
-    fn kick(&mut self, pull: &[Vec3], dt: f32) {
-        for (slot, p) in self.slots.iter_mut().zip(pull) {
-            if let Some(b) = slot.body.as_mut() {
-                if b.is_awake_dynamic() {
-                    b.linear_velocity += *p * dt;
-                }
-            }
-        }
-    }
-
-    fn integrate_positions(&mut self, h: f32) {
-        for slot in &mut self.slots {
-            let Some(b) = slot.body.as_mut() else {
-                continue;
-            };
-            let moves = match b.kind {
-                BodyKind::Dynamic => !b.sleeping,
-                BodyKind::Kinematic => true,
-                BodyKind::Static => false,
-            };
-            if !moves {
-                continue;
-            }
-            // Under a uniform acceleration and nothing else, x + v h + a h² / 2 is exact
-            // (the velocity already has its a h): free flights keep their energy, and
-            // a thrown ball reaches its height. Attraction, which changes with the
-            // position, keeps the plain step, which keeps orbits closed.
-            let velocity = if b.kind == BodyKind::Dynamic && !b.pressed {
-                b.linear_velocity - b.accel * (0.5 * h)
-            } else {
-                b.linear_velocity
-            };
-            let com = b.center_of_mass() + velocity * h;
-            let w = b.angular_velocity;
-            let spin = w.length();
-            if b.kind == BodyKind::Dynamic && !is_isotropic(b.inertia) && spin > 0.0 {
-                free_rotation(b, h);
-            } else if spin > 0.0 {
-                // The exact turn of angle |ω| h around ω, about the center of mass.
-                b.rotation = (Quat::from_axis_angle(w / spin, spin * h) * b.rotation).normalize();
-            }
-            b.position = com - b.rotation * b.collider.center_of_mass();
-        }
-    }
-
-    /// Finds the contacts of this substep, keeping the impulses of the contacts that were
-    /// already there.
-    fn detect(&mut self, h: f32) {
-        let mut placed: Vec<Option<(Placed, shape::Aabb, f32)>> =
-            Vec::with_capacity(self.slots.len());
-        let mut indices = Vec::new();
-        let mut boxes = Vec::new();
-        for (i, slot) in self.slots.iter().enumerate() {
-            let entry = slot.body.as_ref().map(|b| {
-                let p = b.placed();
-                // As far as any of its points can go in a substep.
-                let reach = b.collider.shape.bounding_radius() + b.collider.offset.length();
-                let sweep = if b.kind == BodyKind::Static || b.sleeping {
-                    0.0
-                } else {
-                    (b.linear_velocity.length() + b.angular_velocity.length() * reach) * h
-                };
-                (p, p.aabb(narrow::MARGIN + sweep), sweep)
-            });
-            if let Some((_, aabb, _)) = &entry {
-                indices.push(i as u32);
-                boxes.push(*aabb);
-            }
-            placed.push(entry);
-        }
-        let mut seen = HashSet::new();
-        for (x, y) in broad::overlapping_pairs(&boxes) {
-            let (i, j) = (indices[x], indices[y]);
-            let (Some(a), Some(b)) = (
-                self.slots[i as usize].body.as_ref(),
-                self.slots[j as usize].body.as_ref(),
+    /// Rolling resistance, which Rapier does not have: at each contact, the ground
+    /// deforms a little under a round body and pushes back ahead of where it touches,
+    /// a torque of at most `rolling_friction × normal force × lever arm` against its
+    /// rolling and its spinning.
+    fn resist_rolling(&mut self) {
+        let engine = &mut self.engine;
+        let mut turns: Vec<(rp::RigidBodyHandle, Vec3)> = Vec::new();
+        for pair in engine.narrow_phase.contact_pairs() {
+            let (Some(c1), Some(c2)) = (
+                engine.colliders.get(pair.collider1),
+                engine.colliders.get(pair.collider2),
             ) else {
                 continue;
             };
-            let active = |s: &Body, o: &Body| {
-                s.is_awake_dynamic()
-                    || (s.kind == BodyKind::Kinematic
-                        && s.motion() > 0.0
-                        && o.kind == BodyKind::Dynamic)
-            };
-            if !(active(a, b) || active(b, a))
-                || (a.kind != BodyKind::Dynamic && b.kind != BodyKind::Dynamic)
-            {
-                continue;
-            }
-            let (Some((pa, _, sweep_a)), Some((pb, _, sweep_b))) =
-                (&placed[i as usize], &placed[j as usize])
-            else {
+            let (Some(h1), Some(h2)) = (c1.parent(), c2.parent()) else {
                 continue;
             };
-            let found = narrow::collide(pa, pb, narrow::MARGIN + sweep_a + sweep_b);
-            if matches!(found, Contacts::None) {
+            let entry = |c: &rp::Collider| {
+                self.slots
+                    .get(c.user_data as usize)
+                    .and_then(|s| s.entry.as_ref())
+            };
+            let (Some(e1), Some(e2)) = (entry(c1), entry(c2)) else {
+                continue;
+            };
+            let rolling = e1.body.rolling_friction.max(e2.body.rolling_friction);
+            if rolling <= 0.0 {
                 continue;
             }
-            // A body awake, however slow, wakes a sleeping one it touches: a sleeping body
-            // is not a wall.
-            let wake = |s: &Body| {
-                s.is_awake_dynamic() || (s.kind == BodyKind::Kinematic && s.motion() > 0.0)
-            };
-            let (wake_b, wake_a) = (wake(a) && b.sleeping, wake(b) && a.sleeping);
-            let (pos_a, rot_a, pos_b, rot_b) = (a.position, a.rotation, b.position, b.rotation);
-            let (friction, restitution, rolling) = (
-                (a.friction.max(0.0) * b.friction.max(0.0)).sqrt(),
-                a.restitution.max(b.restitution).clamp(0.0, 1.0),
-                a.rolling_friction.max(b.rolling_friction).max(0.0),
-            );
-            if wake_a {
-                if let Some(a) = self.slots[i as usize].body.as_mut() {
-                    a.wake_up();
-                }
-            }
-            if wake_b {
-                if let Some(b) = self.slots[j as usize].body.as_mut() {
-                    b.wake_up();
-                }
-            }
-            let to_local = |p: Vec3, pos: Vec3, rot: Quat| rot.inverse() * (p - pos);
-            let new_contact = |c: &ContactPoint| Contact {
-                local_a: to_local(c.point_a, pos_a, rot_a),
-                local_b: to_local(c.point_b, pos_b, rot_b),
-                normal: c.normal,
-                depth: c.depth,
-                ..Contact::default()
-            };
-            let (previous, roll_impulse) = self
-                .manifolds
-                .remove(&(i, j))
-                .map(|m| (m.contacts, m.roll_impulse))
-                .unwrap_or_default();
-            let contacts = match found {
-                Contacts::None => continue,
-                Contacts::Full(points) => points
-                    .iter()
-                    .map(|p| {
-                        let mut c = new_contact(p);
-                        // The same point as before keeps its impulses.
-                        if let Some(old) = previous
-                            .iter()
-                            .find(|o| (o.local_a - c.local_a).length_squared() < 0.0025)
-                        {
-                            c.normal_impulse = old.normal_impulse;
-                            c.tangent_impulse = old.tangent_impulse;
-                        }
-                        c
-                    })
-                    .collect(),
-                Contacts::Single(point) => {
-                    // Keep the earlier points that still hold, to stand on a face.
-                    let n = point.normal;
-                    let mut kept: Vec<Contact> = previous
-                        .into_iter()
-                        .filter_map(|mut c| {
-                            let wa = pos_a + rot_a * c.local_a;
-                            let wb = pos_b + rot_b * c.local_b;
-                            let gap = wb - wa;
-                            let separation = gap.dot(n);
-                            let drift = (gap - n * separation).length();
-                            (separation < narrow::MARGIN && drift < 0.05).then(|| {
-                                c.normal = n;
-                                c.depth = -separation;
-                                c
-                            })
-                        })
-                        .collect();
-                    let fresh = new_contact(&point);
-                    match kept
-                        .iter_mut()
-                        .find(|c| (c.local_a - fresh.local_a).length_squared() < 0.0004)
-                    {
-                        Some(c) => {
-                            c.local_a = fresh.local_a;
-                            c.local_b = fresh.local_b;
-                            c.depth = fresh.depth;
-                        }
-                        None => kept.push(fresh),
-                    }
-                    if kept.len() > 4 {
-                        let mut points: Vec<ContactPoint> = kept
-                            .iter()
-                            .map(|c| ContactPoint {
-                                point_a: pos_a + rot_a * c.local_a,
-                                point_b: pos_b + rot_b * c.local_b,
-                                normal: c.normal,
-                                depth: c.depth,
-                            })
-                            .collect();
-                        narrow::reduce(&mut points);
-                        kept.retain(|c| {
-                            let wa = pos_a + rot_a * c.local_a;
-                            points
-                                .iter()
-                                .any(|p| (p.point_a - wa).length_squared() < 1e-10)
-                        });
-                    }
-                    kept
-                }
-            };
-            seen.insert((i, j));
-            if contacts.iter().any(|c| c.depth > -narrow::MARGIN * 0.5) {
-                self.touched.insert((i, j));
-            }
-            // Touching, or about to: not in free flight.
-            if contacts.iter().any(|c| c.depth > -narrow::MARGIN) {
-                for k in [i, j] {
-                    if let Some(body) = self.slots[k as usize].body.as_mut() {
-                        body.pressed = true;
-                    }
-                }
-            }
-            let mut manifold = Manifold::new(contacts, friction, restitution, rolling);
-            manifold.roll_impulse = roll_impulse;
-            self.manifolds.insert((i, j), manifold);
-        }
-        // Pairs no longer near: their contacts go. Pairs of sleeping bodies keep theirs.
-        let slots = &self.slots;
-        self.manifolds.retain(|&(a, b), _| {
-            seen.contains(&(a, b)) || {
-                let asleep = |i: u32| {
-                    slots[i as usize]
-                        .body
-                        .as_ref()
-                        .is_none_or(|b| !b.is_awake_dynamic())
-                };
-                asleep(a) && asleep(b)
-            }
-        });
-    }
-
-    /// The motions of the bodies, for the solver (same indices as the slots).
-    fn motions(&self) -> Vec<Motion> {
-        self.slots
-            .iter()
-            .map(|s| s.body.as_ref().map_or(Motion::NONE, Motion::of))
-            .collect()
-    }
-
-    /// Writes the solver's velocities back into the bodies.
-    fn store(&mut self, motions: &[Motion]) {
-        for (slot, m) in self.slots.iter_mut().zip(motions) {
-            if let Some(b) = slot.body.as_mut() {
-                if b.is_awake_dynamic() {
-                    b.linear_velocity = m.v;
-                    b.angular_velocity = m.w;
-                    b.pressed |= m.pressed;
-                }
-            }
-        }
-    }
-
-    /// Reads the bodies' new places (and turns: a free rotation changes ω) after they moved.
-    fn refresh(&self, motions: &mut [Motion]) {
-        for (slot, m) in self.slots.iter().zip(motions.iter_mut()) {
-            if let Some(b) = slot.body.as_ref() {
-                m.position = b.position;
-                m.rotation = b.rotation;
-                m.com = b.center_of_mass();
-                m.v = b.linear_velocity;
-                m.w = b.angular_velocity;
-            }
-        }
-    }
-
-    fn prepare(manifolds: &mut BTreeMap<(u32, u32), Manifold>, motions: &[Motion]) {
-        for (&(i, j), m) in manifolds.iter_mut() {
-            let (a, b) = (&motions[i as usize], &motions[j as usize]);
-            let (mut arm_a, mut arm_b) = (0.0, 0.0);
-            for c in &mut m.contacts {
-                let wa = a.position + a.rotation * c.local_a;
-                let wb = b.position + b.rotation * c.local_b;
-                let point = (wa + wb) * 0.5;
-                c.ra = point - a.com;
-                c.rb = point - b.com;
-                let n = c.normal;
-                // The rolling radius: from the center down to the contact plane.
-                arm_a += c.ra.dot(n).abs();
-                arm_b += c.rb.dot(n).abs();
-                let k = |dir: Vec3| {
-                    let ka = a.turn(c.ra.cross(dir)).cross(c.ra);
-                    let kb = b.turn(c.rb.cross(dir)).cross(c.rb);
-                    let k = a.inv_mass + b.inv_mass + dir.dot(ka + kb);
-                    if k > 0.0 { 1.0 / k } else { 0.0 }
-                };
-                c.normal_mass = k(n);
-                let [t1, t2] = tangents(n);
-                c.tangents = [t1, t2];
-                c.tangent_mass = [k(t1), k(t2)];
-                c.approach = relative_velocity(a, b, c.ra, c.rb).dot(n);
-                c.max_impulse = 0.0;
-            }
-            if let Some(first) = m.contacts.first() {
-                let count = m.contacts.len() as f32;
-                // The body that rolls is the dynamic one, or the smaller of two.
-                m.roll_arm = match (a.dynamic, b.dynamic) {
-                    (true, true) => arm_a.min(arm_b) / count,
-                    (true, false) => arm_a / count,
-                    _ => arm_b / count,
-                };
-                let n = first.normal;
-                let [t1, t2] = tangents(n);
-                m.roll_axes = [t1, t2, n];
-                for (axis, mass) in m.roll_axes.iter().zip(m.roll_mass.iter_mut()) {
-                    let k = axis.dot(a.turn(*axis) + b.turn(*axis));
-                    *mass = if k > 0.0 { 1.0 / k } else { 0.0 };
-                }
-            }
-        }
-    }
-
-    fn warm_start(manifolds: &BTreeMap<(u32, u32), Manifold>, motions: &mut [Motion]) {
-        for (&(i, j), m) in manifolds {
-            let (mut a, mut b) = (motions[i as usize], motions[j as usize]);
-            for c in &m.contacts {
-                let p = c.normal * c.normal_impulse
-                    + c.tangents[0] * c.tangent_impulse[0]
-                    + c.tangents[1] * c.tangent_impulse[1];
-                apply(&mut a, &mut b, c.ra, c.rb, p);
-            }
-            let turn = m.roll_axes[0] * m.roll_impulse[0]
-                + m.roll_axes[1] * m.roll_impulse[1]
-                + m.roll_axes[2] * m.roll_impulse[2];
-            apply_angular(&mut a, &mut b, turn);
-            motions[i as usize] = a;
-            motions[j as usize] = b;
-        }
-    }
-
-    fn solve(
-        manifolds: &mut BTreeMap<(u32, u32), Manifold>,
-        motions: &mut [Motion],
-        h: f32,
-        use_bias: bool,
-    ) {
-        let (soft_pair, soft_fixed) = (
-            Softness::new(CONTACT_HERTZ, CONTACT_DAMPING, h),
-            Softness::new(2.0 * CONTACT_HERTZ, CONTACT_DAMPING, h),
-        );
-        for (&(i, j), m) in manifolds.iter_mut() {
-            let (mut a, mut b) = (motions[i as usize], motions[j as usize]);
-            let soft = if !use_bias {
-                Softness::RIGID
-            } else if a.inv_mass == 0.0 || b.inv_mass == 0.0 {
-                soft_fixed
-            } else {
-                soft_pair
-            };
-            // Rolling and spinning resistance: a torque of at most the coefficient times
-            // the normal force times the lever arm.
-            if m.rolling > 0.0 && !m.contacts.is_empty() {
-                let pressed: f32 = m.contacts.iter().map(|c| c.normal_impulse).sum();
-                let limit = m.rolling * m.roll_arm * pressed;
-                let dw = b.w - a.w;
-                let old = m.roll_impulse;
-                let mut new = [0.0; 3];
-                for k in 0..3 {
-                    new[k] = old[k] - m.roll_mass[k] * dw.dot(m.roll_axes[k]);
-                }
-                let rolling = (new[0] * new[0] + new[1] * new[1]).sqrt();
-                if rolling > limit {
-                    let s = limit / rolling;
-                    new[0] *= s;
-                    new[1] *= s;
-                }
-                new[2] = new[2].clamp(-limit, limit);
-                m.roll_impulse = new;
-                let turn = m.roll_axes[0] * (new[0] - old[0])
-                    + m.roll_axes[1] * (new[1] - old[1])
-                    + m.roll_axes[2] * (new[2] - old[2]);
-                apply_angular(&mut a, &mut b, turn);
-            }
-            for c in &mut m.contacts {
-                // Friction first, bounded by the normal impulse in every direction alike
-                // (Coulomb's cone): the contact itself is solved last, to hold best.
-                let limit = m.friction * c.normal_impulse;
-                let dv = relative_velocity(&a, &b, c.ra, c.rb);
-                let old = c.tangent_impulse;
-                let mut new = [
-                    old[0] - c.tangent_mass[0] * dv.dot(c.tangents[0]),
-                    old[1] - c.tangent_mass[1] * dv.dot(c.tangents[1]),
-                ];
-                let length = (new[0] * new[0] + new[1] * new[1]).sqrt();
-                if length > limit {
-                    let s = if length > 0.0 { limit / length } else { 0.0 };
-                    new[0] *= s;
-                    new[1] *= s;
-                }
-                c.tangent_impulse = new;
-                let p = c.tangents[0] * (new[0] - old[0]) + c.tangents[1] * (new[1] - old[1]);
-                apply(&mut a, &mut b, c.ra, c.rb, p);
-
-                let n = c.normal;
-                // The gap now, the bodies having moved since the contact was found.
-                let wa = a.position + a.rotation * c.local_a;
-                let wb = b.position + b.rotation * c.local_b;
-                let separation = (wb - wa).dot(n);
-                // Apart (a speculative contact): they may come closer until they touch.
-                // Overlapping: pushed apart by the spring.
-                let (target, soft) = if separation > 0.0 {
-                    (-separation / h, Softness::RIGID)
-                } else {
-                    ((-soft.bias_rate * separation).min(MAX_PUSH), soft)
-                };
-                let vn = relative_velocity(&a, &b, c.ra, c.rb).dot(n);
-                let lambda = -c.normal_mass * soft.mass_scale * (vn - target)
-                    - soft.impulse_scale * c.normal_impulse;
-                let total = (c.normal_impulse + lambda).max(0.0);
-                let applied = total - c.normal_impulse;
-                c.normal_impulse = total;
-                c.max_impulse = c.max_impulse.max(total);
-                apply(&mut a, &mut b, c.ra, c.rb, n * applied);
-                if total > 0.0 {
-                    a.pressed = true;
-                    b.pressed = true;
-                }
-            }
-            motions[i as usize] = a;
-            motions[j as usize] = b;
-        }
-    }
-
-    /// Restitution: the contacts that met fast enough leave as fast as they came, times
-    /// the restitution.
-    fn bounce(manifolds: &mut BTreeMap<(u32, u32), Manifold>, motions: &mut [Motion]) {
-        for (&(i, j), m) in manifolds.iter_mut() {
-            if m.restitution <= 0.0
-                || !m
-                    .contacts
-                    .iter()
-                    .any(|c| c.approach < -BOUNCE_THRESHOLD && c.max_impulse > 0.0)
-            {
+            let (b1, b2) = (&engine.bodies[h1], &engine.bodies[h2]);
+            let dynamic1 = b1.is_dynamic() && !b1.is_sleeping();
+            let dynamic2 = b2.is_dynamic() && !b2.is_sleeping();
+            if !dynamic1 && !dynamic2 {
                 continue;
             }
-            let (mut a, mut b) = (motions[i as usize], motions[j as usize]);
-            for c in &mut m.contacts {
-                if c.approach >= -BOUNCE_THRESHOLD || c.max_impulse <= 0.0 {
+            for manifold in pair.manifolds() {
+                let pressed: f32 = manifold.points.iter().map(|p| p.data.impulse).sum();
+                if pressed <= 0.0 || manifold.data.solver_contacts.is_empty() {
                     continue;
                 }
-                let vn = relative_velocity(&a, &b, c.ra, c.rb).dot(c.normal);
-                let lambda = -c.normal_mass * (vn + m.restitution * c.approach);
-                let total = (c.normal_impulse + lambda).max(0.0);
-                let applied = total - c.normal_impulse;
-                c.normal_impulse = total;
-                c.max_impulse = c.max_impulse.max(total);
-                apply(&mut a, &mut b, c.ra, c.rb, c.normal * applied);
+                let n = point(manifold.data.normal);
+                let contact = point(c1.position() * manifold.points[0].local_p1);
+                // The lever arm: from the contact plane to the center of the body that
+                // rolls (the one that moves, or the smaller arm of two).
+                let arm = |b: &rp::RigidBody| (point(b.center_of_mass()) - contact).dot(n).abs();
+                let lever = match (dynamic1, dynamic2) {
+                    (true, false) => arm(b1),
+                    (false, true) => arm(b2),
+                    _ => arm(b1).min(arm(b2)),
+                };
+                let limit = rolling * pressed * lever.max(0.0);
+                if limit <= 0.0 {
+                    continue;
+                }
+                let w1 = if dynamic1 {
+                    point(b1.angvel())
+                } else {
+                    Vec3::ZERO
+                };
+                let w2 = if dynamic2 {
+                    point(b2.angvel())
+                } else {
+                    Vec3::ZERO
+                };
+                let inv1 = |v: Vec3| {
+                    if dynamic1 {
+                        inverse_inertia(b1, v)
+                    } else {
+                        Vec3::ZERO
+                    }
+                };
+                let inv2 = |v: Vec3| {
+                    if dynamic2 {
+                        inverse_inertia(b2, v)
+                    } else {
+                        Vec3::ZERO
+                    }
+                };
+                // The angular impulse that would stop their relative turn, around the
+                // two tangents (rolling) and the normal (spinning), each held to the
+                // limit.
+                let relative = w1 - w2;
+                let spin = n * relative.dot(n);
+                let roll = relative - spin;
+                let mut impulse = Vec3::ZERO;
+                for (turn, cap) in [(roll, limit), (spin, limit)] {
+                    let speed = turn.length();
+                    if speed <= 1e-9 {
+                        continue;
+                    }
+                    let axis = turn / speed;
+                    let k = axis.dot(inv1(axis)) + axis.dot(inv2(axis));
+                    if k <= 0.0 {
+                        continue;
+                    }
+                    impulse -= axis * (speed / k).min(cap);
+                }
+                if dynamic1 {
+                    turns.push((h1, inv1(impulse)));
+                }
+                if dynamic2 {
+                    turns.push((h2, -inv2(impulse)));
+                }
             }
-            motions[i as usize] = a;
-            motions[j as usize] = b;
+        }
+        for (handle, turn) in turns {
+            let b = &mut engine.bodies[handle];
+            let w = point(b.angvel()) + turn;
+            b.set_angvel(vector(w), false);
         }
     }
 
-    /// Groups of touching bodies that stay still together fall asleep together: a body
-    /// alone could not, since what it rests on may still move.
-    fn sleep(&mut self, dt: f32) {
-        let n = self.slots.len();
-        let mut parent: Vec<usize> = (0..n).collect();
-        fn root(parent: &mut [usize], mut i: usize) -> usize {
-            while parent[i] != i {
-                parent[i] = parent[parent[i]];
-                i = parent[i];
-            }
-            i
-        }
-        // Groups that something moving carries cannot sleep.
-        let mut carried = vec![false; n];
-        for (&(i, j), m) in &self.manifolds {
-            if !m.contacts.iter().any(|c| c.depth > -narrow::MARGIN) {
-                continue;
-            }
-            let (Some(a), Some(b)) = (
-                self.slots[i as usize].body.as_ref(),
-                self.slots[j as usize].body.as_ref(),
+    /// The pairs touching now, and the events of those that started or stopped.
+    fn update_touching(&mut self) {
+        let engine = &self.engine;
+        let mut now = BTreeSet::new();
+        for pair in engine.narrow_phase.contact_pairs() {
+            let (Some(c1), Some(c2)) = (
+                engine.colliders.get(pair.collider1),
+                engine.colliders.get(pair.collider2),
             ) else {
                 continue;
             };
-            let (i, j) = (i as usize, j as usize);
-            match (a.kind, b.kind) {
-                (BodyKind::Dynamic, BodyKind::Dynamic) => {
-                    let (ri, rj) = (root(&mut parent, i), root(&mut parent, j));
-                    parent[ri] = rj;
-                }
-                (BodyKind::Dynamic, BodyKind::Kinematic) if b.motion() > 0.0 => carried[i] = true,
-                (BodyKind::Kinematic, BodyKind::Dynamic) if a.motion() > 0.0 => carried[j] = true,
-                _ => {}
-            }
-        }
-        let mut restless = vec![false; n];
-        for (i, slot) in self.slots.iter_mut().enumerate() {
-            let Some(b) = slot.body.as_mut() else {
-                continue;
+            let (a, b) = (c1.user_data as u32, c2.user_data as u32);
+            let key = (a.min(b), a.max(b));
+            let awake = |c: &rp::Collider| {
+                c.parent()
+                    .and_then(|h| engine.bodies.get(h))
+                    .is_some_and(|b| !b.is_fixed() && !b.is_sleeping())
             };
-            if !b.is_awake_dynamic() {
-                continue;
-            }
-            if b.linear_velocity.length() < SLEEP_SPEED && b.angular_velocity.length() < SLEEP_SPIN
-            {
-                b.rest_time += dt;
+            let touching = if awake(c1) || awake(c2) {
+                // Rapier keeps the contacts of a pair while they are close, and the
+                // distances it stores date from when it last computed them: the
+                // distance now is between the anchors of each contact on both bodies.
+                pair.manifolds().iter().any(|m| {
+                    m.data.solver_contacts.iter().any(|c| {
+                        let (p1, p2) = m.data.solver_contact_world_points(c, &engine.bodies);
+                        (p2 - p1).dot(m.data.normal) <= TOUCH
+                    })
+                })
             } else {
-                b.rest_time = 0.0;
-            }
-            if b.rest_time < SLEEP_TIME || carried[i] {
-                let r = root(&mut parent, i);
-                restless[r] = true;
-            }
-        }
-        for i in 0..n {
-            let r = root(&mut parent, i);
-            let Some(b) = self.slots[i].body.as_mut() else {
-                continue;
+                // Asleep, they stay as they were.
+                self.touching.contains(&key)
             };
-            if b.is_awake_dynamic() && !restless[r] {
-                b.sleeping = true;
-                b.linear_velocity = Vec3::ZERO;
-                b.angular_velocity = Vec3::ZERO;
+            if touching {
+                now.insert(key);
             }
         }
-    }
-
-    fn update_touching(&mut self) {
-        // Touching during the step, or still resting (sleeping pairs keep their contacts).
-        let mut now = std::mem::take(&mut self.touched);
-        now.extend(
-            self.manifolds
-                .iter()
-                .filter(|(_, m)| m.contacts.iter().any(|c| c.depth > -narrow::MARGIN * 0.5))
-                .map(|(&k, _)| k),
-        );
         let mut events: Vec<CollisionEvent> = now
             .difference(&self.touching)
             .map(|&(a, b)| CollisionEvent::Started(self.id_of(a), self.id_of(b)))
-            .chain(self.touching.difference(&now).filter_map(|&(a, b)| {
-                // A removed body ends its contacts silently.
-                let alive = |i: u32| self.slots[i as usize].body.is_some();
-                (alive(a) && alive(b)).then(|| CollisionEvent::Ended(self.id_of(a), self.id_of(b)))
-            }))
+            .chain(
+                self.touching
+                    .difference(&now)
+                    .map(|&(a, b)| CollisionEvent::Ended(self.id_of(a), self.id_of(b))),
+            )
             .collect();
         events.sort_by_key(|e| match e {
             CollisionEvent::Started(a, b) | CollisionEvent::Ended(a, b) => (*a, *b),
         });
-        self.events = events;
+        self.events.extend(events);
         self.touching = now;
     }
+
+    /// The bodies as Rapier left them; the forces of the step are spent.
+    fn read_back(&mut self) {
+        for entry in self.slots.iter_mut().filter_map(|s| s.entry.as_mut()) {
+            let rb = &self.engine.bodies[entry.handle];
+            let b = &mut entry.body;
+            b.position = point(rb.translation());
+            b.rotation = rotation(*rb.rotation());
+            b.linear_velocity = point(rb.linvel());
+            b.angular_velocity = point(rb.angvel());
+            b.sleeping = rb.is_sleeping();
+            b.force = Vec3::ZERO;
+            b.torque = Vec3::ZERO;
+            entry.synced = Synced::of(b);
+        }
+    }
+}
+
+/// A body far from anything during a step.
+struct Free {
+    handle: rp::RigidBodyHandle,
+    /// Its uniform acceleration.
+    accel: Vec3,
+    /// Its rotation and angular velocity before the step, when it turns freely.
+    spin: Option<(Quat, Vec3)>,
 }
 
 /// Whether a body turns the same way around every axis (a ball, a cube).
@@ -1373,20 +1058,20 @@ fn is_isotropic(i: Vec3) -> bool {
     same(i.x, i.y) && same(i.y, i.z)
 }
 
-/// `h` seconds of free rotation: a body whose inertia differs along its axes changes its
+/// `h` seconds of free rotation of a body turned by `rotation`, its principal axes
+/// turned by `frame` in it: a body whose inertia differs along its axes changes its
 /// rotation axis by itself (a thrown book wobbles, a spin around its middle axis flips
 /// over) while keeping its angular momentum and its energy. The motion is split into
 /// turns around each of its principal axes, each exact, in the symmetric order x, y, z,
 /// y, x (Dullweber, Leimkuhler and McLachlan, 1997): the angular momentum is kept
 /// exactly, and the energy without drift.
-fn free_rotation(b: &mut Body, h: f32) {
-    let i = b.inertia;
+fn free_rotation(rotation: Quat, frame: Quat, i: Vec3, w: Vec3, h: f32) -> (Quat, Vec3) {
     if i.x <= 0.0 || i.y <= 0.0 || i.z <= 0.0 {
-        return;
+        return (rotation, w);
     }
-    let mut q = b.inertia_frame();
-    // The angular momentum in the body's frame.
-    let mut l = (q.inverse() * b.angular_velocity).mul_vec(i);
+    let mut q = rotation * frame;
+    // The angular momentum in the body's principal frame.
+    let mut l = (q.inverse() * w).mul_vec(i);
     for (axis, inertia, part) in [
         (Vec3::X, i.x, 0.5),
         (Vec3::Y, i.y, 0.5),
@@ -1401,143 +1086,128 @@ fn free_rotation(b: &mut Body, h: f32) {
         l = turn.inverse() * l;
     }
     let q = q.normalize();
-    b.rotation = (q * b.collider.rotation.inverse()).normalize();
-    b.angular_velocity = q * Vec3::new(l.x / i.x, l.y / i.y, l.z / i.z);
+    (
+        (q * frame.inverse()).normalize(),
+        q * Vec3::new(l.x / i.x, l.y / i.y, l.z / i.z),
+    )
 }
 
-/// What the solver needs of a body, copied out for a substep: its velocities change, the
-/// rest is read. Bodies that do not move have no inverse mass (sleeping ones too).
-#[derive(Clone, Copy)]
-struct Motion {
-    v: Vec3,
-    w: Vec3,
-    inv_mass: f32,
-    /// The inverse of its inertia tensor in the world, `R I⁻¹ Rᵀ`.
-    inv_inertia: [[f32; 3]; 3],
-    position: Vec3,
-    rotation: Quat,
-    com: Vec3,
-    dynamic: bool,
-    pressed: bool,
+/// `I⁻¹ v` of a Rapier body, in the world.
+fn inverse_inertia(b: &rp::RigidBody, v: Vec3) -> Vec3 {
+    let props = b.mass_properties().local_mprops;
+    let frame = *b.rotation() * props.principal_inertia_local_frame;
+    let local = frame.inverse() * vector(v);
+    point(frame * (local * props.inv_principal_inertia))
 }
 
-impl Motion {
-    const NONE: Motion = Motion {
-        v: Vec3::ZERO,
-        w: Vec3::ZERO,
-        inv_mass: 0.0,
-        inv_inertia: [[0.0; 3]; 3],
-        position: Vec3::ZERO,
-        rotation: Quat::IDENTITY,
-        com: Vec3::ZERO,
-        dynamic: false,
-        pressed: false,
-    };
+fn vector(v: Vec3) -> rp::Vector {
+    rp::Vector::new(v.x, v.y, v.z)
+}
 
-    fn of(b: &Body) -> Motion {
-        let mut inv_inertia = [[0.0; 3]; 3];
-        if b.is_awake_dynamic() {
-            let q = b.inertia_frame();
-            let axes = [q * Vec3::X, q * Vec3::Y, q * Vec3::Z];
-            let inv = |i: f32| if i > 0.0 { 1.0 / i } else { 0.0 };
-            let d = [inv(b.inertia.x), inv(b.inertia.y), inv(b.inertia.z)];
-            for (r, row) in inv_inertia.iter_mut().enumerate() {
-                for (c, cell) in row.iter_mut().enumerate() {
-                    *cell = (0..3)
-                        .map(|k| component(axes[k], r) * d[k] * component(axes[k], c))
-                        .sum();
-                }
+fn point(v: rp::Vector) -> Vec3 {
+    Vec3::new(v.x, v.y, v.z)
+}
+
+fn rotation(q: rp::Rotation) -> Quat {
+    Quat::from_xyzw(q.x, q.y, q.z, q.w)
+}
+
+fn pose(position: Vec3, rotation: Quat) -> rp::Pose {
+    let q = rp::Rotation::from_xyzw(rotation.x, rotation.y, rotation.z, rotation.w);
+    rp::Pose::from_parts(vector(position), q.normalize())
+}
+
+fn body_type(kind: BodyKind) -> rp::RigidBodyType {
+    match kind {
+        BodyKind::Dynamic => rp::RigidBodyType::Dynamic,
+        BodyKind::Static => rp::RigidBodyType::Fixed,
+        BodyKind::Kinematic => rp::RigidBodyType::KinematicVelocityBased,
+    }
+}
+
+/// The exact mass, center of mass and inertia of a body, which its collider (of zero
+/// density) does not change.
+fn mass_properties(b: &Body) -> rp::MassProperties {
+    let c = &b.collider;
+    let q = c.rotation;
+    rp::MassProperties::with_principal_inertia_frame(
+        vector(c.center_of_mass()),
+        b.mass,
+        vector(b.inertia),
+        rp::Rotation::from_xyzw(q.x, q.y, q.z, q.w).normalize(),
+    )
+}
+
+fn collider_of(b: &Body, index: u32) -> rp::ColliderBuilder {
+    rp::ColliderBuilder::new(shape_of(&b.collider.shape))
+        .position(pose(b.collider.offset, b.collider.rotation))
+        .density(0.0)
+        .friction(b.friction.max(0.0))
+        .restitution(b.restitution.clamp(0.0, 1.0))
+        // The grip of two materials is the geometric mean of theirs; a bounce is the
+        // bounciest of the two.
+        .friction_combine_rule(rp::CoefficientCombineRule::GeometricMean)
+        .restitution_combine_rule(rp::CoefficientCombineRule::Max)
+        .user_data(index as u128)
+}
+
+/// The Rapier shape of a [`Shape`].
+fn shape_of(shape: &Shape) -> rp::SharedShape {
+    let tiny = 1e-4;
+    match *shape {
+        Shape::Sphere { radius } => rp::SharedShape::ball(radius.max(tiny)),
+        Shape::Cuboid { half_extents: e } => {
+            rp::SharedShape::cuboid(e.x.max(tiny), e.y.max(tiny), e.z.max(tiny))
+        }
+        Shape::Cylinder {
+            radius,
+            half_height,
+        } => rp::SharedShape::cylinder(half_height.max(tiny), radius.max(tiny)),
+        Shape::Cone {
+            radius,
+            half_height,
+        } => rp::SharedShape::cone(half_height.max(tiny), radius.max(tiny)),
+        Shape::Capsule {
+            radius,
+            half_height,
+        } => rp::SharedShape::capsule_y(half_height.max(0.0), radius.max(tiny)),
+        Shape::Frustum {
+            radius_top,
+            radius_bottom,
+            half_height,
+        } => {
+            let h = half_height.max(tiny);
+            let mut points = Vec::with_capacity(2 * FRUSTUM_SIDES);
+            for i in 0..FRUSTUM_SIDES {
+                let a = i as f32 / FRUSTUM_SIDES as f32 * std::f32::consts::TAU;
+                let (s, c) = a.sin_cos();
+                points.push(rp::Vector::new(radius_top * c, h, radius_top * s));
+                points.push(rp::Vector::new(radius_bottom * c, -h, radius_bottom * s));
             }
+            rp::SharedShape::convex_hull(&points).unwrap_or_else(|| {
+                rp::SharedShape::cylinder(h, radius_top.max(radius_bottom).max(tiny))
+            })
         }
-        Motion {
-            v: b.linear_velocity,
-            w: b.angular_velocity,
-            inv_mass: b.inverse_mass(),
-            inv_inertia,
-            position: b.position,
-            rotation: b.rotation,
-            com: b.center_of_mass(),
-            dynamic: b.kind == BodyKind::Dynamic,
-            pressed: false,
-        }
-    }
-
-    /// `I⁻¹ l`: how an angular impulse `l` changes its rotation speed.
-    fn turn(&self, l: Vec3) -> Vec3 {
-        let m = &self.inv_inertia;
-        Vec3::new(
-            m[0][0] * l.x + m[0][1] * l.y + m[0][2] * l.z,
-            m[1][0] * l.x + m[1][1] * l.y + m[1][2] * l.z,
-            m[2][0] * l.x + m[2][1] * l.y + m[2][2] * l.z,
-        )
-    }
-}
-
-fn component(v: Vec3, i: usize) -> f32 {
-    match i {
-        0 => v.x,
-        1 => v.y,
-        _ => v.z,
-    }
-}
-
-fn relative_velocity(a: &Motion, b: &Motion, ra: Vec3, rb: Vec3) -> Vec3 {
-    (b.v + b.w.cross(rb)) - (a.v + a.w.cross(ra))
-}
-
-/// A soft constraint: a spring of some frequency and damping, solved implicitly over a
-/// substep (Erin Catto, "Solver2D", 2024).
-#[derive(Clone, Copy)]
-struct Softness {
-    bias_rate: f32,
-    mass_scale: f32,
-    impulse_scale: f32,
-}
-
-impl Softness {
-    const RIGID: Softness = Softness {
-        bias_rate: 0.0,
-        mass_scale: 1.0,
-        impulse_scale: 0.0,
-    };
-
-    fn new(hertz: f32, damping: f32, h: f32) -> Softness {
-        // No faster than a quarter of the substep rate, or it would not be stable.
-        let omega = 2.0 * std::f32::consts::PI * hertz.min(0.25 / h);
-        let a1 = 2.0 * damping + h * omega;
-        let a2 = h * omega * a1;
-        let a3 = 1.0 / (1.0 + a2);
-        Softness {
-            bias_rate: omega / a1,
-            mass_scale: a2 * a3,
-            impulse_scale: a3,
+        Shape::Torus {
+            major_radius,
+            minor_radius,
+        } => {
+            let tube = minor_radius.max(tiny);
+            let at = |i: usize| {
+                let a = i as f32 / RING_SEGMENTS as f32 * std::f32::consts::TAU;
+                rp::Vector::new(major_radius * a.cos(), 0.0, major_radius * a.sin())
+            };
+            let parts = (0..RING_SEGMENTS)
+                .map(|i| {
+                    (
+                        rp::Pose::IDENTITY,
+                        rp::SharedShape::capsule(at(i), at(i + 1), tube),
+                    )
+                })
+                .collect();
+            rp::SharedShape::compound(parts)
         }
     }
-}
-
-/// Two directions perpendicular to `n` and to each other.
-fn tangents(n: Vec3) -> [Vec3; 2] {
-    let t1 = if n.x.abs() < 0.57 {
-        Vec3::X.cross(n)
-    } else {
-        Vec3::Y.cross(n)
-    }
-    .normalize();
-    [t1, n.cross(t1)]
-}
-
-/// Turns `b` by the angular impulse `l` and `a` by `-l`.
-fn apply_angular(a: &mut Motion, b: &mut Motion, l: Vec3) {
-    a.w -= a.turn(l);
-    b.w += b.turn(l);
-}
-
-/// Applies `p` to `b` and `-p` to `a`, at their contact arms.
-fn apply(a: &mut Motion, b: &mut Motion, ra: Vec3, rb: Vec3, p: Vec3) {
-    a.v -= p * a.inv_mass;
-    a.w -= a.turn(ra.cross(p));
-    b.v += p * b.inv_mass;
-    b.w += b.turn(rb.cross(p));
 }
 
 #[cfg(test)]
