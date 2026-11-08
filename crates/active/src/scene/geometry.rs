@@ -100,7 +100,7 @@ impl BufferGeometry {
                 self.positions[i * 3 + 2],
             )
         };
-        for t in self.indices.chunks_exact(3) {
+        for t in self.indices.as_chunks::<3>().0 {
             let (a, b, c) = (t[0] as usize, t[1] as usize, t[2] as usize);
             let n = (p(b) - p(a)).cross(p(c) - p(a));
             for i in [a, b, c] {
@@ -109,7 +109,7 @@ impl BufferGeometry {
                 normals[i * 3 + 2] += n.z;
             }
         }
-        for n in normals.chunks_exact_mut(3) {
+        for n in normals.as_chunks_mut::<3>().0 {
             let v = Vector3::new(n[0], n[1], n[2]).normalize();
             n.copy_from_slice(&v.to_array());
         }
@@ -120,7 +120,7 @@ impl BufferGeometry {
     pub fn bounding_box(&self) -> (Vector3, Vector3) {
         let mut min = Vector3::splat(f32::INFINITY);
         let mut max = Vector3::splat(f32::NEG_INFINITY);
-        for p in self.positions.chunks_exact(3) {
+        for p in self.positions.as_chunks::<3>().0 {
             let v = Vector3::new(p[0], p[1], p[2]);
             min = min.min(v);
             max = max.max(v);
@@ -433,7 +433,7 @@ mod tests {
         assert_eq!(g.positions.len(), g.normals.len());
         assert_eq!(g.uvs.len() / 2, g.vertex_count());
         assert!(g.indices.iter().all(|&i| (i as usize) < g.vertex_count()));
-        for n in g.normals.chunks_exact(3) {
+        for n in g.normals.as_chunks::<3>().0 {
             assert!((Vector3::new(n[0], n[1], n[2]).length() - 1.0).abs() < 1e-3);
         }
         let p = |i: u32| {
@@ -443,7 +443,7 @@ mod tests {
                 g.positions[i as usize * 3 + 2],
             )
         };
-        for t in g.indices.chunks_exact(3) {
+        for t in g.indices.as_chunks::<3>().0 {
             let face = (p(t[1]) - p(t[0])).cross(p(t[2]) - p(t[0]));
             if face.length() < 1e-9 {
                 continue;
@@ -491,7 +491,7 @@ mod tests {
                 g.normals[i as usize * 3 + 2],
             )
         };
-        for t in g.indices.chunks_exact(3) {
+        for t in g.indices.as_chunks::<3>().0 {
             let face = (p(t[1]) - p(t[0])).cross(p(t[2]) - p(t[0]));
             if face.length() > 1e-9 {
                 assert!(face.dot(n(t[0]) + n(t[1]) + n(t[2])) > 0.0);
