@@ -3,9 +3,13 @@
 //! [`OrbitControls`](super::OrbitControls).
 //!
 //! One shader program draws every material: the kind is a uniform, the lights are arrays
-//! (4 directional and 8 point lights at most, the others are ignored), and the lighting
-//! follows a physically based model (Lambert diffuse, GGX specular, the same light
-//! falloff), then the tone mapping and the sRGB output.
+//! (4 directional, 16 point and 8 spot lights at most: the point lights nearest the
+//! camera are kept), and the lighting follows a physically based model (Lambert diffuse,
+//! GGX specular, the same light falloff), then the tone mapping and the sRGB output.
+//! Textures are read in linear light (sRGB textures), with mipmaps and anisotropic
+//! filtering; normal maps need no tangents (they are computed from the screen-space
+//! derivatives). Shadows are depth maps drawn from each light casting them (4 at most),
+//! compared by the hardware and softened over 3 × 3 samples.
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -15,48 +19,81 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::JsValue;
 use web_sys::{
-    HtmlCanvasElement, WebGl2RenderingContext as Gl, WebGlBuffer, WebGlProgram, WebGlShader,
-    WebGlUniformLocation, WebGlVertexArrayObject,
+    HtmlCanvasElement, HtmlImageElement, WebGl2RenderingContext as Gl, WebGlBuffer,
+    WebGlFramebuffer, WebGlProgram, WebGlSampler, WebGlShader, WebGlTexture, WebGlUniformLocation,
+    WebGlVertexArrayObject,
 };
 
 use super::controls::Input;
+use super::graph::{MAX_SHADOWS, ShadowCamera, ShadowLight};
 use super::math::{Color, Vector2, Vector3, linear_to_srgb};
+use super::texture::{ColorSpace, Filter, Texture, TextureSource, Wrapping};
 use super::{BufferGeometry, Camera, Draw, Frame, Material, Scene, Side, ToneMapping};
 
 const MAX_DIRECTIONAL: usize = 4;
-const MAX_POINT: usize = 8;
-/// A geometry not drawn for this many frames gives its GPU buffers back.
+const MAX_POINT: usize = 16;
+const MAX_SPOT: usize = 8;
+/// A geometry or a texture not drawn for this many frames gives its GPU memory back.
 const KEEP_FRAMES: u64 = 120;
+/// The texture units: the material's maps, then the shadow maps.
+const UNIT_MAP: u32 = 0;
+const UNIT_EMISSIVE: u32 = 1;
+const UNIT_NORMAL: u32 = 2;
+const UNIT_ROUGHNESS_METALNESS: u32 = 3;
+const UNIT_SHADOW: u32 = 4;
+/// `EXT_texture_filter_anisotropic`.
+const TEXTURE_MAX_ANISOTROPY: u32 = 0x84FE;
+const MAX_TEXTURE_MAX_ANISOTROPY: u32 = 0x84FF;
 
 const VERTEX: &str = r#"#version 300 es
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 normal;
+layout(location = 2) in vec2 uv;
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
 uniform mat4 projectionMatrix;
 uniform mat3 normalMatrix;
 out vec3 vWorldPosition;
 out vec3 vNormal;
+out vec2 vUv;
 void main() {
     vec4 world = modelMatrix * vec4(position, 1.0);
     vWorldPosition = world.xyz;
     vNormal = normalMatrix * normal;
+    vUv = uv;
     gl_Position = projectionMatrix * viewMatrix * world;
 }
 "#;
 
 const FRAGMENT: &str = r#"#version 300 es
 precision highp float;
+precision highp sampler2DShadow;
 #define RECIPROCAL_PI 0.3183098861837907
 in vec3 vWorldPosition;
 in vec3 vNormal;
+in vec2 vUv;
 uniform int kind; // 0 basic, 1 Lambert, 2 standard, 3 normal
 uniform vec3 diffuse;
 uniform float opacity;
+uniform bool blend;
+uniform float alphaTest;
 uniform vec3 emissive;
 uniform float roughness;
 uniform float metalness;
 uniform bool flatShading;
+uniform bool hasMap;
+uniform sampler2D map;
+uniform mat3 mapTransform;
+uniform bool hasEmissiveMap;
+uniform sampler2D emissiveMap;
+uniform mat3 emissiveMapTransform;
+uniform bool hasNormalMap;
+uniform sampler2D normalMap;
+uniform mat3 normalMapTransform;
+uniform vec2 normalScale;
+uniform bool hasRoughnessMetalnessMap;
+uniform sampler2D roughnessMetalnessMap;
+uniform mat3 roughnessMetalnessMapTransform;
 uniform mat4 viewMatrix;
 uniform vec3 cameraPosition;
 uniform bool orthographic;
@@ -67,10 +104,24 @@ uniform vec3 groundColor;
 uniform int numDirectional;
 uniform vec3 directionalDirection[4];
 uniform vec3 directionalColor[4];
+uniform int directionalShadow[4];
 uniform int numPoint;
-uniform vec3 pointPosition[8];
-uniform vec3 pointColor[8];
-uniform vec2 pointFalloff[8]; // distance, decay
+uniform vec3 pointPosition[16];
+uniform vec3 pointColor[16];
+uniform vec2 pointFalloff[16]; // distance, decay
+uniform int numSpot;
+uniform vec3 spotPosition[8];
+uniform vec3 spotDirection[8];
+uniform vec3 spotColor[8];
+uniform vec4 spotParams[8]; // distance, decay, cos of the cone, cos of the full light
+uniform int spotShadow[8];
+uniform bool receiveShadow;
+uniform mat4 shadowMatrix[4];
+uniform vec4 shadowParams[4]; // bias, normal bias, radius, 1 / map size
+uniform sampler2DShadow shadowMap0;
+uniform sampler2DShadow shadowMap1;
+uniform sampler2DShadow shadowMap2;
+uniform sampler2DShadow shadowMap3;
 uniform float exposure;
 uniform int toneMapping;
 out vec4 fragColor;
@@ -120,35 +171,102 @@ vec3 linearToSrgb(vec3 c) {
     return mix(pow(c, vec3(0.41666)) * 1.055 - vec3(0.055), c * 12.92, vec3(lessThanEqual(c, vec3(0.0031308))));
 }
 
+vec2 transformed(mat3 m) {
+    return (m * vec3(vUv, 1.0)).xy;
+}
+
+// A normal map without tangents: the frame of the texture from the derivatives on screen.
+vec3 perturbNormal(vec3 n, vec3 mapN, vec2 uv, float faceDirection) {
+    vec3 q0 = dFdx(vWorldPosition);
+    vec3 q1 = dFdy(vWorldPosition);
+    vec2 st0 = dFdx(uv);
+    vec2 st1 = dFdy(uv);
+    vec3 q1perp = cross(q1, n);
+    vec3 q0perp = cross(n, q0);
+    vec3 t = q1perp * st0.x + q0perp * st1.x;
+    vec3 b = q1perp * st0.y + q0perp * st1.y;
+    float det = max(dot(t, t), dot(b, b));
+    float scale = det == 0.0 ? 0.0 : faceDirection * inversesqrt(det);
+    return normalize(t * (mapN.x * scale) + b * (mapN.y * scale) + n * mapN.z);
+}
+
+float shadowSample(int i, vec3 c) {
+    if (i == 0) return texture(shadowMap0, c);
+    if (i == 1) return texture(shadowMap1, c);
+    if (i == 2) return texture(shadowMap2, c);
+    return texture(shadowMap3, c);
+}
+
+float shadowFactor(int i, vec3 n) {
+    if (i < 0 || !receiveShadow) return 1.0;
+    vec4 p = shadowMatrix[i] * vec4(vWorldPosition + n * shadowParams[i].y, 1.0);
+    vec3 c = p.xyz / p.w * 0.5 + 0.5;
+    if (p.w <= 0.0 || c.x < 0.0 || c.x > 1.0 || c.y < 0.0 || c.y > 1.0 || c.z > 1.0) return 1.0;
+    c.z -= shadowParams[i].x;
+    vec2 r = vec2(shadowParams[i].z * shadowParams[i].w);
+    float lit = 0.0;
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            lit += shadowSample(i, vec3(c.xy + vec2(float(x), float(y)) * r, c.z));
+        }
+    }
+    return lit / 9.0;
+}
+
 void main() {
+    vec3 base = diffuse;
+    float alpha = opacity;
+    if (hasMap) {
+        vec4 texel = texture(map, transformed(mapTransform));
+        base *= texel.rgb;
+        alpha *= texel.a;
+    }
+    if (alpha < alphaTest) discard;
+    float faceDirection = gl_FrontFacing ? 1.0 : -1.0;
     vec3 n;
     if (flatShading) {
         n = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));
     } else {
-        n = normalize(vNormal);
-        if (!gl_FrontFacing) n = -n;
+        n = normalize(vNormal) * faceDirection;
     }
+    vec3 geometryNormal = n;
     vec3 color;
     if (kind == 3) {
         color = normalize(mat3(viewMatrix) * n) * 0.5 + 0.5;
     } else if (kind == 0) {
-        color = diffuse;
+        color = base;
     } else {
+        if (hasNormalMap) {
+            vec2 uv = transformed(normalMapTransform);
+            vec3 mapN = texture(normalMap, uv).xyz * 2.0 - 1.0;
+            mapN.xy *= normalScale;
+            n = perturbNormal(n, mapN, uv, faceDirection);
+        }
+        float rough0 = roughness;
+        float metal = metalness;
+        if (hasRoughnessMetalnessMap) {
+            vec4 rm = texture(roughnessMetalnessMap, transformed(roughnessMetalnessMapTransform));
+            rough0 *= rm.g;
+            metal *= rm.b;
+        }
+        vec3 glow = emissive;
+        if (hasEmissiveMap) glow *= texture(emissiveMap, transformed(emissiveMapTransform)).rgb;
         vec3 v = orthographic ? cameraBack : normalize(cameraPosition - vWorldPosition);
-        vec3 diffuseColor = kind == 2 ? diffuse * (1.0 - metalness) : diffuse;
-        vec3 f0 = mix(vec3(0.04), diffuse, metalness);
+        vec3 diffuseColor = kind == 2 ? base * (1.0 - metal) : base;
+        vec3 f0 = mix(vec3(0.04), base, metal);
         vec3 dxy = max(abs(dFdx(n)), abs(dFdy(n)));
-        float rough = min(max(roughness, 0.0525) + max(max(dxy.x, dxy.y), dxy.z), 1.0);
+        float rough = min(max(rough0, 0.0525) + max(max(dxy.x, dxy.y), dxy.z), 1.0);
         vec3 irradiance = ambientLightColor + mix(groundColor, skyColor, 0.5 * n.y + 0.5);
         vec3 specular = vec3(0.0);
         for (int i = 0; i < 4; i++) {
             if (i >= numDirectional) break;
             vec3 l = directionalDirection[i];
-            vec3 light = clamp(dot(n, l), 0.0, 1.0) * directionalColor[i];
+            float shadow = shadowFactor(directionalShadow[i], geometryNormal);
+            vec3 light = clamp(dot(n, l), 0.0, 1.0) * directionalColor[i] * shadow;
             irradiance += light;
             if (kind == 2) specular += light * specularGgx(l, v, n, f0, rough);
         }
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 16; i++) {
             if (i >= numPoint) break;
             vec3 toLight = pointPosition[i] - vWorldPosition;
             float d = length(toLight);
@@ -159,78 +277,120 @@ void main() {
             irradiance += light;
             if (kind == 2) specular += light * specularGgx(l, v, n, f0, rough);
         }
-        color = (irradiance * RECIPROCAL_PI * diffuseColor + specular + emissive) * exposure;
+        for (int i = 0; i < 8; i++) {
+            if (i >= numSpot) break;
+            vec3 toLight = spotPosition[i] - vWorldPosition;
+            float d = length(toLight);
+            vec3 l = toLight / max(d, 1e-6);
+            float cone = smoothstep(spotParams[i].z, spotParams[i].w, dot(l, -spotDirection[i]));
+            if (cone <= 0.0) continue;
+            float falloff = cone / max(pow(d, spotParams[i].y), 0.01);
+            if (spotParams[i].x > 0.0) falloff *= pow2(clamp(1.0 - pow2(pow2(d / spotParams[i].x)), 0.0, 1.0));
+            float shadow = shadowFactor(spotShadow[i], geometryNormal);
+            vec3 light = clamp(dot(n, l), 0.0, 1.0) * spotColor[i] * falloff * shadow;
+            irradiance += light;
+            if (kind == 2) specular += light * specularGgx(l, v, n, f0, rough);
+        }
+        color = (irradiance * RECIPROCAL_PI * diffuseColor + specular + glow) * exposure;
     }
     if (toneMapping == 1) color = acesFilmic(color);
     color = linearToSrgb(clamp(color, 0.0, 1.0));
+    float outAlpha = blend ? clamp(alpha, 0.0, 1.0) : 1.0;
     // The canvas expects premultiplied alpha.
-    fragColor = vec4(color * opacity, opacity);
+    fragColor = vec4(color * outAlpha, outAlpha);
 }
 "#;
 
-/// Where the uniforms are.
+const SHADOW_VERTEX: &str = r#"#version 300 es
+layout(location = 0) in vec3 position;
+uniform mat4 lightMatrix;
+uniform mat4 modelMatrix;
+void main() {
+    gl_Position = lightMatrix * modelMatrix * vec4(position, 1.0);
+}
+"#;
+
+const SHADOW_FRAGMENT: &str = r#"#version 300 es
+precision mediump float;
+void main() {}
+"#;
+
+/// Where the uniforms are, found by name once.
 struct Uniforms {
-    model: Option<WebGlUniformLocation>,
-    view: Option<WebGlUniformLocation>,
-    projection: Option<WebGlUniformLocation>,
-    normal_matrix: Option<WebGlUniformLocation>,
-    kind: Option<WebGlUniformLocation>,
-    diffuse: Option<WebGlUniformLocation>,
-    opacity: Option<WebGlUniformLocation>,
-    emissive: Option<WebGlUniformLocation>,
-    roughness: Option<WebGlUniformLocation>,
-    metalness: Option<WebGlUniformLocation>,
-    flat_shading: Option<WebGlUniformLocation>,
-    camera_position: Option<WebGlUniformLocation>,
-    orthographic: Option<WebGlUniformLocation>,
-    camera_back: Option<WebGlUniformLocation>,
-    ambient: Option<WebGlUniformLocation>,
-    sky: Option<WebGlUniformLocation>,
-    ground: Option<WebGlUniformLocation>,
-    num_directional: Option<WebGlUniformLocation>,
-    directional_direction: Option<WebGlUniformLocation>,
-    directional_color: Option<WebGlUniformLocation>,
-    num_point: Option<WebGlUniformLocation>,
-    point_position: Option<WebGlUniformLocation>,
-    point_color: Option<WebGlUniformLocation>,
-    point_falloff: Option<WebGlUniformLocation>,
-    exposure: Option<WebGlUniformLocation>,
-    tone_mapping: Option<WebGlUniformLocation>,
+    at: HashMap<&'static str, WebGlUniformLocation>,
 }
 
 impl Uniforms {
-    fn new(gl: &Gl, p: &WebGlProgram) -> Uniforms {
-        let at = |name: &str| gl.get_uniform_location(p, name);
-        Uniforms {
-            model: at("modelMatrix"),
-            view: at("viewMatrix"),
-            projection: at("projectionMatrix"),
-            normal_matrix: at("normalMatrix"),
-            kind: at("kind"),
-            diffuse: at("diffuse"),
-            opacity: at("opacity"),
-            emissive: at("emissive"),
-            roughness: at("roughness"),
-            metalness: at("metalness"),
-            flat_shading: at("flatShading"),
-            camera_position: at("cameraPosition"),
-            orthographic: at("orthographic"),
-            camera_back: at("cameraBack"),
-            ambient: at("ambientLightColor"),
-            sky: at("skyColor"),
-            ground: at("groundColor"),
-            num_directional: at("numDirectional"),
-            directional_direction: at("directionalDirection[0]"),
-            directional_color: at("directionalColor[0]"),
-            num_point: at("numPoint"),
-            point_position: at("pointPosition[0]"),
-            point_color: at("pointColor[0]"),
-            point_falloff: at("pointFalloff[0]"),
-            exposure: at("exposure"),
-            tone_mapping: at("toneMapping"),
-        }
+    fn new(gl: &Gl, p: &WebGlProgram, names: &[&'static str]) -> Uniforms {
+        let at = names
+            .iter()
+            .filter_map(|name| Some((*name, gl.get_uniform_location(p, name)?)))
+            .collect();
+        Uniforms { at }
+    }
+
+    fn get(&self, name: &str) -> Option<&WebGlUniformLocation> {
+        self.at.get(name)
     }
 }
+
+const UNIFORMS: &[&str] = &[
+    "modelMatrix",
+    "viewMatrix",
+    "projectionMatrix",
+    "normalMatrix",
+    "kind",
+    "diffuse",
+    "opacity",
+    "blend",
+    "alphaTest",
+    "emissive",
+    "roughness",
+    "metalness",
+    "flatShading",
+    "hasMap",
+    "map",
+    "mapTransform",
+    "hasEmissiveMap",
+    "emissiveMap",
+    "emissiveMapTransform",
+    "hasNormalMap",
+    "normalMap",
+    "normalMapTransform",
+    "normalScale",
+    "hasRoughnessMetalnessMap",
+    "roughnessMetalnessMap",
+    "roughnessMetalnessMapTransform",
+    "cameraPosition",
+    "orthographic",
+    "cameraBack",
+    "ambientLightColor",
+    "skyColor",
+    "groundColor",
+    "numDirectional",
+    "directionalDirection[0]",
+    "directionalColor[0]",
+    "directionalShadow[0]",
+    "numPoint",
+    "pointPosition[0]",
+    "pointColor[0]",
+    "pointFalloff[0]",
+    "numSpot",
+    "spotPosition[0]",
+    "spotDirection[0]",
+    "spotColor[0]",
+    "spotParams[0]",
+    "spotShadow[0]",
+    "receiveShadow",
+    "shadowMatrix[0]",
+    "shadowParams[0]",
+    "shadowMap0",
+    "shadowMap1",
+    "shadowMap2",
+    "shadowMap3",
+    "exposure",
+    "toneMapping",
+];
 
 /// A geometry's buffers on the GPU.
 struct GpuGeometry {
@@ -241,6 +401,23 @@ struct GpuGeometry {
     wire: Option<(Option<WebGlVertexArrayObject>, Option<WebGlBuffer>, i32)>,
     /// The last frame that drew it.
     used: u64,
+}
+
+/// A texture on the GPU (one per image, color space and orientation).
+struct GpuTexture {
+    texture: Option<WebGlTexture>,
+    /// The image being downloaded, until it is uploaded.
+    image: Option<HtmlImageElement>,
+    ready: bool,
+    version: u32,
+    used: u64,
+}
+
+/// A shadow map: a depth texture and the framebuffer that draws into it.
+struct ShadowTarget {
+    texture: Option<WebGlTexture>,
+    framebuffer: Option<WebGlFramebuffer>,
+    size: u32,
 }
 
 /// Draws scenes in a `<canvas>` with WebGL 2 (`new THREE.Renderer({ canvas })`).
@@ -262,7 +439,16 @@ pub struct Renderer {
     gl: Gl,
     program: Option<WebGlProgram>,
     u: Uniforms,
+    shadow_program: Option<WebGlProgram>,
+    shadow_u: Uniforms,
     geometries: HashMap<u64, GpuGeometry>,
+    textures: HashMap<(u64, bool, bool), GpuTexture>,
+    samplers: HashMap<(Wrapping, Wrapping, Filter, Filter), Option<WebGlSampler>>,
+    shadow_targets: Vec<ShadowTarget>,
+    /// Bound to the units of missing textures: one white pixel, a depth of 1.
+    white: Option<WebGlTexture>,
+    no_shadow: Option<WebGlTexture>,
+    anisotropy: f32,
     frame_number: u64,
     pixel_ratio: f64,
     /// The CSS size given to `set_size`.
@@ -273,6 +459,9 @@ pub struct Renderer {
     pub tone_mapping: ToneMapping,
     /// The exposure, used with a tone mapping (`renderer.toneMappingExposure`).
     pub tone_mapping_exposure: f32,
+    /// Whether shadows are drawn (`renderer.shadowMap.enabled`; true by default: a scene
+    /// has shadows as soon as a light and meshes cast them).
+    pub shadows: bool,
 }
 
 impl Renderer {
@@ -301,14 +490,76 @@ impl Renderer {
                 .map_err(|_| "not a WebGL 2 context".to_owned())?,
             _ => return Err("WebGL 2 is not available in this browser".to_owned()),
         };
-        let program = link(&gl)?;
-        let u = Uniforms::new(&gl, &program);
+        let program = link(&gl, VERTEX, FRAGMENT)?;
+        let u = Uniforms::new(&gl, &program, UNIFORMS);
+        // Each sampler on its own unit (they all start on unit 0).
+        gl.use_program(Some(&program));
+        for (name, unit) in [
+            ("map", UNIT_MAP),
+            ("emissiveMap", UNIT_EMISSIVE),
+            ("normalMap", UNIT_NORMAL),
+            ("roughnessMetalnessMap", UNIT_ROUGHNESS_METALNESS),
+            ("shadowMap0", UNIT_SHADOW),
+            ("shadowMap1", UNIT_SHADOW + 1),
+            ("shadowMap2", UNIT_SHADOW + 2),
+            ("shadowMap3", UNIT_SHADOW + 3),
+        ] {
+            gl.uniform1i(u.get(name), unit as i32);
+        }
+        let shadow_program = link(&gl, SHADOW_VERTEX, SHADOW_FRAGMENT)?;
+        let shadow_u = Uniforms::new(&gl, &shadow_program, &["lightMatrix", "modelMatrix"]);
+        let anisotropy = match gl.get_extension("EXT_texture_filter_anisotropic") {
+            Ok(Some(_)) => gl
+                .get_parameter(MAX_TEXTURE_MAX_ANISOTROPY)
+                .ok()
+                .and_then(|v| v.as_f64())
+                .map_or(1.0, |v| v.min(8.0) as f32),
+            _ => 1.0,
+        };
+        let white = gl.create_texture();
+        gl.bind_texture(Gl::TEXTURE_2D, white.as_ref());
+        let _ = gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+            Gl::TEXTURE_2D,
+            0,
+            Gl::RGBA8 as i32,
+            1,
+            1,
+            0,
+            Gl::RGBA,
+            Gl::UNSIGNED_BYTE,
+            Some(&[255, 255, 255, 255]),
+        );
+        let no_shadow = gl.create_texture();
+        gl.bind_texture(Gl::TEXTURE_2D, no_shadow.as_ref());
+        let depth = js_sys::Uint32Array::from(&[u32::MAX][..]);
+        let _ = gl
+            .tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_array_buffer_view(
+                Gl::TEXTURE_2D,
+                0,
+                Gl::DEPTH_COMPONENT24 as i32,
+                1,
+                1,
+                0,
+                Gl::DEPTH_COMPONENT,
+                Gl::UNSIGNED_INT,
+                Some(&depth),
+            );
+        shadow_texture_parameters(&gl);
+        gl.bind_texture(Gl::TEXTURE_2D, None);
         Ok(Renderer {
             canvas,
             gl,
             program: Some(program),
             u,
+            shadow_program: Some(shadow_program),
+            shadow_u,
             geometries: HashMap::new(),
+            textures: HashMap::new(),
+            samplers: HashMap::new(),
+            shadow_targets: Vec::new(),
+            white,
+            no_shadow,
+            anisotropy,
             frame_number: 0,
             pixel_ratio: 1.0,
             size: None,
@@ -316,6 +567,7 @@ impl Renderer {
             clear_alpha: 0.0,
             tone_mapping: ToneMapping::None,
             tone_mapping_exposure: 1.0,
+            shadows: true,
         })
     }
 
@@ -384,8 +636,16 @@ impl Renderer {
     /// Draws a frame made by [`Scene::frame`] (or by anything else: the ECS draws its own).
     pub fn draw_frame(&mut self, frame: &Frame<'_>) {
         self.frame_number += 1;
+        let shadows = if self.shadows {
+            frame.shadow_cameras()
+        } else {
+            Vec::new()
+        };
+        self.draw_shadow_maps(frame, &shadows);
+
         let (width, height) = self.drawing_buffer_size();
         let gl = &self.gl;
+        gl.bind_framebuffer(Gl::FRAMEBUFFER, None);
         gl.viewport(0, 0, width as i32, height as i32);
         let (clear, alpha) = match frame.background {
             Some(color) => (color, 1.0),
@@ -398,7 +658,7 @@ impl Renderer {
         gl.enable(Gl::DEPTH_TEST);
         gl.depth_func(Gl::LEQUAL);
         gl.use_program(self.program.as_ref());
-        self.set_frame_uniforms(frame);
+        self.set_frame_uniforms(frame, &shadows);
 
         // Opaque meshes first, nearest first; then the transparent ones, farthest first.
         let mut order: Vec<(bool, f32, usize)> = frame
@@ -426,7 +686,7 @@ impl Renderer {
         gl.disable(Gl::BLEND);
         gl.depth_mask(true);
 
-        // Give back the buffers of the geometries no longer drawn.
+        // Give back the memory of the geometries and textures no longer drawn.
         let now = self.frame_number;
         let stale: Vec<u64> = self
             .geometries
@@ -439,44 +699,208 @@ impl Renderer {
                 delete(&self.gl, g);
             }
         }
+        let gl = &self.gl;
+        self.textures.retain(|_, t| {
+            let keep = now - t.used <= KEEP_FRAMES;
+            if !keep {
+                gl.delete_texture(t.texture.as_ref());
+            }
+            keep
+        });
     }
 
-    fn set_frame_uniforms(&self, frame: &Frame<'_>) {
+    /// Draws the depth of the meshes casting shadows, from each light casting them.
+    fn draw_shadow_maps(&mut self, frame: &Frame<'_>, cameras: &[ShadowCamera]) {
+        if cameras.is_empty() {
+            return;
+        }
+        self.gl.active_texture(Gl::TEXTURE0 + UNIT_SHADOW);
+        for (i, camera) in cameras.iter().enumerate() {
+            let size = camera.settings.map_size.clamp(16, 8192);
+            if self.shadow_targets.len() <= i {
+                self.shadow_targets.push(ShadowTarget {
+                    texture: None,
+                    framebuffer: None,
+                    size: 0,
+                });
+            }
+            if self.shadow_targets[i].size != size {
+                let target = &mut self.shadow_targets[i];
+                let gl = &self.gl;
+                gl.delete_texture(target.texture.as_ref());
+                gl.delete_framebuffer(target.framebuffer.as_ref());
+                target.texture = gl.create_texture();
+                gl.bind_texture(Gl::TEXTURE_2D, target.texture.as_ref());
+                gl.tex_storage_2d(
+                    Gl::TEXTURE_2D,
+                    1,
+                    Gl::DEPTH_COMPONENT24,
+                    size as i32,
+                    size as i32,
+                );
+                shadow_texture_parameters(gl);
+                target.framebuffer = gl.create_framebuffer();
+                gl.bind_framebuffer(Gl::FRAMEBUFFER, target.framebuffer.as_ref());
+                gl.framebuffer_texture_2d(
+                    Gl::FRAMEBUFFER,
+                    Gl::DEPTH_ATTACHMENT,
+                    Gl::TEXTURE_2D,
+                    target.texture.as_ref(),
+                    0,
+                );
+                gl.bind_texture(Gl::TEXTURE_2D, None);
+                target.size = size;
+            }
+        }
+        // The shadow maps are drawn into: none of them may stay bound for reading.
+        for unit in 0..MAX_SHADOWS as u32 {
+            self.gl.active_texture(Gl::TEXTURE0 + UNIT_SHADOW + unit);
+            self.gl
+                .bind_texture(Gl::TEXTURE_2D, self.no_shadow.as_ref());
+        }
+        self.gl.use_program(self.shadow_program.as_ref());
+        self.gl.enable(Gl::DEPTH_TEST);
+        self.gl.depth_func(Gl::LEQUAL);
+        self.gl.depth_mask(true);
+        self.gl.disable(Gl::BLEND);
+        self.gl.disable(Gl::CULL_FACE);
+        self.gl.enable(Gl::POLYGON_OFFSET_FILL);
+        self.gl.polygon_offset(1.0, 1.0);
+        for (i, camera) in cameras.iter().enumerate() {
+            let (framebuffer, size) = (
+                self.shadow_targets[i].framebuffer.clone(),
+                self.shadow_targets[i].size,
+            );
+            self.gl
+                .bind_framebuffer(Gl::FRAMEBUFFER, framebuffer.as_ref());
+            self.gl.viewport(0, 0, size as i32, size as i32);
+            self.gl.clear(Gl::DEPTH_BUFFER_BIT);
+            self.gl.uniform_matrix4fv_with_f32_array(
+                self.shadow_u.get("lightMatrix"),
+                false,
+                &camera.view_projection.elements,
+            );
+            for draw in frame.meshes.iter().filter(|d| d.cast_shadow) {
+                let Some(g) = self.geometry(draw.geometry) else {
+                    continue;
+                };
+                let (vao, count) = (g.vao.clone(), g.count);
+                self.gl.uniform_matrix4fv_with_f32_array(
+                    self.shadow_u.get("modelMatrix"),
+                    false,
+                    &draw.world.elements,
+                );
+                self.gl.bind_vertex_array(vao.as_ref());
+                self.gl
+                    .draw_elements_with_i32(Gl::TRIANGLES, count, Gl::UNSIGNED_INT, 0);
+            }
+        }
+        self.gl.disable(Gl::POLYGON_OFFSET_FILL);
+        self.gl.bind_vertex_array(None);
+        self.gl.bind_framebuffer(Gl::FRAMEBUFFER, None);
+    }
+
+    /// The buffers of a geometry, uploaded the first time.
+    fn geometry(&mut self, geometry: &BufferGeometry) -> Option<&GpuGeometry> {
+        let id = geometry.id();
+        if !self.geometries.contains_key(&id) {
+            let uploaded = upload(&self.gl, geometry)?;
+            self.geometries.insert(id, uploaded);
+        }
+        let g = self.geometries.get_mut(&id)?;
+        g.used = self.frame_number;
+        Some(g)
+    }
+
+    fn set_frame_uniforms(&mut self, frame: &Frame<'_>, shadows: &[ShadowCamera]) {
         let (gl, u) = (&self.gl, &self.u);
-        gl.uniform_matrix4fv_with_f32_array(u.view.as_ref(), false, &frame.view.elements);
+        gl.uniform_matrix4fv_with_f32_array(u.get("viewMatrix"), false, &frame.view.elements);
         gl.uniform_matrix4fv_with_f32_array(
-            u.projection.as_ref(),
+            u.get("projectionMatrix"),
             false,
             &frame.projection.elements,
         );
         let eye = frame.camera.translation();
-        gl.uniform3f(u.camera_position.as_ref(), eye.x, eye.y, eye.z);
+        gl.uniform3f(u.get("cameraPosition"), eye.x, eye.y, eye.z);
         let e = &frame.camera.elements;
         let back = Vector3::new(e[8], e[9], e[10]).normalize();
-        gl.uniform3f(u.camera_back.as_ref(), back.x, back.y, back.z);
+        gl.uniform3f(u.get("cameraBack"), back.x, back.y, back.z);
         // A perspective projection has 0 in its last element, an orthographic one 1.
         gl.uniform1i(
-            u.orthographic.as_ref(),
+            u.get("orthographic"),
             i32::from(frame.projection.elements[15] == 1.0),
         );
 
         let lights = &frame.lights;
-        set_color(gl, &u.ambient, lights.ambient);
+        set_color(gl, u.get("ambientLightColor"), lights.ambient);
         let (sky, ground) = lights.hemisphere.unwrap_or((Color::BLACK, Color::BLACK));
-        set_color(gl, &u.sky, sky);
-        set_color(gl, &u.ground, ground);
+        set_color(gl, u.get("skyColor"), sky);
+        set_color(gl, u.get("groundColor"), ground);
+
+        // Which shadow map each light reads (-1: none).
+        let mut directional_shadow = [-1i32; MAX_DIRECTIONAL];
+        let mut spot_shadow = [-1i32; MAX_SPOT];
+        let mut matrices = [0.0; MAX_SHADOWS * 16];
+        let mut params = [0.0; MAX_SHADOWS * 4];
+        for (i, camera) in shadows.iter().enumerate() {
+            match camera.light {
+                ShadowLight::Directional(l) if l < MAX_DIRECTIONAL => {
+                    directional_shadow[l] = i as i32
+                }
+                ShadowLight::Spot(l) if l < MAX_SPOT => spot_shadow[l] = i as i32,
+                _ => {}
+            }
+            matrices[i * 16..i * 16 + 16].copy_from_slice(&camera.view_projection.elements);
+            let s = camera.settings;
+            params[i * 4..i * 4 + 4].copy_from_slice(&[
+                // A perspective depth is not linear: the bias is smaller there.
+                if camera.orthographic {
+                    s.bias
+                } else {
+                    s.bias * 0.1
+                },
+                s.normal_bias,
+                s.radius.max(0.0),
+                1.0 / s.map_size.clamp(16, 8192) as f32,
+            ]);
+        }
+        gl.uniform1iv_with_i32_array(u.get("directionalShadow[0]"), &directional_shadow);
+        gl.uniform1iv_with_i32_array(u.get("spotShadow[0]"), &spot_shadow);
+        gl.uniform_matrix4fv_with_f32_array(u.get("shadowMatrix[0]"), false, &matrices);
+        gl.uniform4fv_with_f32_array(u.get("shadowParams[0]"), &params);
+        for unit in 0..MAX_SHADOWS {
+            gl.active_texture(Gl::TEXTURE0 + UNIT_SHADOW + unit as u32);
+            gl.bind_sampler(UNIT_SHADOW + unit as u32, None);
+            let texture = if unit < shadows.len() {
+                self.shadow_targets[unit].texture.as_ref()
+            } else {
+                self.no_shadow.as_ref()
+            };
+            gl.bind_texture(Gl::TEXTURE_2D, texture);
+        }
+
         let directional = &lights.directional[..lights.directional.len().min(MAX_DIRECTIONAL)];
-        gl.uniform1i(u.num_directional.as_ref(), directional.len() as i32);
+        gl.uniform1i(u.get("numDirectional"), directional.len() as i32);
         let mut directions = [0.0; MAX_DIRECTIONAL * 3];
         let mut colors = [0.0; MAX_DIRECTIONAL * 3];
         for (i, (direction, color)) in directional.iter().enumerate() {
             directions[i * 3..i * 3 + 3].copy_from_slice(&direction.to_array());
             colors[i * 3..i * 3 + 3].copy_from_slice(&color.to_array());
         }
-        gl.uniform3fv_with_f32_array(u.directional_direction.as_ref(), &directions);
-        gl.uniform3fv_with_f32_array(u.directional_color.as_ref(), &colors);
-        let point = &lights.point[..lights.point.len().min(MAX_POINT)];
-        gl.uniform1i(u.num_point.as_ref(), point.len() as i32);
+        gl.uniform3fv_with_f32_array(u.get("directionalDirection[0]"), &directions);
+        gl.uniform3fv_with_f32_array(u.get("directionalColor[0]"), &colors);
+
+        // Too many point lights: those that light the camera's surroundings most.
+        let mut point: Vec<_> = lights.point.iter().collect();
+        if point.len() > MAX_POINT {
+            let strength = |l: &super::PointLightData| {
+                let d2 = (l.position - eye).length_squared();
+                (l.color.r + l.color.g + l.color.b) / (1.0 + d2)
+            };
+            point.sort_by(|a, b| strength(b).total_cmp(&strength(a)));
+            point.truncate(MAX_POINT);
+        }
+        gl.uniform1i(u.get("numPoint"), point.len() as i32);
         let mut positions = [0.0; MAX_POINT * 3];
         let mut colors = [0.0; MAX_POINT * 3];
         let mut falloffs = [0.0; MAX_POINT * 2];
@@ -486,54 +910,227 @@ impl Renderer {
             falloffs[i * 2] = light.distance;
             falloffs[i * 2 + 1] = light.decay;
         }
-        gl.uniform3fv_with_f32_array(u.point_position.as_ref(), &positions);
-        gl.uniform3fv_with_f32_array(u.point_color.as_ref(), &colors);
-        gl.uniform2fv_with_f32_array(u.point_falloff.as_ref(), &falloffs);
-        gl.uniform1f(u.exposure.as_ref(), frame.exposure);
+        gl.uniform3fv_with_f32_array(u.get("pointPosition[0]"), &positions);
+        gl.uniform3fv_with_f32_array(u.get("pointColor[0]"), &colors);
+        gl.uniform2fv_with_f32_array(u.get("pointFalloff[0]"), &falloffs);
+
+        let spot = &lights.spot[..lights.spot.len().min(MAX_SPOT)];
+        gl.uniform1i(u.get("numSpot"), spot.len() as i32);
+        let mut positions = [0.0; MAX_SPOT * 3];
+        let mut directions = [0.0; MAX_SPOT * 3];
+        let mut colors = [0.0; MAX_SPOT * 3];
+        let mut params = [0.0; MAX_SPOT * 4];
+        for (i, light) in spot.iter().enumerate() {
+            positions[i * 3..i * 3 + 3].copy_from_slice(&light.position.to_array());
+            directions[i * 3..i * 3 + 3].copy_from_slice(&light.direction.normalize().to_array());
+            colors[i * 3..i * 3 + 3].copy_from_slice(&light.color.to_array());
+            let cone = light.angle.cos();
+            let full = (light.angle * (1.0 - light.penumbra))
+                .cos()
+                .max(cone + 1e-4);
+            params[i * 4..i * 4 + 4].copy_from_slice(&[light.distance, light.decay, cone, full]);
+        }
+        gl.uniform3fv_with_f32_array(u.get("spotPosition[0]"), &positions);
+        gl.uniform3fv_with_f32_array(u.get("spotDirection[0]"), &directions);
+        gl.uniform3fv_with_f32_array(u.get("spotColor[0]"), &colors);
+        gl.uniform4fv_with_f32_array(u.get("spotParams[0]"), &params);
+
+        gl.uniform1f(u.get("exposure"), frame.exposure);
         gl.uniform1i(
-            u.tone_mapping.as_ref(),
+            u.get("toneMapping"),
             i32::from(frame.tone_mapping == ToneMapping::AcesFilmic),
         );
     }
 
-    fn draw_mesh(&mut self, draw: &Draw<'_>) {
-        let id = draw.geometry.id();
-        if !self.geometries.contains_key(&id) {
-            let Some(uploaded) = upload(&self.gl, draw.geometry) else {
-                return;
-            };
-            self.geometries.insert(id, uploaded);
+    /// Binds a texture (or the white pixel) to a unit; whether it is there to read.
+    fn bind_texture(&mut self, unit: u32, texture: Option<&Texture>) -> bool {
+        // First the unit: a texture being made is bound to it, not to a shadow map's.
+        self.gl.active_texture(Gl::TEXTURE0 + unit);
+        let gpu = texture.and_then(|t| self.texture(t).map(|g| (g, t)));
+        let gl = &self.gl;
+        match gpu {
+            Some((gpu, t)) => {
+                gl.bind_texture(Gl::TEXTURE_2D, gpu.as_ref());
+                let key = (t.wrap_s, t.wrap_t, t.mag_filter, t.min_filter);
+                let anisotropy = self.anisotropy;
+                let sampler = self
+                    .samplers
+                    .entry(key)
+                    .or_insert_with(|| make_sampler(gl, key, anisotropy));
+                gl.bind_sampler(unit, sampler.as_ref());
+                true
+            }
+            None => {
+                gl.bind_texture(Gl::TEXTURE_2D, self.white.as_ref());
+                gl.bind_sampler(unit, None);
+                false
+            }
         }
-        let (gl, u) = (&self.gl, &self.u);
-        let Some(g) = self.geometries.get_mut(&id) else {
+    }
+
+    /// The GPU texture of a texture, once its pixels are there.
+    fn texture(&mut self, texture: &Texture) -> Option<Option<WebGlTexture>> {
+        let key = (
+            texture.id(),
+            texture.color_space == ColorSpace::Srgb,
+            texture.flip_y,
+        );
+        let now = self.frame_number;
+        let stale = self
+            .textures
+            .get(&key)
+            .is_some_and(|t| t.version != texture.version());
+        if stale && let Some(old) = self.textures.remove(&key) {
+            self.gl.delete_texture(old.texture.as_ref());
+        }
+        let gl = &self.gl;
+        let entry = self.textures.entry(key).or_insert_with(|| {
+            let mut gpu = GpuTexture {
+                texture: None,
+                image: None,
+                ready: false,
+                version: texture.version(),
+                used: now,
+            };
+            match texture.source() {
+                TextureSource::Rgba8 {
+                    width,
+                    height,
+                    data,
+                } => {
+                    gpu.texture = gl.create_texture();
+                    gl.bind_texture(Gl::TEXTURE_2D, gpu.texture.as_ref());
+                    gl.pixel_storei(Gl::UNPACK_FLIP_Y_WEBGL, i32::from(key.2));
+                    gl.pixel_storei(Gl::UNPACK_ALIGNMENT, 1);
+                    let _ = gl
+                        .tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+                            Gl::TEXTURE_2D,
+                            0,
+                            internal_format(key.1),
+                            *width as i32,
+                            *height as i32,
+                            0,
+                            Gl::RGBA,
+                            Gl::UNSIGNED_BYTE,
+                            Some(&data[..]),
+                        );
+                    gl.generate_mipmap(Gl::TEXTURE_2D);
+                    gl.pixel_storei(Gl::UNPACK_FLIP_Y_WEBGL, 0);
+                    gpu.ready = true;
+                }
+                TextureSource::Url(url) => {
+                    if let Ok(image) = HtmlImageElement::new() {
+                        // Images of other sites, when they allow it.
+                        if !url.starts_with('/') && !url.starts_with("data:") {
+                            image.set_cross_origin(Some("anonymous"));
+                        }
+                        image.set_src(url);
+                        gpu.image = Some(image);
+                    }
+                }
+            }
+            gpu
+        });
+        entry.used = now;
+        if !entry.ready {
+            let image = entry.image.as_ref()?;
+            if !image.complete() || image.natural_width() == 0 {
+                return None;
+            }
+            entry.texture = gl.create_texture();
+            gl.bind_texture(Gl::TEXTURE_2D, entry.texture.as_ref());
+            gl.pixel_storei(Gl::UNPACK_FLIP_Y_WEBGL, i32::from(key.2));
+            let uploaded = gl.tex_image_2d_with_u32_and_u32_and_html_image_element(
+                Gl::TEXTURE_2D,
+                0,
+                internal_format(key.1),
+                Gl::RGBA,
+                Gl::UNSIGNED_BYTE,
+                image,
+            );
+            gl.pixel_storei(Gl::UNPACK_FLIP_Y_WEBGL, 0);
+            if uploaded.is_err() {
+                // Refused (another site without CORS): drawn without it.
+                gl.delete_texture(entry.texture.take().as_ref());
+                entry.image = None;
+                return None;
+            }
+            gl.generate_mipmap(Gl::TEXTURE_2D);
+            texture.set_size(image.natural_width(), image.natural_height());
+            entry.image = None;
+            entry.ready = true;
+        }
+        Some(entry.texture.clone())
+    }
+
+    fn draw_mesh(&mut self, draw: &Draw<'_>) {
+        let Some(g) = self.geometry(draw.geometry) else {
             return;
         };
-        g.used = self.frame_number;
-
-        let surface = draw.material.surface();
-        let (kind, emissive, roughness, metalness, flat) = match draw.material {
+        let (vao, count) = (g.vao.clone(), g.count);
+        let material = draw.material;
+        let surface = material.surface();
+        let (kind, emissive, roughness, metalness, flat) = match material {
             Material::Basic(_) => (0, Color::BLACK, 1.0, 0.0, false),
             Material::Lambert(m) => (1, m.emissive, 1.0, 0.0, false),
             Material::Standard(m) => (2, m.emissive, m.roughness, m.metalness, m.flat_shading),
             Material::Normal(_) => (3, Color::BLACK, 1.0, 0.0, false),
         };
-        gl.uniform1i(u.kind.as_ref(), kind);
-        set_color(gl, &u.diffuse, surface.color);
-        gl.uniform1f(
-            u.opacity.as_ref(),
-            if surface.transparent {
-                surface.opacity.clamp(0.0, 1.0)
-            } else {
-                1.0
-            },
-        );
-        set_color(gl, &u.emissive, emissive);
-        gl.uniform1f(u.roughness.as_ref(), roughness);
-        gl.uniform1f(u.metalness.as_ref(), metalness);
-        gl.uniform1i(u.flat_shading.as_ref(), i32::from(flat));
-        gl.uniform_matrix4fv_with_f32_array(u.model.as_ref(), false, &draw.world.elements);
+        let (emissive_map, normal_map, rm_map, normal_scale) = match material {
+            Material::Standard(m) => (
+                m.emissive_map.as_ref(),
+                m.normal_map.as_ref(),
+                m.roughness_metalness_map.as_ref(),
+                m.normal_scale,
+            ),
+            _ => (None, None, None, Vector2::new(1.0, 1.0)),
+        };
+        let maps = [
+            ("hasMap", "mapTransform", UNIT_MAP, material.map()),
+            (
+                "hasEmissiveMap",
+                "emissiveMapTransform",
+                UNIT_EMISSIVE,
+                emissive_map,
+            ),
+            (
+                "hasNormalMap",
+                "normalMapTransform",
+                UNIT_NORMAL,
+                normal_map,
+            ),
+            (
+                "hasRoughnessMetalnessMap",
+                "roughnessMetalnessMapTransform",
+                UNIT_ROUGHNESS_METALNESS,
+                rm_map,
+            ),
+        ];
+        for (has, transform, unit, texture) in maps {
+            let there = self.bind_texture(unit, texture);
+            let u = &self.u;
+            self.gl.uniform1i(u.get(has), i32::from(there));
+            if let (true, Some(t)) = (there, texture) {
+                self.gl
+                    .uniform_matrix3fv_with_f32_array(u.get(transform), false, &t.uv_matrix());
+            }
+        }
+
+        let (gl, u) = (&self.gl, &self.u);
+        gl.uniform1i(u.get("kind"), kind);
+        set_color(gl, u.get("diffuse"), surface.color);
+        gl.uniform1f(u.get("opacity"), surface.opacity.clamp(0.0, 1.0));
+        gl.uniform1i(u.get("blend"), i32::from(surface.transparent));
+        gl.uniform1f(u.get("alphaTest"), material.alpha_test());
+        set_color(gl, u.get("emissive"), emissive);
+        gl.uniform1f(u.get("roughness"), roughness);
+        gl.uniform1f(u.get("metalness"), metalness);
+        gl.uniform1i(u.get("flatShading"), i32::from(flat));
+        gl.uniform2f(u.get("normalScale"), normal_scale.x, normal_scale.y);
+        gl.uniform1i(u.get("receiveShadow"), i32::from(draw.receive_shadow));
+        gl.uniform_matrix4fv_with_f32_array(u.get("modelMatrix"), false, &draw.world.elements);
         gl.uniform_matrix3fv_with_f32_array(
-            u.normal_matrix.as_ref(),
+            u.get("normalMatrix"),
             false,
             &draw.world.normal_matrix(),
         );
@@ -565,16 +1162,21 @@ impl Renderer {
         }
 
         if surface.wireframe {
+            let id = draw.geometry.id();
+            let Some(g) = self.geometries.get_mut(&id) else {
+                return;
+            };
             if g.wire.is_none() {
-                g.wire = Some(upload_edges(gl, g, draw.geometry));
+                g.wire = Some(upload_edges(&self.gl, g, draw.geometry));
             }
             if let Some((vao, _, count)) = &g.wire {
-                gl.bind_vertex_array(vao.as_ref());
-                gl.draw_elements_with_i32(Gl::LINES, *count, Gl::UNSIGNED_INT, 0);
+                self.gl.bind_vertex_array(vao.as_ref());
+                self.gl
+                    .draw_elements_with_i32(Gl::LINES, *count, Gl::UNSIGNED_INT, 0);
             }
         } else {
-            gl.bind_vertex_array(g.vao.as_ref());
-            gl.draw_elements_with_i32(Gl::TRIANGLES, g.count, Gl::UNSIGNED_INT, 0);
+            gl.bind_vertex_array(vao.as_ref());
+            gl.draw_elements_with_i32(Gl::TRIANGLES, count, Gl::UNSIGNED_INT, 0);
         }
     }
 
@@ -605,11 +1207,82 @@ impl Renderer {
 
 impl Drop for Renderer {
     fn drop(&mut self) {
+        let gl = &self.gl;
         for (_, g) in self.geometries.drain() {
-            delete(&self.gl, g);
+            delete(gl, g);
         }
-        self.gl.delete_program(self.program.take().as_ref());
+        for (_, t) in self.textures.drain() {
+            gl.delete_texture(t.texture.as_ref());
+        }
+        for (_, s) in self.samplers.drain() {
+            gl.delete_sampler(s.as_ref());
+        }
+        for target in self.shadow_targets.drain(..) {
+            gl.delete_texture(target.texture.as_ref());
+            gl.delete_framebuffer(target.framebuffer.as_ref());
+        }
+        gl.delete_texture(self.white.take().as_ref());
+        gl.delete_texture(self.no_shadow.take().as_ref());
+        gl.delete_program(self.program.take().as_ref());
+        gl.delete_program(self.shadow_program.take().as_ref());
     }
+}
+
+fn internal_format(srgb: bool) -> i32 {
+    if srgb {
+        Gl::SRGB8_ALPHA8 as i32
+    } else {
+        Gl::RGBA8 as i32
+    }
+}
+
+/// The parameters of a depth texture read as a shadow: compared, filtered, clamped.
+fn shadow_texture_parameters(gl: &Gl) {
+    gl.tex_parameteri(
+        Gl::TEXTURE_2D,
+        Gl::TEXTURE_COMPARE_MODE,
+        Gl::COMPARE_REF_TO_TEXTURE as i32,
+    );
+    gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_COMPARE_FUNC, Gl::LEQUAL as i32);
+    gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_MIN_FILTER, Gl::LINEAR as i32);
+    gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_MAG_FILTER, Gl::LINEAR as i32);
+    gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_S, Gl::CLAMP_TO_EDGE as i32);
+    gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_T, Gl::CLAMP_TO_EDGE as i32);
+}
+
+fn make_sampler(
+    gl: &Gl,
+    (wrap_s, wrap_t, mag, min): (Wrapping, Wrapping, Filter, Filter),
+    anisotropy: f32,
+) -> Option<WebGlSampler> {
+    let sampler = gl.create_sampler()?;
+    let wrap = |w: Wrapping| match w {
+        Wrapping::ClampToEdge => Gl::CLAMP_TO_EDGE,
+        Wrapping::Repeat => Gl::REPEAT,
+        Wrapping::MirroredRepeat => Gl::MIRRORED_REPEAT,
+    } as i32;
+    gl.sampler_parameteri(&sampler, Gl::TEXTURE_WRAP_S, wrap(wrap_s));
+    gl.sampler_parameteri(&sampler, Gl::TEXTURE_WRAP_T, wrap(wrap_t));
+    gl.sampler_parameteri(
+        &sampler,
+        Gl::TEXTURE_MAG_FILTER,
+        match mag {
+            Filter::Linear => Gl::LINEAR,
+            Filter::Nearest => Gl::NEAREST,
+        } as i32,
+    );
+    gl.sampler_parameteri(
+        &sampler,
+        Gl::TEXTURE_MIN_FILTER,
+        match min {
+            Filter::Linear => Gl::LINEAR_MIPMAP_LINEAR,
+            Filter::Nearest => Gl::NEAREST_MIPMAP_NEAREST,
+        } as i32,
+    );
+    if anisotropy > 1.0 && min == Filter::Linear {
+        gl.sampler_parameterf(&sampler, TEXTURE_MAX_ANISOTROPY, anisotropy);
+    }
+    Some(sampler)
 }
 
 fn srgb(c: Color) -> [f32; 3] {
@@ -620,8 +1293,8 @@ fn srgb(c: Color) -> [f32; 3] {
     ]
 }
 
-fn set_color(gl: &Gl, at: &Option<WebGlUniformLocation>, c: Color) {
-    gl.uniform3f(at.as_ref(), c.r, c.g, c.b);
+fn set_color(gl: &Gl, at: Option<&WebGlUniformLocation>, c: Color) {
+    gl.uniform3f(at, c.r, c.g, c.b);
 }
 
 fn compile(gl: &Gl, kind: u32, source: &str) -> Result<WebGlShader, String> {
@@ -641,9 +1314,9 @@ fn compile(gl: &Gl, kind: u32, source: &str) -> Result<WebGlShader, String> {
     }
 }
 
-fn link(gl: &Gl) -> Result<WebGlProgram, String> {
-    let vertex = compile(gl, Gl::VERTEX_SHADER, VERTEX)?;
-    let fragment = compile(gl, Gl::FRAGMENT_SHADER, FRAGMENT)?;
+fn link(gl: &Gl, vertex: &str, fragment: &str) -> Result<WebGlProgram, String> {
+    let vertex = compile(gl, Gl::VERTEX_SHADER, vertex)?;
+    let fragment = compile(gl, Gl::FRAGMENT_SHADER, fragment)?;
     let program = gl.create_program().ok_or("cannot create a program")?;
     gl.attach_shader(&program, &vertex);
     gl.attach_shader(&program, &fragment);
@@ -664,7 +1337,7 @@ fn link(gl: &Gl) -> Result<WebGlProgram, String> {
     }
 }
 
-fn array_buffer(gl: &Gl, location: u32, data: &[f32]) -> Option<WebGlBuffer> {
+fn array_buffer(gl: &Gl, location: u32, size: i32, data: &[f32]) -> Option<WebGlBuffer> {
     let buffer = gl.create_buffer();
     gl.bind_buffer(Gl::ARRAY_BUFFER, buffer.as_ref());
     gl.buffer_data_with_array_buffer_view(
@@ -673,7 +1346,7 @@ fn array_buffer(gl: &Gl, location: u32, data: &[f32]) -> Option<WebGlBuffer> {
         Gl::STATIC_DRAW,
     );
     gl.enable_vertex_attrib_array(location);
-    gl.vertex_attrib_pointer_with_i32(location, 3, Gl::FLOAT, false, 0, 0);
+    gl.vertex_attrib_pointer_with_i32(location, size, Gl::FLOAT, false, 0, 0);
     buffer
 }
 
@@ -703,14 +1376,19 @@ fn upload(gl: &Gl, geometry: &BufferGeometry) -> Option<GpuGeometry> {
     }
     let vao = gl.create_vertex_array();
     gl.bind_vertex_array(vao.as_ref());
-    let position = array_buffer(gl, 0, &geometry.positions);
-    let normal = array_buffer(gl, 1, &geometry.normals);
+    let position = array_buffer(gl, 0, 3, &geometry.positions);
+    let normal = array_buffer(gl, 1, 3, &geometry.normals);
+    let uv = if geometry.uvs.len() / 2 == geometry.positions.len() / 3 {
+        array_buffer(gl, 2, 2, &geometry.uvs)
+    } else {
+        array_buffer(gl, 2, 2, &vec![0.0; geometry.positions.len() / 3 * 2])
+    };
     let indices = indices(geometry);
     let index = element_buffer(gl, &indices);
     gl.bind_vertex_array(None);
     Some(GpuGeometry {
         vao,
-        buffers: vec![position, normal, index],
+        buffers: vec![position, normal, uv, index],
         count: indices.len() as i32,
         wire: None,
         used: 0,
@@ -734,10 +1412,14 @@ fn upload_edges(
     }
     let vao = gl.create_vertex_array();
     gl.bind_vertex_array(vao.as_ref());
-    for (location, buffer) in [(0, &g.buffers[0]), (1, &g.buffers[1])] {
+    for (location, size, buffer) in [
+        (0, 3, &g.buffers[0]),
+        (1, 3, &g.buffers[1]),
+        (2, 2, &g.buffers[2]),
+    ] {
         gl.bind_buffer(Gl::ARRAY_BUFFER, buffer.as_ref());
         gl.enable_vertex_attrib_array(location);
-        gl.vertex_attrib_pointer_with_i32(location, 3, Gl::FLOAT, false, 0, 0);
+        gl.vertex_attrib_pointer_with_i32(location, size, Gl::FLOAT, false, 0, 0);
     }
     let index = element_buffer(gl, &edges);
     gl.bind_vertex_array(None);
