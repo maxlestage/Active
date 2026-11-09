@@ -34,6 +34,7 @@ pub(crate) mod physics;
 
 #[cfg(feature = "client")]
 pub(crate) mod renderer;
+mod texture;
 
 pub use camera::{Camera, OrthographicCamera, PerspectiveCamera};
 pub use controls::{OrbitCamera, OrbitControls};
@@ -42,10 +43,12 @@ pub use geometry::{
     SphereGeometry, TorusGeometry,
 };
 pub use graph::{
-    Draw, Frame, Group, Lights, Mesh, Object3D, ObjectId, ObjectKind, PointLightData, Scene,
-    ToneMapping,
+    Draw, Frame, Group, Lights, MAX_SHADOWS, Mesh, Object3D, ObjectId, ObjectKind, PointLightData,
+    Scene, ShadowCamera, ShadowLight, ShadowRequest, SpotLightData, Sprite, ToneMapping,
 };
-pub use light::{AmbientLight, DirectionalLight, HemisphereLight, Light, PointLight};
+pub use light::{
+    AmbientLight, DirectionalLight, HemisphereLight, Light, LightShadow, PointLight, SpotLight,
+};
 pub use material::{
     Material, MeshBasicMaterial, MeshLambertMaterial, MeshNormalMaterial, MeshStandardMaterial,
     Side, Surface,
@@ -53,6 +56,7 @@ pub use material::{
 pub use math::{Color, Euler, EulerOrder, Matrix4, Quaternion, Vector2, Vector3};
 #[cfg(feature = "physics")]
 pub use physics::Physics;
+pub use texture::{ColorSpace, Filter, Texture, TextureSource, Wrapping};
 
 #[cfg(feature = "client")]
 pub use renderer::{AnimationLoop, Renderer, animation_loop, device_pixel_ratio};

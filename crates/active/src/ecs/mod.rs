@@ -39,8 +39,10 @@
 //! Components, resources, messages, events and states are declared with
 //! `impl Component for T {}` (or the [`component!`](crate::component) macro); the systems
 //! of a schedule run one after the other, in the order they were added, so a game behaves
-//! the same every time. Shadows, textures, spot lights and 2D are not there yet.
-//! Everything but drawing works on the server and in tests too.
+//! the same every time. Materials take images (`base_color_texture`, normal maps…, from
+//! `Assets<Image>` or `asset_server.load(..)`), directional lights and spots cast shadows
+//! (`shadows_enabled`), and 2D has its camera, sprites and flat shapes ([`Camera2d`],
+//! [`Sprite`], [`Mesh2d`]). Everything but drawing works on the server and in tests too.
 
 // The lifetimes of `SystemParam::get_param` are written out, like the trait's.
 #![allow(clippy::needless_lifetimes)]
@@ -52,6 +54,7 @@ mod pbr;
 #[cfg(feature = "physics")]
 mod physics;
 mod query;
+mod sprite;
 mod system;
 mod time;
 mod transform;
@@ -77,12 +80,14 @@ pub use message::{
     ObserverSystem, On,
 };
 pub use pbr::{
-    AlphaMode, AmbientLight, Assets, Camera, Camera3d, Circle, ClearColor, ClearColorConfig, Color,
-    ComputedCameraValues, Cone, Cuboid, Cylinder, DirectionalLight, Exposure, Face,
-    GlobalAmbientLight, Handle, InfinitePlane3d, LinearRgba, Mesh, Mesh3d, MeshMaterial3d,
+    AlphaMode, AmbientLight, AssetServer, Assets, Camera, Camera3d, Circle, ClearColor,
+    ClearColorConfig, Color, ComputedCameraValues, Cone, Cuboid, Cylinder, DirectionalLight,
+    DirectionalLightShadowMap, Exposure, Face, GlobalAmbientLight, Handle, Image, InfinitePlane3d,
+    LinearRgba, Mesh, Mesh3d, MeshMaterial3d, NotShadowCaster, NotShadowReceiver,
     OrthographicProjection, PbrPlugin, PerspectiveProjection, Plane3d, PlaneMeshBuilder,
-    PointLight, Projection, Ray3d, Rectangle, RenderFrame, ScalingMode, Sphere, SphereMeshBuilder,
-    StandardMaterial, Tonemapping, Torus, ViewportConversionError, light_consts, palettes,
+    PointLight, PointLightShadowMap, Projection, Ray3d, Rectangle, RenderFrame, ScalingMode,
+    Sphere, SphereMeshBuilder, SpotLight, StandardMaterial, Tonemapping, Torus,
+    ViewportConversionError, light_consts, palettes,
 };
 #[cfg(feature = "physics")]
 pub use physics::{
@@ -94,6 +99,9 @@ pub use physics::{
 pub use query::{
     Added, Changed, Has, Mut, Or, Query, QueryData, QueryEntityError, QueryFilter, QueryIter,
     QuerySingleError, QueryState, Ref, Single, Ticks, With, Without,
+};
+pub use sprite::{
+    AlphaMode2d, Anchor, Camera2d, ColorMaterial, Mesh2d, MeshMaterial2d, Rect, Sprite,
 };
 pub use system::{
     ChildSpawner, Commands, EntityCommands, ExclusiveSystem, FunctionSystem, IntoScheduleConfigs,

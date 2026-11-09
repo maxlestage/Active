@@ -937,3 +937,144 @@ mod physics {
         assert!(gap < 3.5, "they came closer: {gap}");
     }
 }
+
+#[test]
+fn textures_spots_shadows_and_2d_reach_the_renderer() {
+    let mut app = App::new();
+    app.add_plugins(DefaultPlugins).add_systems(
+        Startup,
+        |mut commands: Commands,
+         mut meshes: ResMut<Assets<Mesh>>,
+         mut materials: ResMut<Assets<StandardMaterial>>,
+         mut images: ResMut<Assets<Image>>,
+         server: Res<AssetServer>| {
+            let wood = images.add(Image::new(2, 1, vec![120, 80, 40, 255, 90, 60, 30, 255]));
+            commands.spawn((
+                Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color_texture: Some(wood),
+                    normal_map_texture: Some(server.load("textures/bumps.png")),
+                    alpha_mode: AlphaMode::Mask(0.5),
+                    ..default()
+                })),
+                Transform::from_xyz(0.0, 0.5, 0.0),
+            ));
+            commands.spawn((
+                Mesh3d(meshes.add(Plane3d::default().mesh().size(10.0, 10.0))),
+                MeshMaterial3d(materials.add(Color::WHITE)),
+                NotShadowCaster,
+            ));
+            commands.spawn((
+                SpotLight {
+                    intensity: 4.0 * std::f32::consts::PI,
+                    inner_angle: 0.2,
+                    outer_angle: 0.4,
+                    shadows_enabled: true,
+                    ..default()
+                },
+                Transform::from_xyz(0.0, 5.0, 0.0).looking_at(Vec3::ZERO, Vec3::Z),
+            ));
+            commands.spawn((
+                DirectionalLight {
+                    shadows_enabled: true,
+                    ..default()
+                },
+                Transform::default().looking_to(Vec3::new(-0.3, -1.0, -0.2), Vec3::Y),
+            ));
+            commands.spawn((
+                Camera3d::default(),
+                Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ));
+        },
+    );
+    app.update();
+    let render = RenderFrame::extract(app.world(), Vec2::new(800.0, 600.0)).unwrap();
+    let frame = render.frame();
+    assert_eq!(frame.meshes.len(), 2);
+    let crate::scene::Material::Standard(cube) = frame.meshes[0].material else {
+        panic!("a standard material");
+    };
+    assert_eq!(cube.map.as_ref().and_then(|t| t.size()), Some((2, 1)));
+    assert_eq!(cube.alpha_test, 0.5);
+    // Loaded by the asset server: the address, not yet its pixels.
+    let bumps = cube.normal_map.as_ref().expect("the normal map");
+    assert_eq!(
+        bumps.source(),
+        &crate::scene::TextureSource::Url("assets/textures/bumps.png".into())
+    );
+    assert_eq!(bumps.color_space, crate::scene::ColorSpace::Linear);
+    assert!(frame.meshes[0].cast_shadow && !frame.meshes[1].cast_shadow);
+    assert!(frame.meshes[1].receive_shadow);
+    let spot = frame.lights.spot[0];
+    assert!((spot.direction - Vec3::NEG_Y).length() < 1e-5);
+    assert!((spot.color.r - 1.0).abs() < 1e-5);
+    assert!((spot.penumbra - 0.5).abs() < 1e-5);
+    assert_eq!(frame.lights.shadows.len(), 2);
+    assert_eq!(frame.shadow_cameras().len(), 2);
+    // The same path, the same handle.
+    let server = app.world().resource::<AssetServer>();
+    assert_eq!(
+        server.load("textures/bumps.png"),
+        server.load("textures/bumps.png")
+    );
+}
+
+#[test]
+fn a_2d_camera_shows_sprites_and_shapes_in_pixels() {
+    let mut app = App::new();
+    app.add_plugins(DefaultPlugins).add_systems(
+        Startup,
+        |mut commands: Commands,
+         mut meshes: ResMut<Assets<Mesh>>,
+         mut materials: ResMut<Assets<ColorMaterial>>,
+         mut images: ResMut<Assets<Image>>,
+         server: Res<AssetServer>| {
+            commands.spawn(Camera2d);
+            let sheet = images.add(Image::new(4, 2, vec![255; 4 * 2 * 4]));
+            commands.spawn((
+                Sprite {
+                    rect: Some(Rect::new(2.0, 0.0, 4.0, 2.0)),
+                    flip_x: true,
+                    ..Sprite::from_image(sheet)
+                },
+                Anchor::BOTTOM_LEFT,
+                Transform::from_xyz(100.0, 50.0, 1.0),
+            ));
+            // Still downloading: not drawn yet.
+            commands.spawn(Sprite::from_image(server.load("player.png")));
+            commands.spawn(Sprite::from_color(
+                Color::srgb(1.0, 0.0, 0.0),
+                Vec2::new(30.0, 10.0),
+            ));
+            commands.spawn((
+                Mesh2d(meshes.add(Circle::new(20.0))),
+                MeshMaterial2d(materials.add(Color::srgb(0.0, 0.0, 1.0))),
+            ));
+        },
+    );
+    app.update();
+    let render = RenderFrame::extract(app.world(), Vec2::new(800.0, 600.0)).unwrap();
+    let frame = render.frame();
+    assert_eq!(frame.meshes.len(), 3);
+    assert_eq!(frame.tone_mapping, crate::scene::ToneMapping::None);
+    // One unit per pixel: x = 400 is the right edge of an 800 pixel wide window.
+    let edge = Vec3::new(400.0, 0.0, 0.0).apply_matrix4(&(frame.projection * frame.view));
+    assert!((edge.x - 1.0).abs() < 1e-4, "{edge:?}");
+    // The sprite: the part of the sheet, 2 × 2 pixels, from its bottom left corner, mirrored.
+    let sprite = &frame.meshes[0];
+    let (at, _, scale) = sprite.world.decompose();
+    assert!(
+        (scale.x.abs() - 2.0).abs() < 1e-4 && (scale.y - 2.0).abs() < 1e-4,
+        "{scale:?}"
+    );
+    assert!(sprite.world.determinant() < 0.0);
+    let corner = Vec3::new(-0.5, -0.5, 0.0).apply_matrix4(&sprite.world);
+    assert!(
+        (corner - Vec3::new(102.0, 50.0, 1.0)).length() < 1e-4,
+        "{corner:?} {at:?}"
+    );
+    let map = sprite.material.map().expect("the sheet");
+    assert_eq!(map.repeat, Vec2::new(0.5, 1.0));
+    assert_eq!(map.offset, Vec2::new(0.5, 0.0));
+    assert!(sprite.material.surface().transparent);
+}

@@ -27,6 +27,8 @@ pub struct BufferGeometry {
     collider: Option<Collider>,
     /// A surface without volume (a plane): a floor, which stays where it is.
     flat: bool,
+    /// [`bounding_box`](Self::bounding_box), kept once computed (for the shadows).
+    bounds: std::cell::OnceCell<(Vector3, Vector3)>,
 }
 
 /// A shared geometry.
@@ -48,6 +50,7 @@ impl BufferGeometry {
             indices,
             collider: None,
             flat: false,
+            bounds: std::cell::OnceCell::new(),
         };
         if g.normals.len() != g.positions.len() {
             g.compute_vertex_normals();
@@ -114,6 +117,12 @@ impl BufferGeometry {
             n.copy_from_slice(&v.to_array());
         }
         self.normals = normals;
+    }
+
+    /// [`bounding_box`](Self::bounding_box), computed once: change the vertices of a
+    /// geometry before drawing it (the renderer also uploads them once).
+    pub(crate) fn cached_bounds(&self) -> (Vector3, Vector3) {
+        *self.bounds.get_or_init(|| self.bounding_box())
     }
 
     /// The smallest box around the vertices: `(min, max)`.

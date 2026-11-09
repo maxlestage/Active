@@ -1,6 +1,6 @@
 [package]
 name = "active"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.89"
 description = "A simple, fast front-end library for Rust: components, state, routing, complete SEO tags, server rendering and WebAssembly islands."
@@ -61,6 +61,7 @@ web-sys = { version = "0.3.77", optional = true, features = [
   "HtmlCollection",
   "HtmlElement",
   "HtmlHeadElement",
+  "HtmlImageElement",
   "HtmlInputElement",
   "HtmlSelectElement",
   "HtmlTextAreaElement",
@@ -80,8 +81,11 @@ web-sys = { version = "0.3.77", optional = true, features = [
   "UrlSearchParams",
   "WebGl2RenderingContext",
   "WebGlBuffer",
+  "WebGlFramebuffer",
   "WebGlProgram",
+  "WebGlSampler",
   "WebGlShader",
+  "WebGlTexture",
   "WebGlUniformLocation",
   "WebGlVertexArrayObject",
   "WheelEvent",

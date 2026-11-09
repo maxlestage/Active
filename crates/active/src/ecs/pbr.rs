@@ -2,8 +2,9 @@
 //! primitives, materials, lights in physical units, cameras with an exposure and a tone
 //! mapping, drawn by [`active::scene`](crate::scene)'s renderer.
 
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::f32::consts::{FRAC_PI_4, PI, TAU};
+use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
@@ -15,7 +16,9 @@ use super::window::{PrimaryWindow, Window};
 use super::world::{Component, Entity, Resource, World, require};
 use crate::physics::{Collider, Shape};
 use crate::scene::math::{Color as Linear, Mat4, Quat, Vec2, Vec3, linear_to_srgb, srgb_to_linear};
-use crate::scene::{self, BufferGeometry, Geometry, Lights, PointLightData, ToneMapping};
+use crate::scene::{
+    self, BufferGeometry, Geometry, LightShadow, Lights, PointLightData, ToneMapping,
+};
 
 // ----- Colors ---------------------------------------------------------------------------
 
@@ -348,7 +351,7 @@ impl<T> From<&Handle<T>> for Handle<T> {
 /// The assets of one type: `ResMut<Assets<Mesh>>`, then `meshes.add(Cuboid::new(1.0, 1.0,
 /// 1.0))`.
 pub struct Assets<T: 'static> {
-    items: HashMap<u32, T>,
+    pub(crate) items: HashMap<u32, T>,
     next: u32,
 }
 
@@ -421,6 +424,160 @@ impl<T: 'static> Assets<T> {
                 a,
             )
         })
+    }
+}
+
+// ----- Images ---------------------------------------------------------------------------
+
+/// An image, for a material's texture or a sprite: `images.add(Image::new(2, 2, pixels))`,
+/// or `asset_server.load("textures/wood.png")`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Image {
+    texture: scene::Texture,
+}
+
+impl Image {
+    /// An image from pixels: 4 bytes (red, green, blue, alpha, sRGB) per pixel, the top
+    /// row first.
+    pub fn new(width: u32, height: u32, rgba: Vec<u8>) -> Image {
+        Image {
+            texture: scene::Texture::from_rgba8(width, height, rgba),
+        }
+    }
+
+    /// One pixel of one color (`Image::new_fill`).
+    pub fn new_fill(color: Color) -> Image {
+        let [r, g, b, a] = color
+            .to_srgba_array()
+            .map(|c| (c.clamp(0.0, 1.0) * 255.0).round() as u8);
+        Image {
+            texture: scene::Texture::solid([r, g, b, a]),
+        }
+    }
+
+    /// An image the browser downloads (a path of the site, or an address allowing CORS).
+    pub fn from_url(url: impl Into<String>) -> Image {
+        Image {
+            texture: scene::Texture::from_url(url),
+        }
+    }
+
+    /// An image from a scene [`Texture`](scene::Texture) (with its settings: repeat,
+    /// filters…).
+    pub fn from_texture(texture: scene::Texture) -> Image {
+        Image { texture }
+    }
+
+    /// Its size in pixels, once known (at once for pixels, once loaded for a download).
+    pub fn size(&self) -> Option<Vec2> {
+        self.texture
+            .size()
+            .map(|(w, h)| Vec2::new(w as f32, h as f32))
+    }
+
+    /// Its width in pixels (0 until known).
+    pub fn width(&self) -> u32 {
+        self.texture.size().map_or(0, |s| s.0)
+    }
+
+    /// Its height in pixels (0 until known).
+    pub fn height(&self) -> u32 {
+        self.texture.size().map_or(0, |s| s.1)
+    }
+
+    /// The texture drawn.
+    pub fn texture(&self) -> &scene::Texture {
+        &self.texture
+    }
+
+    /// The texture, to change its settings (`texture_mut().wrap_s = Wrapping::Repeat`).
+    pub fn texture_mut(&mut self) -> &mut scene::Texture {
+        &mut self.texture
+    }
+
+    /// Sharp pixels (pixel art: `ImagePlugin::default_nearest()` for one image).
+    pub fn nearest(mut self) -> Image {
+        self.texture = self.texture.nearest();
+        self
+    }
+}
+
+impl From<scene::Texture> for Image {
+    fn from(texture: scene::Texture) -> Image {
+        Image { texture }
+    }
+}
+
+/// Starts downloads of the files of the game: `asset_server.load("icon.png")` gives the
+/// handle at once, the image comes when the browser has it. Paths are relative to
+/// [`base`](Self::base) (`assets/`, like Bevy's folder), unless they start with `/` or a
+/// scheme (`https:`).
+pub struct AssetServer {
+    /// What relative paths are relative to (`assets/`).
+    pub base: String,
+    loaded: RefCell<HashMap<String, u32>>,
+    pending: RefCell<Vec<(u32, String)>>,
+    next: Cell<u32>,
+}
+
+impl Default for AssetServer {
+    fn default() -> AssetServer {
+        AssetServer {
+            base: "assets/".to_owned(),
+            loaded: RefCell::new(HashMap::new()),
+            pending: RefCell::new(Vec::new()),
+            // Far from the handles `Assets::add` gives.
+            next: Cell::new(1 << 31),
+        }
+    }
+}
+
+impl Resource for AssetServer {}
+
+impl AssetServer {
+    /// The handle of the image at `path` (the same handle for the same path).
+    pub fn load(&self, path: impl AsRef<str>) -> Handle<Image> {
+        let path = path.as_ref();
+        let url = if path.starts_with('/') || path.contains("://") || path.starts_with("data:") {
+            path.to_owned()
+        } else {
+            format!("{}{path}", self.base)
+        };
+        let id = *self
+            .loaded
+            .borrow_mut()
+            .entry(url.clone())
+            .or_insert_with(|| {
+                let id = self.next.get();
+                self.next.set(id + 1);
+                self.pending.borrow_mut().push((id, url));
+                id
+            });
+        Handle {
+            id,
+            _marker: PhantomData,
+        }
+    }
+
+    /// Whether the image of a handle is there, with its size known (downloaded).
+    pub fn is_loaded(&self, handle: &Handle<Image>, images: &Assets<Image>) -> bool {
+        images.get(handle).is_some_and(|i| i.size().is_some())
+    }
+}
+
+/// Puts the images asked to the asset server into `Assets<Image>`.
+fn load_images(world: &World) {
+    let pending = match world.get_resource::<AssetServer>() {
+        Some(server) => std::mem::take(&mut *server.pending.borrow_mut()),
+        None => return,
+    };
+    if pending.is_empty() {
+        return;
+    }
+    if let Some(mut images) = world.get_resource_mut::<Assets<Image>>() {
+        for (id, url) in pending {
+            images.items.insert(id, Image::from_url(url));
+        }
     }
 }
 
@@ -894,6 +1051,15 @@ pub struct StandardMaterial {
     pub double_sided: bool,
     /// The faces not drawn (`None`: none, like `double_sided`).
     pub cull_mode: Option<Face>,
+    /// An image multiplied by `base_color`.
+    pub base_color_texture: Option<Handle<Image>>,
+    /// The light given off, as an image multiplied by `emissive`.
+    pub emissive_texture: Option<Handle<Image>>,
+    /// Bumps and grooves: a tangent-space normal map.
+    pub normal_map_texture: Option<Handle<Image>>,
+    /// Roughness in green, metalness in blue, multiplied by `perceptual_roughness` and
+    /// `metallic`.
+    pub metallic_roughness_texture: Option<Handle<Image>>,
 }
 
 impl Default for StandardMaterial {
@@ -908,6 +1074,19 @@ impl Default for StandardMaterial {
             unlit: false,
             double_sided: false,
             cull_mode: Some(Face::Back),
+            base_color_texture: None,
+            emissive_texture: None,
+            normal_map_texture: None,
+            metallic_roughness_texture: None,
+        }
+    }
+}
+
+impl From<Handle<Image>> for StandardMaterial {
+    fn from(texture: Handle<Image>) -> StandardMaterial {
+        StandardMaterial {
+            base_color_texture: Some(texture),
+            ..StandardMaterial::default()
         }
     }
 }
@@ -928,8 +1107,19 @@ impl From<Color> for StandardMaterial {
 }
 
 impl StandardMaterial {
-    /// The scene material that draws it.
+    /// The scene material that draws it, without its textures.
     pub fn to_scene_material(&self) -> scene::Material {
+        self.to_scene_material_with(&Assets::default())
+    }
+
+    /// The scene material that draws it, with its textures from `images`.
+    pub fn to_scene_material_with(&self, images: &Assets<Image>) -> scene::Material {
+        let texture =
+            |h: &Option<Handle<Image>>| h.and_then(|h| images.get(h)).map(|i| i.texture.clone());
+        let alpha_test = match self.alpha_mode {
+            AlphaMode::Mask(t) => t.clamp(0.0, 1.0),
+            _ => 0.0,
+        };
         let transparent = !matches!(self.alpha_mode, AlphaMode::Opaque | AlphaMode::Mask(_));
         let side = match (self.double_sided, self.cull_mode) {
             (true, _) | (_, None) => scene::Side::Double,
@@ -944,13 +1134,23 @@ impl StandardMaterial {
             wireframe: false,
         };
         if self.unlit {
-            scene::Material::Basic(scene::MeshBasicMaterial { surface })
+            scene::Material::Basic(scene::MeshBasicMaterial {
+                surface,
+                map: texture(&self.base_color_texture),
+                alpha_test,
+            })
         } else {
             let mut standard = scene::MeshStandardMaterial::new()
                 .roughness(self.perceptual_roughness)
                 .metalness(self.metallic)
                 .emissive(self.emissive.linear());
             standard.surface = surface;
+            standard.map = texture(&self.base_color_texture);
+            standard.alpha_test = alpha_test;
+            standard.emissive_map = texture(&self.emissive_texture);
+            standard.normal_map = texture(&self.normal_map_texture).map(scene::Texture::linear);
+            standard.roughness_metalness_map =
+                texture(&self.metallic_roughness_texture).map(scene::Texture::linear);
             scene::Material::Standard(standard)
         }
     }
@@ -1029,7 +1229,7 @@ pub struct PointLight {
     pub range: f32,
     /// The size of the bulb (not used here).
     pub radius: f32,
-    /// Whether it casts shadows (shadows are not drawn here).
+    /// Whether it casts shadows (point lights cast none here: use a `SpotLight`).
     pub shadows_enabled: bool,
 }
 
@@ -1059,8 +1259,20 @@ pub struct DirectionalLight {
     pub color: Color,
     /// How much light it brings, in lux.
     pub illuminance: f32,
-    /// Whether it casts shadows (shadows are not drawn here).
+    /// Whether it casts shadows (4 lights casting shadows at most).
     pub shadows_enabled: bool,
+    /// Pushes the shadow back by this depth, against stripes on lit faces.
+    pub shadow_depth_bias: f32,
+    /// Pushes the surface along its normal by this distance, against stripes at grazing
+    /// angles.
+    pub shadow_normal_bias: f32,
+}
+
+impl DirectionalLight {
+    /// The default depth bias of shadows.
+    pub const DEFAULT_SHADOW_DEPTH_BIAS: f32 = 0.0005;
+    /// The default normal bias of shadows.
+    pub const DEFAULT_SHADOW_NORMAL_BIAS: f32 = 0.02;
 }
 
 impl Default for DirectionalLight {
@@ -1069,6 +1281,8 @@ impl Default for DirectionalLight {
             color: Color::WHITE,
             illuminance: light_consts::lux::AMBIENT_DAYLIGHT,
             shadows_enabled: false,
+            shadow_depth_bias: DirectionalLight::DEFAULT_SHADOW_DEPTH_BIAS,
+            shadow_normal_bias: DirectionalLight::DEFAULT_SHADOW_NORMAL_BIAS,
         }
     }
 }
@@ -1079,6 +1293,94 @@ impl Component for DirectionalLight {
         require::<Visibility>(world, entity);
     }
 }
+
+/// A cone of light from a point along its forward (`-z`): a stage light, a torch.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SpotLight {
+    /// Its color.
+    pub color: Color,
+    /// Its power, in lumens (as if it shone all around, like a `PointLight`).
+    pub intensity: f32,
+    /// Beyond this distance, it lights nothing.
+    pub range: f32,
+    /// The size of the bulb (not used here).
+    pub radius: f32,
+    /// Whether it casts shadows (4 lights casting shadows at most).
+    pub shadows_enabled: bool,
+    /// Pushes the shadow back by this depth.
+    pub shadow_depth_bias: f32,
+    /// Pushes the surface along its normal by this distance.
+    pub shadow_normal_bias: f32,
+    /// The angle from the axis where the light starts to fade, in radians.
+    pub inner_angle: f32,
+    /// The angle from the axis where it ends (at most π/2).
+    pub outer_angle: f32,
+}
+
+impl Default for SpotLight {
+    fn default() -> SpotLight {
+        SpotLight {
+            color: Color::WHITE,
+            intensity: light_consts::lumens::VERY_LARGE_CINEMA_LIGHT,
+            range: 20.0,
+            radius: 0.0,
+            shadows_enabled: false,
+            shadow_depth_bias: 0.0005,
+            shadow_normal_bias: 0.02,
+            inner_angle: 0.0,
+            outer_angle: FRAC_PI_4,
+        }
+    }
+}
+
+impl Component for SpotLight {
+    fn on_insert(world: &mut World, entity: Entity) {
+        require::<Transform>(world, entity);
+        require::<Visibility>(world, entity);
+    }
+}
+
+/// On a mesh: it casts no shadow.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NotShadowCaster;
+
+impl Component for NotShadowCaster {}
+
+/// On a mesh: no shadow falls on it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NotShadowReceiver;
+
+impl Component for NotShadowReceiver {}
+
+/// The size of the shadow maps of directional lights, in pixels (2048).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DirectionalLightShadowMap {
+    /// Width and height of the map.
+    pub size: usize,
+}
+
+impl Default for DirectionalLightShadowMap {
+    fn default() -> Self {
+        DirectionalLightShadowMap { size: 2048 }
+    }
+}
+
+impl Resource for DirectionalLightShadowMap {}
+
+/// The size of the shadow maps of spot lights, in pixels (1024).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PointLightShadowMap {
+    /// Width and height of the map.
+    pub size: usize,
+}
+
+impl Default for PointLightShadowMap {
+    fn default() -> Self {
+        PointLightShadowMap { size: 1024 }
+    }
+}
+
+impl Resource for PointLightShadowMap {}
 
 /// The light everywhere, of the whole world.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1546,8 +1848,15 @@ impl Plugin for PbrPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Assets<Mesh>>()
             .init_resource::<Assets<StandardMaterial>>()
+            .init_resource::<Assets<Image>>()
+            .init_resource::<Assets<super::sprite::ColorMaterial>>()
+            .init_resource::<AssetServer>()
             .init_resource::<ClearColor>()
             .init_resource::<GlobalAmbientLight>()
+            .init_resource::<DirectionalLightShadowMap>()
+            .init_resource::<PointLightShadowMap>()
+            .add_systems(super::app::PreUpdate, load_images)
+            .add_systems(super::app::Last, load_images)
             .add_systems(PostUpdate, update_cameras)
             .add_systems(super::PostStartup, update_cameras);
     }
@@ -1555,11 +1864,21 @@ impl Plugin for PbrPlugin {
 
 // ----- What the renderer draws ----------------------------------------------------------
 
+/// One mesh of a [`RenderFrame`].
+#[derive(Clone, Debug)]
+pub(crate) struct DrawItem {
+    pub(crate) geometry: Geometry,
+    pub(crate) material: scene::Material,
+    pub(crate) world: Mat4,
+    pub(crate) cast_shadow: bool,
+    pub(crate) receive_shadow: bool,
+}
+
 /// What the camera sees, made from the world, for the renderer: `frame()` gives the
 /// scene's [`Frame`](scene::Frame).
 #[derive(Clone, Debug)]
 pub struct RenderFrame {
-    meshes: Vec<(Geometry, scene::Material, Mat4)>,
+    meshes: Vec<DrawItem>,
     camera: Mat4,
     projection: Mat4,
     background: Option<Linear>,
@@ -1601,6 +1920,18 @@ impl RenderFrame {
         };
         let (camera_matrix, projection) = (transform.to_matrix(), projection.matrix(viewport));
         drop((camera, transform));
+        let directional_map = world
+            .get_resource::<DirectionalLightShadowMap>()
+            .map_or(2048, |m| m.size) as u32;
+        let spot_map = world
+            .get_resource::<PointLightShadowMap>()
+            .map_or(1024, |m| m.size) as u32;
+        let shadow = |map_size: u32, bias: f32, normal_bias: f32| LightShadow {
+            map_size,
+            bias,
+            normal_bias,
+            ..LightShadow::default()
+        };
 
         // The ambient light is not divided by π like the others: the shader does.
         let mut lights = Lights {
@@ -1623,6 +1954,37 @@ impl RenderFrame {
             }
         }
         for (e, light, at) in world
+            .query::<(Entity, &SpotLight, &GlobalTransform)>()
+            .iter(world)
+        {
+            if visible(e) {
+                let outer = light.outer_angle.clamp(0.0, FRAC_PI_2);
+                lights.spot.push(scene::SpotLightData {
+                    position: at.translation(),
+                    direction: at.forward(),
+                    color: Linear::from(light.color).scale(light.intensity / (4.0 * PI)),
+                    distance: light.range,
+                    decay: 2.0,
+                    angle: outer,
+                    penumbra: if outer > 0.0 {
+                        (1.0 - light.inner_angle.clamp(0.0, outer) / outer).clamp(0.0, 1.0)
+                    } else {
+                        0.0
+                    },
+                });
+                if light.shadows_enabled {
+                    lights.shadows.push(scene::ShadowRequest {
+                        light: scene::ShadowLight::Spot(lights.spot.len() - 1),
+                        settings: shadow(
+                            spot_map,
+                            light.shadow_depth_bias,
+                            light.shadow_normal_bias,
+                        ),
+                    });
+                }
+            }
+        }
+        for (e, light, at) in world
             .query::<(Entity, &DirectionalLight, &GlobalTransform)>()
             .iter(world)
         {
@@ -1631,12 +1993,25 @@ impl RenderFrame {
                     at.back(),
                     Linear::from(light.color).scale(light.illuminance),
                 ));
+                if light.shadows_enabled {
+                    lights.shadows.push(scene::ShadowRequest {
+                        light: scene::ShadowLight::Directional(lights.directional.len() - 1),
+                        settings: shadow(
+                            directional_map,
+                            light.shadow_depth_bias,
+                            light.shadow_normal_bias,
+                        ),
+                    });
+                }
             }
         }
 
         let mut meshes = Vec::new();
         let assets = world.get_resource::<Assets<Mesh>>()?;
         let materials = world.get_resource::<Assets<StandardMaterial>>()?;
+        let empty = Assets::default();
+        let images = world.get_resource::<Assets<Image>>();
+        let images = images.as_deref().unwrap_or(&empty);
         let drawn = world.query::<(
             Entity,
             &Mesh3d,
@@ -1648,13 +2023,16 @@ impl RenderFrame {
                 continue;
             }
             if let (Some(mesh), Some(material)) = (assets.get(mesh.0), materials.get(material.0)) {
-                meshes.push((
-                    mesh.geometry.clone(),
-                    material.to_scene_material(),
-                    at.to_matrix(),
-                ));
+                meshes.push(DrawItem {
+                    geometry: mesh.geometry.clone(),
+                    material: material.to_scene_material_with(images),
+                    world: at.to_matrix(),
+                    cast_shadow: world.get::<NotShadowCaster>(e).is_none(),
+                    receive_shadow: world.get::<NotShadowReceiver>(e).is_none(),
+                });
             }
         }
+        super::sprite::extract_2d(world, &assets, images, &visible, &mut meshes);
         Some(RenderFrame {
             meshes,
             camera: camera_matrix,
@@ -1676,10 +2054,12 @@ impl RenderFrame {
         frame.meshes = self
             .meshes
             .iter()
-            .map(|(geometry, material, world)| scene::Draw {
-                geometry,
-                material,
-                world: *world,
+            .map(|item| scene::Draw {
+                geometry: &item.geometry,
+                material: &item.material,
+                world: item.world,
+                cast_shadow: item.cast_shadow,
+                receive_shadow: item.receive_shadow,
             })
             .collect();
         frame
