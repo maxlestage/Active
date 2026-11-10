@@ -149,7 +149,7 @@ Build the browser bundle with [wasm-bindgen](https://crates.io/crates/wasm-bindg
 
 ```sh
 rustup target add wasm32-unknown-unknown
-cargo install wasm-bindgen-cli --version 0.2.129   # same version as in Cargo.lock
+cargo install wasm-bindgen-cli --version 0.2.130   # same version as in Cargo.lock
 cargo build --lib --target wasm32-unknown-unknown --release
 wasm-bindgen --target web --no-typescript --out-dir pkg target/wasm32-unknown-unknown/release/my_app.wasm
 ```

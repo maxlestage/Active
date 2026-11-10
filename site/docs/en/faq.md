@@ -73,7 +73,7 @@ Heroku has no free tier. At the time of writing, the cheapest option, Eco dynos,
 
 ## Which Rust version do I need?
 
-Rust 1.85 or newer: the crate uses the 2024 edition, declared as `rust-version = "1.85"`. Update with `rustup update`.
+Rust 1.90 or newer (`rust-version = "1.90"`): the crate uses the 2024 edition, and the libraries of its physics engine need Rust 1.90. Update with `rustup update`.
 
 ## Can I use it with Actix Web, Rocket or another server?
 

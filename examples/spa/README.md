@@ -16,7 +16,7 @@ the WebAssembly bundle.
 ```sh
 # once
 rustup target add wasm32-unknown-unknown
-cargo install wasm-bindgen-cli --version 0.2.129
+cargo install wasm-bindgen-cli --version 0.2.130
 
 # from the repository root
 cargo build -p spa --lib --target wasm32-unknown-unknown --profile wasm-release

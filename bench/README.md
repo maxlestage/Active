@@ -20,7 +20,7 @@ Prerequisites:
 
 - Rust (tested with 1.97) and the browser target: `rustup target add wasm32-unknown-unknown`.
 - The wasm-bindgen CLI, at the exact version of the `wasm-bindgen` crate in `Cargo.lock`:
-  `cargo install wasm-bindgen-cli --version 0.2.129` (the runner checks it).
+  `cargo install wasm-bindgen-cli --version 0.2.130` (the runner checks it).
 - Chromium or Chrome, for the browser part. chromiumoxide finds it on the `PATH`; otherwise
   set `CHROME=/path/to/chrome` or pass `--chrome /path/to/chrome`.
 

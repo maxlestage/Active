@@ -2,7 +2,7 @@
 name = "active"
 version = "0.3.0"
 edition = "2024"
-rust-version = "1.89"
+rust-version = "1.90"
 description = "A simple, fast front-end library for Rust: components, state, routing, complete SEO tags, server rendering and WebAssembly islands."
 authors = ["Maxime Nathan Lestage"]
 license-file = "LICENSE"
@@ -39,10 +39,10 @@ physics = [
 client = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys"]
 
 [dependencies]
-wasm-bindgen = { version = "0.2.100", optional = true }
-wasm-bindgen-futures = { version = "0.4.50", optional = true }
-js-sys = { version = "0.3.77", optional = true }
-web-sys = { version = "0.3.77", optional = true, features = [
+wasm-bindgen = { version = "0.2.130", optional = true }
+wasm-bindgen-futures = { version = "0.4.80", optional = true }
+js-sys = { version = "0.3.107", optional = true }
+web-sys = { version = "0.3.107", optional = true, features = [
   "AddEventListenerOptions",
   "CharacterData",
   "Comment",

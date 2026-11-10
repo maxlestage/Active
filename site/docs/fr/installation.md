@@ -9,7 +9,7 @@ Cette page met en place tout ce dont vous avez besoin : la chaîne d'outils Rust
 
 | Outil | Version | Pourquoi |
 | --- | --- | --- |
-| Rust | 1.85 ou plus récent | `active` utilise l'édition 2024 |
+| Rust | 1.90 ou plus récent | `active` utilise l'édition 2024 ; les bibliothèques de son moteur physique demandent 1.90 |
 | Cible `wasm32-unknown-unknown` | n'importe laquelle | compile le bundle du navigateur |
 | `wasm-bindgen-cli` | la même que celle du crate `wasm-bindgen` dans `Cargo.lock` | génère le chargeur et le `.wasm` final |
 
@@ -72,7 +72,7 @@ vitesse = { git = "https://github.com/maxlestage/Vitesse" }
 # Propres au navigateur : le runtime client et le générateur de liaisons.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 active = { git = "https://github.com/maxlestage/Active", features = ["client"] }
-wasm-bindgen = "=0.2.129"
+wasm-bindgen = "=0.2.130"
 ```
 
 Cargo fusionne les deux lignes `active` : sur `wasm32`, le crate reçoit la fonctionnalité `client`, sur le serveur non. Votre code peut donc appeler `active::hydrate` derrière `#[cfg(target_arch = "wasm32")]` :
@@ -105,10 +105,10 @@ Ajoutez la cible de compilation et l'outil en ligne de commande `wasm-bindgen` :
 
 ```sh
 rustup target add wasm32-unknown-unknown
-cargo install wasm-bindgen-cli --version 0.2.129 --locked
+cargo install wasm-bindgen-cli --version 0.2.130 --locked
 ```
 
-La version de la CLI doit être exactement celle du crate `wasm-bindgen` utilisé par votre projet, sinon `wasm-bindgen` s'arrête sur une erreur de version de schéma. Épingler le crate avec `=0.2.129` (comme ci-dessus) garde les deux synchronisés. Pour voir quelle version figure dans votre fichier de verrouillage :
+La version de la CLI doit être exactement celle du crate `wasm-bindgen` utilisé par votre projet, sinon `wasm-bindgen` s'arrête sur une erreur de version de schéma. Épingler le crate avec `=0.2.130` (comme ci-dessus) garde les deux synchronisés. Pour voir quelle version figure dans votre fichier de verrouillage :
 
 ```sh
 cargo tree -i wasm-bindgen --target wasm32-unknown-unknown

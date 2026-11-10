@@ -73,7 +73,7 @@ Heroku no tiene plan gratuito. En el momento de escribir esto, la opción más b
 
 ## ¿Qué versión de Rust necesito?
 
-Rust 1.85 o posterior: el crate usa la edición 2024, declarada como `rust-version = "1.85"`. Actualiza con `rustup update`.
+Rust 1.90 o posterior (`rust-version = "1.90"`): el crate usa la edición 2024 y las bibliotecas de su motor de física necesitan Rust 1.90. Actualiza con `rustup update`.
 
 ## ¿Puedo usarlo con Actix Web, Rocket u otro servidor?
 

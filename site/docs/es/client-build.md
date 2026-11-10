@@ -20,7 +20,7 @@ El cargador es código generado: nunca lo editas. La página lo arranca con la l
 ## Requisitos
 
 - El target: `rustup target add wasm32-unknown-unknown`.
-- La CLI, **exactamente** en la versión del crate `wasm-bindgen` de tu `Cargo.lock`: `cargo install wasm-bindgen-cli --version 0.2.129 --locked`.
+- La CLI, **exactamente** en la versión del crate `wasm-bindgen` de tu `Cargo.lock`: `cargo install wasm-bindgen-cli --version 0.2.130 --locked`.
 - Un crate preparado para dos destinos, como en [Instalación](../installation/#un-crate-dos-destinos): `crate-type = ["cdylib", "rlib"]`, `active` con la feature `client` y `wasm-bindgen` en `[target.'cfg(target_arch = "wasm32")'.dependencies]`, y una función `#[wasm_bindgen(start)]`.
 
 ## Comandos de compilación
@@ -108,7 +108,7 @@ Este repositorio compila su sitio en cada push con GitHub Actions (`.github/work
     targets: wasm32-unknown-unknown
 - uses: Swatinem/rust-cache@v2
 - name: Install wasm-bindgen-cli
-  run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
+  run: cargo install wasm-bindgen-cli --version 0.2.130 --locked
 - name: Build the site
   run: |
     cargo build -p active-site --lib --target wasm32-unknown-unknown --profile wasm-release
@@ -128,7 +128,7 @@ En Heroku, `heroku-build.sh` ejecuta los tres después de que el buildpack `emk/
 
 ### wasm-bindgen informa de una discrepancia de esquema o de versión
 
-La CLI y el crate `wasm-bindgen` no coinciden. Averigua la versión del crate con `cargo tree -i wasm-bindgen --target wasm32-unknown-unknown` e instala la misma versión de la CLI con `cargo install wasm-bindgen-cli --version <version> --locked`. Fijar el crate con `wasm-bindgen = "=0.2.129"` evita sorpresas tras un `cargo update`.
+La CLI y el crate `wasm-bindgen` no coinciden. Averigua la versión del crate con `cargo tree -i wasm-bindgen --target wasm32-unknown-unknown` e instala la misma versión de la CLI con `cargo install wasm-bindgen-cli --version <version> --locked`. Fijar el crate con `wasm-bindgen = "=0.2.130"` evita sorpresas tras un `cargo update`.
 
 ### Errores sobre tokio, mio o sockets al compilar para wasm32
 

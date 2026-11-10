@@ -68,7 +68,7 @@ Les plages de mesure des frameworks qui hydratent se chevauchent : considérez-l
 
 ```sh
 rustup target add wasm32-unknown-unknown
-cargo install wasm-bindgen-cli --version 0.2.129
+cargo install wasm-bindgen-cli --version 0.2.130
 cd bench
 cargo run --release -p runner                    # everything, about 3 minutes after the first build
 cargo run --release -p runner -- ssr             # one part: ssr, wasm, browser or report

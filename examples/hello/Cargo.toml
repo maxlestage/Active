@@ -15,4 +15,4 @@ active = { path = "../../crates/active", default-features = false }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 active = { path = "../../crates/active", default-features = false, features = ["client"] }
-wasm-bindgen = "=0.2.129"
+wasm-bindgen = "=0.2.130"

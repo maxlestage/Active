@@ -9,7 +9,7 @@ This page sets up everything you need: the Rust toolchain, the `active` crate, a
 
 | Tool | Version | Why |
 | --- | --- | --- |
-| Rust | 1.85 or newer | `active` uses the 2024 edition |
+| Rust | 1.90 or newer | `active` uses the 2024 edition; the libraries of its physics engine need 1.90 |
 | `wasm32-unknown-unknown` target | any | compiles the browser bundle |
 | `wasm-bindgen-cli` | same version as the `wasm-bindgen` crate in `Cargo.lock` | generates the loader and the final `.wasm` |
 
@@ -72,7 +72,7 @@ vitesse = { git = "https://github.com/maxlestage/Vitesse" }
 # Browser-only: the client runtime and the bindings generator.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 active = { git = "https://github.com/maxlestage/Active", features = ["client"] }
-wasm-bindgen = "=0.2.129"
+wasm-bindgen = "=0.2.130"
 ```
 
 The two `active` lines are merged by Cargo: on `wasm32` the crate gets the `client` feature, on the server it does not. Your code can therefore call `active::hydrate` behind `#[cfg(target_arch = "wasm32")]`:
@@ -105,10 +105,10 @@ Add the compilation target and the `wasm-bindgen` command-line tool:
 
 ```sh
 rustup target add wasm32-unknown-unknown
-cargo install wasm-bindgen-cli --version 0.2.129 --locked
+cargo install wasm-bindgen-cli --version 0.2.130 --locked
 ```
 
-The CLI version must be exactly the version of the `wasm-bindgen` crate your project uses, otherwise `wasm-bindgen` stops with a schema version error. Pinning the crate with `=0.2.129` (as above) keeps both in sync. To see which version your lock file has:
+The CLI version must be exactly the version of the `wasm-bindgen` crate your project uses, otherwise `wasm-bindgen` stops with a schema version error. Pinning the crate with `=0.2.130` (as above) keeps both in sync. To see which version your lock file has:
 
 ```sh
 cargo tree -i wasm-bindgen --target wasm32-unknown-unknown

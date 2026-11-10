@@ -20,7 +20,7 @@ Le chargeur est généré : vous ne le modifiez jamais. La page le démarre avec
 ## Prérequis
 
 - La cible : `rustup target add wasm32-unknown-unknown`.
-- La CLI, **exactement** à la version du crate `wasm-bindgen` présente dans votre `Cargo.lock` : `cargo install wasm-bindgen-cli --version 0.2.129 --locked`.
+- La CLI, **exactement** à la version du crate `wasm-bindgen` présente dans votre `Cargo.lock` : `cargo install wasm-bindgen-cli --version 0.2.130 --locked`.
 - Un crate configuré pour deux cibles, comme dans [Installation](../installation/#un-crate-deux-cibles) : `crate-type = ["cdylib", "rlib"]`, `active` avec la fonctionnalité `client` et `wasm-bindgen` sous `[target.'cfg(target_arch = "wasm32")'.dependencies]`, ainsi qu'une fonction `#[wasm_bindgen(start)]`.
 
 ## Commandes de compilation
@@ -108,7 +108,7 @@ Ce dépôt compile son site à chaque push avec GitHub Actions (`.github/workflo
     targets: wasm32-unknown-unknown
 - uses: Swatinem/rust-cache@v2
 - name: Install wasm-bindgen-cli
-  run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
+  run: cargo install wasm-bindgen-cli --version 0.2.130 --locked
 - name: Build the site
   run: |
     cargo build -p active-site --lib --target wasm32-unknown-unknown --profile wasm-release
@@ -128,7 +128,7 @@ Sur Heroku, `heroku-build.sh` exécute les trois une fois que le buildpack `emk/
 
 ### wasm-bindgen signale une incompatibilité de schéma ou de version
 
-La CLI et le crate `wasm-bindgen` n'ont pas la même version. Trouvez la version du crate avec `cargo tree -i wasm-bindgen --target wasm32-unknown-unknown` et installez la même version de la CLI avec `cargo install wasm-bindgen-cli --version <version> --locked`. Épingler le crate avec `wasm-bindgen = "=0.2.129"` évite les surprises après un `cargo update`.
+La CLI et le crate `wasm-bindgen` n'ont pas la même version. Trouvez la version du crate avec `cargo tree -i wasm-bindgen --target wasm32-unknown-unknown` et installez la même version de la CLI avec `cargo install wasm-bindgen-cli --version <version> --locked`. Épingler le crate avec `wasm-bindgen = "=0.2.130"` évite les surprises après un `cargo update`.
 
 ### Erreurs à propos de tokio, mio ou des sockets lors de la compilation pour wasm32
 

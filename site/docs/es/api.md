@@ -13,7 +13,7 @@ Esta página enumera todos los elementos públicos del crate `active`, agrupados
 
 Sin `client`, el crate no tiene dependencias. Los manejadores de eventos, los efectos y los callbacks `on_mount` se aceptan y se ignoran, así que los mismos componentes compilan en el servidor. Activa `client` solo para la compilación `wasm32` (consulta [Instalación](../installation/#un-crate-dos-destinos)).
 
-El crate usa la edición 2024 y necesita Rust 1.85 o posterior. No contiene código `unsafe`.
+El crate usa la edición 2024 y necesita Rust 1.90 o posterior. No contiene código `unsafe`.
 
 ## Estructura del crate
 

@@ -20,7 +20,7 @@ The loader is generated: you never edit it. The page starts it with the one line
 ## Requirements
 
 - The target: `rustup target add wasm32-unknown-unknown`.
-- The CLI, at **exactly** the version of the `wasm-bindgen` crate in your `Cargo.lock`: `cargo install wasm-bindgen-cli --version 0.2.129 --locked`.
+- The CLI, at **exactly** the version of the `wasm-bindgen` crate in your `Cargo.lock`: `cargo install wasm-bindgen-cli --version 0.2.130 --locked`.
 - A crate set up for two targets, as in [Installation](../installation/#one-crate-two-targets): `crate-type = ["cdylib", "rlib"]`, `active` with the `client` feature and `wasm-bindgen` under `[target.'cfg(target_arch = "wasm32")'.dependencies]`, and a `#[wasm_bindgen(start)]` function.
 
 ## Build commands
@@ -108,7 +108,7 @@ This repository builds its site on every push with GitHub Actions (`.github/work
     targets: wasm32-unknown-unknown
 - uses: Swatinem/rust-cache@v2
 - name: Install wasm-bindgen-cli
-  run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
+  run: cargo install wasm-bindgen-cli --version 0.2.130 --locked
 - name: Build the site
   run: |
     cargo build -p active-site --lib --target wasm32-unknown-unknown --profile wasm-release
@@ -128,7 +128,7 @@ On Heroku, `heroku-build.sh` runs all three once the `emk/rust` buildpack has in
 
 ### wasm-bindgen reports a schema or version mismatch
 
-The CLI and the `wasm-bindgen` crate differ. Find the crate's version with `cargo tree -i wasm-bindgen --target wasm32-unknown-unknown` and install the same CLI version with `cargo install wasm-bindgen-cli --version <version> --locked`. Pinning the crate with `wasm-bindgen = "=0.2.129"` avoids surprises after `cargo update`.
+The CLI and the `wasm-bindgen` crate differ. Find the crate's version with `cargo tree -i wasm-bindgen --target wasm32-unknown-unknown` and install the same CLI version with `cargo install wasm-bindgen-cli --version <version> --locked`. Pinning the crate with `wasm-bindgen = "=0.2.130"` avoids surprises after `cargo update`.
 
 ### Errors about tokio, mio or sockets when building for wasm32
 

@@ -123,7 +123,7 @@ The `Dockerfile` runs the same commands as the CI and as [Building the client](.
 ```dockerfile
 FROM rust:1-slim-bookworm AS build
 RUN rustup target add wasm32-unknown-unknown \
- && cargo install wasm-bindgen-cli --version 0.2.129 --locked
+ && cargo install wasm-bindgen-cli --version 0.2.130 --locked
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY crates crates
@@ -257,7 +257,7 @@ To build with Docker instead, copy `heroku.yml`, set `"stack": "container"` in `
 ```dockerfile
 FROM rust:1-slim-bookworm AS build
 RUN rustup target add wasm32-unknown-unknown \
- && cargo install wasm-bindgen-cli --version 0.2.129 --locked
+ && cargo install wasm-bindgen-cli --version 0.2.130 --locked
 WORKDIR /src
 COPY . .
 RUN cargo build --lib --target wasm32-unknown-unknown --profile wasm-release \

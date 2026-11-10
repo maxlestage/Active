@@ -27,7 +27,7 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Install wasm-bindgen-cli
-        run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
+        run: cargo install wasm-bindgen-cli --version 0.2.130 --locked
       - name: Format
         run: cargo fmt --all --check
       - name: Lint (server)

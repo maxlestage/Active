@@ -29,7 +29,7 @@ publish = false
 [workspace.dependencies]
 bench-common = { path = "common" }
 active = { path = "../crates/active" }
-wasm-bindgen = "=0.2.129"
+wasm-bindgen = "=0.2.130"
 
 # Same settings for every framework, server and browser.
 [profile.release]

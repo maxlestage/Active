@@ -51,7 +51,7 @@ vitesse = { git = "https://github.com/maxlestage/Vitesse" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 active = { git = "https://github.com/maxlestage/Active", features = ["client"] }
-wasm-bindgen = "=0.2.129"
+wasm-bindgen = "=0.2.130"
 
 [profile.release]
 opt-level = 3

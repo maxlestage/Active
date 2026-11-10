@@ -243,7 +243,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-      - run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
+      - run: cargo install wasm-bindgen-cli --version 0.2.130 --locked
       - run: |
           cargo build --lib --target wasm32-unknown-unknown --profile wasm-release
           wasm-bindgen --target web --no-typescript --out-dir pkg target/wasm32-unknown-unknown/wasm-release/my_blog.wasm
