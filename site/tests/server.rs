@@ -103,19 +103,20 @@ async fn every_page_ends_with_the_signature_footer() {
             "{lang}"
         );
         assert!(footer.contains(&format!("v{}", active::VERSION)), "{lang}");
-        // The five projects of the ecosystem, on their Heroku sites, this one marked as the
-        // current page.
+        // The six projects of the ecosystem, on their Heroku sites (Nuage DB on its
+        // repository), this one marked as the current page.
         for url in [
             "https://active-c1883a966650.herokuapp.com/",
             "https://vitesse-f16135654c3d.herokuapp.com/",
             "https://securite-2db4c1994be7.herokuapp.com/",
             "https://memoire-7f4525f1fdaf.herokuapp.com/",
+            "https://github.com/maxlestage/Nuage",
             "https://paquets-90dfc06b6fea.herokuapp.com/",
         ] {
             assert!(footer.contains(&format!(r#"href="{url}""#)), "{lang} {url}");
         }
-        // Only those five.
-        assert_eq!(footer.matches(r#"class="eco""#).count(), 4, "{lang}");
+        // Only those six.
+        assert_eq!(footer.matches(r#"class="eco""#).count(), 5, "{lang}");
         assert_eq!(
             footer.matches(r#"class="eco current""#).count(),
             1,

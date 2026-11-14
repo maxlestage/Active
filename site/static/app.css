@@ -469,9 +469,29 @@ html.scrolled .header {
 }
 
 html.scrolled .header::before {
-  background: rgba(11, 11, 12, 0.72);
+  background: rgba(11, 11, 12, 0.94);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
+/* The tint does not wait for the script: if it never runs (an old copy in a cache,
+   JavaScript off), the header still turns opaque once the page scrolls, with a
+   scroll-driven animation where the browser has them (phones always have it, see
+   max-width: 900px). */
+@keyframes header-tint {
+  to {
+    background: rgba(11, 11, 12, 0.94);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+}
+
+@supports (animation-timeline: scroll()) {
+  html:not(.scrolled) .header::before {
+    animation: header-tint linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 40px;
+  }
 }
 
 html.hide-header .header:not(.open) {
@@ -2709,6 +2729,18 @@ dialog.search::backdrop {
 @media (max-width: 900px) {
   :root {
     --header: 64px;
+  }
+
+  /* On phones and tablets the header always has its tint: the page never shows through
+     the logo, the languages and the menu button, whatever the script does. */
+  .header {
+    border-color: var(--line);
+  }
+
+  .header::before {
+    background: rgba(11, 11, 12, 0.94);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
   }
 
   .nav {
