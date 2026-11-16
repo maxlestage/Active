@@ -10,6 +10,34 @@ use std::any::{Any, TypeId, type_name};
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::{BuildHasherDefault, Hasher};
+
+/// Hashes a `TypeId`: its bits already come from a strong hash of the type, so they are
+/// used as they are instead of hashing them again with SipHash (the default), which took
+/// a large part of each component and resource lookup.
+#[derive(Default)]
+pub(crate) struct TypeIdHasher(u64);
+
+impl Hasher for TypeIdHasher {
+    fn write_u64(&mut self, n: u64) {
+        self.0 = n;
+    }
+
+    /// Not used by `TypeId` (it writes one `u64`), kept correct for any other input.
+    fn write(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.0 =
+                (self.0.rotate_left(5) ^ u64::from(byte)).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
+        }
+    }
+
+    fn finish(&self) -> u64 {
+        self.0
+    }
+}
+
+/// A map keyed by `TypeId`, with [`TypeIdHasher`].
+pub(crate) type TypeIdMap<V> = HashMap<TypeId, V, BuildHasherDefault<TypeIdHasher>>;
 
 /// An entity: a generational index, cheap to copy and to compare.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -176,8 +204,8 @@ pub(crate) type Command = Box<dyn FnOnce(&mut World)>;
 pub struct World {
     meta: RefCell<Vec<Meta>>,
     free: RefCell<Vec<u32>>,
-    columns: HashMap<TypeId, Box<dyn AnyColumn>>,
-    resources: HashMap<TypeId, ResourceSlot>,
+    columns: TypeIdMap<Box<dyn AnyColumn>>,
+    resources: TypeIdMap<ResourceSlot>,
     pub(crate) commands: RefCell<Vec<Command>>,
     tick: Cell<u32>,
     pub(crate) observers: super::message::Observers,
@@ -207,8 +235,8 @@ impl World {
         World {
             meta: RefCell::new(Vec::new()),
             free: RefCell::new(Vec::new()),
-            columns: HashMap::new(),
-            resources: HashMap::new(),
+            columns: TypeIdMap::default(),
+            resources: TypeIdMap::default(),
             commands: RefCell::new(Vec::new()),
             tick: Cell::new(1),
             observers: Default::default(),

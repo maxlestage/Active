@@ -3,7 +3,6 @@
 
 use std::any::{Any, TypeId};
 use std::cell::{Ref as CellRef, RefCell, RefMut};
-use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
@@ -286,7 +285,7 @@ observer_function!(P0, P1, P2, P3, P4, P5, P6);
 /// The observers of the world, by event type (each a `Vec<Box<dyn ObserverSystem<E>>>`).
 #[derive(Default)]
 pub(crate) struct Observers {
-    by_event: RefCell<HashMap<TypeId, Box<dyn Any>>>,
+    by_event: RefCell<super::world::TypeIdMap<Box<dyn Any>>>,
 }
 
 type ObserverList<E> = Vec<Box<dyn ObserverSystem<E>>>;

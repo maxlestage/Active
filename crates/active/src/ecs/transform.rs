@@ -428,16 +428,18 @@ pub fn propagate_transforms(
             return;
         };
         let world = parent * transform.to_matrix();
+        drop(transform);
         if let Ok(mut global) = globals.get_mut(entity)
             && global.0 != world
         {
             global.0 = world;
         }
-        let children: Vec<Entity> = children.map(|c| c.to_vec()).unwrap_or_default();
-        drop(transform);
-        // A cycle of parents would never end: stop deep down.
-        if depth < 1024 {
-            for child in children {
+        // A cycle of parents would never end: stop deep down. The children are read in
+        // place (shared borrows, like those of the walk below), not copied.
+        if depth < 1024
+            && let Some(children) = children
+        {
+            for &child in &*children {
                 walk(child, world, nodes, globals, depth + 1);
             }
         }
@@ -451,8 +453,7 @@ pub fn propagate_transforms(
         }
         drop(transform);
         if let Ok(children) = root_children.get(entity) {
-            let children = children.to_vec();
-            for child in children {
+            for &child in &*children {
                 walk(child, matrix, &nodes, &mut globals, 1);
             }
         }
@@ -485,9 +486,11 @@ pub fn propagate_visibility(
         {
             v.0 = visible;
         }
-        let children: Vec<Entity> = children.map(|c| c.to_vec()).unwrap_or_default();
-        if depth < 1024 {
-            for child in children {
+        drop(visibility);
+        if depth < 1024
+            && let Some(children) = children
+        {
+            for &child in &*children {
                 walk(child, visible, nodes, inherited, depth + 1);
             }
         }
@@ -499,8 +502,11 @@ pub fn propagate_visibility(
         {
             v.0 = visible;
         }
-        for child in children.map(|c| c.to_vec()).unwrap_or_default() {
-            walk(child, visible, &nodes, &mut inherited, 1);
+        drop(visibility);
+        if let Some(children) = children {
+            for &child in &*children {
+                walk(child, visible, &nodes, &mut inherited, 1);
+            }
         }
     }
 }

@@ -427,6 +427,9 @@ impl std::error::Error for QuerySingleError {}
 pub struct Query<'w, 's, D: QueryData, F: QueryFilter = ()> {
     world: &'w World,
     ticks: Ticks,
+    /// The columns, looked up once: the world is borrowed, no column can appear or go.
+    data: D::Fetch<'w>,
+    filter: F::Fetch<'w>,
     _marker: QueryMarker<'s, D, F>,
 }
 
@@ -435,6 +438,8 @@ impl<'w, D: QueryData, F: QueryFilter> Query<'w, '_, D, F> {
         Query {
             world,
             ticks,
+            data: D::init(world),
+            filter: F::init(world),
             _marker: PhantomData,
         }
     }
@@ -443,8 +448,8 @@ impl<'w, D: QueryData, F: QueryFilter> Query<'w, '_, D, F> {
     pub fn iter(&self) -> QueryIter<'w, D, F> {
         QueryIter {
             world: self.world,
-            data: D::init(self.world),
-            filter: F::init(self.world),
+            data: self.data,
+            filter: self.filter,
             ticks: self.ticks,
             index: 0,
             end: self.world.entity_capacity(),
@@ -461,10 +466,9 @@ impl<'w, D: QueryData, F: QueryFilter> Query<'w, '_, D, F> {
         if !self.world.contains(entity) {
             return Err(QueryEntityError::NoSuchEntity(entity));
         }
-        let (data, filter) = (D::init(self.world), F::init(self.world));
         let index = entity.index() as usize;
-        if D::matches(data, index) && F::keeps(filter, index, self.ticks) {
-            Ok(D::fetch(data, entity, self.ticks))
+        if D::matches(self.data, index) && F::keeps(self.filter, index, self.ticks) {
+            Ok(D::fetch(self.data, entity, self.ticks))
         } else {
             Err(QueryEntityError::QueryDoesNotMatch(entity))
         }
@@ -479,7 +483,7 @@ impl<'w, D: QueryData, F: QueryFilter> Query<'w, '_, D, F> {
     pub fn single(&self) -> Result<D::Item<'w>, QuerySingleError> {
         let mut entities = self.entities();
         match (entities.next(), entities.next()) {
-            (Some(entity), None) => Ok(D::fetch(D::init(self.world), entity, self.ticks)),
+            (Some(entity), None) => Ok(D::fetch(self.data, entity, self.ticks)),
             (None, _) => Err(QuerySingleError::NoEntities),
             (Some(_), Some(_)) => Err(QuerySingleError::MultipleEntities),
         }
@@ -499,8 +503,7 @@ impl<'w, D: QueryData, F: QueryFilter> Query<'w, '_, D, F> {
     pub fn contains(&self, entity: Entity) -> bool {
         self.world.contains(entity) && {
             let index = entity.index() as usize;
-            D::matches(D::init(self.world), index)
-                && F::keeps(F::init(self.world), index, self.ticks)
+            D::matches(self.data, index) && F::keeps(self.filter, index, self.ticks)
         }
     }
 
@@ -512,7 +515,7 @@ impl<'w, D: QueryData, F: QueryFilter> Query<'w, '_, D, F> {
     /// The matching entities, without their components.
     fn entities(&self) -> impl Iterator<Item = Entity> {
         let (world, ticks) = (self.world, self.ticks);
-        let (data, filter) = (D::init(world), F::init(world));
+        let (data, filter) = (self.data, self.filter);
         (0..world.entity_capacity()).filter_map(move |index| {
             let entity = world.entity_at(index)?;
             (D::matches(data, index) && F::keeps(filter, index, ticks)).then_some(entity)

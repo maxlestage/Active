@@ -1078,3 +1078,29 @@ fn a_2d_camera_shows_sprites_and_shapes_in_pixels() {
     assert_eq!(map.offset, Vec2::new(0.5, 0.0));
     assert!(sprite.material.surface().transparent);
 }
+
+#[test]
+fn component_types_are_hashed_apart() {
+    use super::world::TypeIdHasher;
+    use std::any::TypeId;
+    use std::hash::{BuildHasher, BuildHasherDefault, Hasher};
+    let build = BuildHasherDefault::<TypeIdHasher>::default();
+    let hashes = [
+        TypeId::of::<Position>(),
+        TypeId::of::<Velocity>(),
+        TypeId::of::<Player>(),
+        TypeId::of::<Enemy>(),
+    ]
+    .map(|id| build.hash_one(id));
+    for (i, a) in hashes.iter().enumerate() {
+        assert!(hashes[i + 1..].iter().all(|b| a != b));
+    }
+    // Other input than a `TypeId` is hashed too.
+    let bytes = |b: &[u8]| {
+        let mut h = TypeIdHasher::default();
+        h.write(b);
+        h.finish()
+    };
+    assert_ne!(bytes(b"ab"), bytes(b"ba"));
+    assert_eq!(bytes(b"ab"), bytes(b"ab"));
+}
