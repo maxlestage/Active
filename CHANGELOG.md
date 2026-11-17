@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.2
+
+Faster server-side rendering, same output. Measured natively (release profile) with the
+repository's SSR benchmark (`bench`, `ssr-active`: the product page, head and body), median of
+5 interleaved runs:
+
+| Case | 0.3.1 | 0.3.2 | Gain |
+| --- | ---: | ---: | ---: |
+| SSR product page (1.9 KB) | 5.53 µs | 5.17 µs | −6 % |
+
+- HTML escaping (text, attributes and `<head>` tags) tests 16 bytes at a time for the five
+  special characters, instead of looking each byte up in a table, and only looks byte by
+  byte inside a block that has one. The HTML written is byte for byte the same.
+
 ## 0.3.1
 
 Faster ECS, same behavior. Measured natively (release profile) on `App::update` with
