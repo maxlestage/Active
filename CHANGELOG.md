@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.3.3
+
+Faster HTML escaping, above all when special characters are frequent (0.3.2 had made that
+case slower than 0.3.1), same output. Measured natively (release profile), median of 7
+interleaved runs, on a page of 400 paragraphs rendered by `Document::render` (text with no
+special character, or with one character in eight or one in two among `& " < >`):
+
+| Case | 0.3.1 | 0.3.2 | 0.3.3 | Gain on 0.3.2 |
+| --- | ---: | ---: | ---: | ---: |
+| No special character (42 KB) | 124.8 µs | 107.1 µs | 105.8 µs | −1 % |
+| One in eight (57 KB) | 168.6 µs | 185.3 µs | 155.8 µs | −16 % |
+| One in two (105 KB) | 266.9 µs | 305.0 µs | 269.1 µs | −12 % |
+
+And the escaping alone (`escape_into` on 34 KB as one string, median of 3 × 15 interleaved
+runs; the documentation text is the site's English Markdown):
+
+| Case | 0.3.1 | 0.3.2 | 0.3.3 | Gain on 0.3.2 |
+| --- | ---: | ---: | ---: | ---: |
+| No special character | 10.9 µs | 11.9 µs | 3.4 µs | −71 % |
+| Documentation text (1 in 58) | 19.3 µs | 15.6 µs | 5.9 µs | −62 % |
+| One in eight | 47.4 µs | 54.7 µs | 30.2 µs | −45 % |
+| One in two | 133.1 µs | 154.4 µs | 116.1 µs | −25 % |
+
+- HTML escaping turns each block of 16 bytes into a bit mask of its special characters and
+  takes them from the mask one after the other, instead of testing the block again and then
+  looking byte by byte for each one. A block without special characters still costs one
+  test. The HTML written is byte for byte the same.
+
 ## 0.3.2
 
 Faster server-side rendering, same output. Measured natively (release profile) with the
