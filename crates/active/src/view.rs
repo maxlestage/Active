@@ -110,7 +110,9 @@ pub(crate) type Mount = Rc<dyn Fn(&crate::event::Dom)>;
 pub struct Element {
     pub(crate) tag: &'static str,
     pub(crate) attrs: Vec<(Str, Attr)>,
-    pub(crate) classes: Vec<Str>,
+    /// The static classes, joined by spaces (empty ones skipped): one class needs no
+    /// allocation.
+    pub(crate) classes: Str,
     pub(crate) content: Content,
     /// Created by the first `class_if`, `on` or `on_mount`: static elements stay small.
     pub(crate) live: Option<Box<Live>>,
@@ -129,7 +131,7 @@ pub fn el(tag: &'static str) -> Element {
     Element {
         tag,
         attrs: Vec::new(),
-        classes: Vec::new(),
+        classes: Cow::Borrowed(""),
         content: Content::Text(Cow::Borrowed("")),
         live: None,
     }
@@ -499,7 +501,22 @@ impl Element {
     /// Adds classes (space separated). Can be called several times.
     #[must_use]
     pub fn class(mut self, class: impl Into<Str>) -> Self {
-        self.classes.push(class.into());
+        let class = class.into();
+        if self.classes.is_empty() {
+            self.classes = class;
+        } else if !class.is_empty() {
+            let classes = match &mut self.classes {
+                Cow::Owned(classes) => classes,
+                Cow::Borrowed(first) => {
+                    let mut classes = String::with_capacity(first.len() + 1 + class.len());
+                    classes.push_str(first);
+                    self.classes = Cow::Owned(classes);
+                    self.classes.to_mut()
+                }
+            };
+            classes.push(' ');
+            classes.push_str(&class);
+        }
         self
     }
 
@@ -1020,10 +1037,13 @@ impl Element {
 
     /// Writes ` class="…"` (static classes, then the reactive ones that are on), or nothing.
     fn write_class(&self, out: &mut String) {
-        let toggles = self.class_toggles().iter().filter(|(_, on)| on());
-        let mut open = false;
-        for class in self.classes.iter().chain(toggles.map(|(c, _)| c)) {
-            if class.is_empty() {
+        let mut open = !self.classes.is_empty();
+        if open {
+            out.push_str(" class=\"");
+            escape_into(out, &self.classes);
+        }
+        for (class, on) in self.class_toggles() {
+            if !on() || class.is_empty() {
                 continue;
             }
             out.push_str(if open { " " } else { " class=\"" });
@@ -1420,6 +1440,41 @@ mod tests {
         assert!(live < 10, "{live} states still alive");
         let read = std::panic::catch_unwind(|| old.get());
         assert!(read.is_err(), "a released state must not be readable");
+    }
+
+    #[test]
+    fn empty_classes_are_skipped_and_the_others_are_joined_by_one_space() {
+        let class = |e: Element| Node::from(e).render();
+        assert_eq!(class(div().class("").class("")), "<div></div>");
+        assert_eq!(
+            class(div().class("").class("a")),
+            r#"<div class="a"></div>"#
+        );
+        assert_eq!(
+            class(
+                div()
+                    .class("a")
+                    .class("")
+                    .class(String::from("b&c"))
+                    .class(" ")
+                    .class("d")
+            ),
+            r#"<div class="a b&amp;c   d"></div>"#
+        );
+        assert_eq!(
+            class(
+                div()
+                    .class_if("t", || true)
+                    .class_if("", || true)
+                    .class_if("u", || false)
+                    .class("s")
+            ),
+            r#"<div class="s t"></div>"#
+        );
+        assert_eq!(
+            class(div().class_if("t", || true).class_if("v", || true)),
+            r#"<div class="t v"></div>"#
+        );
     }
 
     #[test]

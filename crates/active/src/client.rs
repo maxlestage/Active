@@ -1393,10 +1393,8 @@ fn mount_node(node: &Node, parent: &DomElement, before: Option<&DomNode>, doc: &
                 doc.create_element(e.tag)
             };
             let Ok(dom) = created else { return };
-            for class in &e.classes {
-                for c in class.split_whitespace() {
-                    let _ = dom.class_list().add_1(c);
-                }
+            for c in e.classes.split_whitespace() {
+                let _ = dom.class_list().add_1(c);
             }
             for (name, value) in &e.attrs {
                 if let Attr::Static(v) = value {

@@ -186,20 +186,21 @@ impl Runtime {
         }
     }
 
-    /// The readers of a state.
-    fn subscribers(&self, key: Key) -> Vec<Key> {
-        match self.states.borrow().get(key.index) {
-            Some(slot) if slot.version == key.version => slot.subscribers.clone(),
-            _ => Vec::new(),
+    /// Marks the readers of a state. [`mark`](Runtime::mark) only changes effects, so the
+    /// list is read in place instead of being copied.
+    fn mark_subscribers(&self, key: Key, status: Status) {
+        let states = self.states.borrow();
+        if let Some(slot) = states.get(key.index).filter(|s| s.version == key.version) {
+            for &effect in &slot.subscribers {
+                self.mark(effect, status);
+            }
         }
     }
 
     /// The state changed: its readers are marked, then run (unless a propagation is already
     /// running: it picks them up once the current effect is done).
     fn notify(&self, key: Key) {
-        for effect in self.subscribers(key) {
-            self.mark(effect, Status::Dirty);
-        }
+        self.mark_subscribers(key, Status::Dirty);
         self.propagate();
     }
 
@@ -231,9 +232,7 @@ impl Runtime {
         }
         // Below a memo, values may change: checked when read.
         if let Some(state) = memo_of {
-            for reader in self.subscribers(state) {
-                self.mark(reader, Status::Check);
-            }
+            self.mark_subscribers(state, Status::Check);
         }
     }
 
@@ -280,7 +279,15 @@ impl Runtime {
                 .get(effect.index)
                 .filter(|s| s.version == effect.version)
             {
-                Some(slot) if !slot.running => (slot.status, slot.dependencies.clone()),
+                // The dependencies are only walked to check memos.
+                Some(slot) if !slot.running => (
+                    slot.status,
+                    if slot.status == Status::Check {
+                        slot.dependencies.clone()
+                    } else {
+                        Vec::new()
+                    },
+                ),
                 _ => return,
             }
         };
@@ -378,7 +385,7 @@ impl Runtime {
     /// Runs `f` as `effect`: the states it reads subscribe the effect, which is up to date
     /// afterwards. `None` while the effect is already running.
     fn run_as<R>(&self, key: Key, f: impl FnOnce() -> R) -> Option<R> {
-        let dependencies = {
+        {
             let mut effects = self.effects.borrow_mut();
             let slot = effects
                 .get_mut(key.index)
@@ -388,12 +395,10 @@ impl Runtime {
             }
             slot.running = true;
             slot.status = Status::Clean;
-            std::mem::take(&mut slot.dependencies)
-        };
-        // Dependencies are collected again on every run.
-        {
+            // Dependencies are collected again on every run, in the same list (emptied, its
+            // memory kept).
             let mut states = self.states.borrow_mut();
-            for dep in dependencies {
+            for dep in slot.dependencies.drain(..) {
                 if let Some(slot) = states
                     .get_mut(dep.index)
                     .filter(|s| s.version == dep.version)

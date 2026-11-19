@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.3.4
+
+Faster server-side rendering of classes and faster reactive updates, same output and same
+behavior. Measured natively (release profile), median of 9 interleaved runs, on a page of
+200 product cards (2,000 elements with classes and attributes, 72 KB) and of 20 cards:
+
+| Case | 0.3.3 | 0.3.4 | Gain |
+| --- | ---: | ---: | ---: |
+| 200 cards: build + render + drop | 234.3 µs | 216.5 µs | −8 % |
+| 200 cards: render | 76.5 µs | 61.4 µs | −20 % |
+| 200 cards: drop | 39.1 µs | 33.8 µs | −14 % |
+| 200 cards: build + drop, in a loop | 215.1 µs | 194.2 µs | −10 % |
+| 20 cards: build + render + drop | 23.8 µs | 21.0 µs | −11 % |
+
+And a `State::set` with its effects (the `client` feature compiled natively, median of 7
+runs of 15 batches):
+
+| Case | 0.3.3 | 0.3.4 | Gain |
+| --- | ---: | ---: | ---: |
+| One state read by one effect | 68.2 ns | 40.1 ns | −41 % |
+| One state read by ten effects | 584 ns | 376 ns | −36 % |
+| A memo read by three effects | 239.8 ns | 147.9 ns | −38 % |
+| One effect reading four states | 105.9 ns | 76.2 ns | −28 % |
+
+- An element keeps its static classes in one string, joined by spaces as they are added:
+  an element with one class no longer allocates a list, and the server writes the classes
+  with one escaping call. The HTML written is byte for byte the same (static export of the
+  site compared file by file with 0.3.3).
+- A changed state marks its readers by reading its list of subscribers in place instead of
+  copying it; an effect that runs reuses the memory of its list of dependencies instead of
+  allocating a new one, and its dependencies are only copied when memos have to be checked.
+  Effects run in the same order, as many times.
+- The site's WebAssembly bundle is 1,051 bytes smaller.
+
 ## 0.3.3
 
 Faster HTML escaping, above all when special characters are frequent (0.3.2 had made that
